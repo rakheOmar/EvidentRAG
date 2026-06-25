@@ -1,0 +1,5 @@
+# Cloud API models over local models for embeddings and reranking
+
+EvidentRAG uses Google's Gemini Embedding 2 API for embeddings and Cohere's Rerank API for cross-encoder reranking, rather than self-hosted local models. We chose cloud APIs because (a) the model quality gap between Gemini Embedding 2 (MTEB retrieval 67.71) and the best local alternatives is significant, (b) Cohere Rerank is state-of-the-art among cross-encoders, and (c) avoiding local GPU dependencies keeps the Docker-Compose deployment lightweight. The trade-off is that the demo is not fully self-contained — it requires API keys and internet access at runtime. This is acceptable for a portfolio demo where demonstrating state-of-the-art quality matters more than air-gapped operation.
+
+**Consequences**: API keys for Google AI and Cohere must be provided as environment variables. Embedding and reranking calls incur latency (~100-300ms per batch) and cost (~$0.0002 per 1K tokens embedded, Cohere pricing per search). OpenAI-compatible fallback is not currently implemented; the APIs are hard dependencies.

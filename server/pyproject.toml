@@ -1,0 +1,14 @@
+[project]
+name = "evidentrag"
+version = "0.1.0"
+description = "Adaptive RAG Engine with Evidence Retrieval Memory"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.138.0",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.0",
+    "qdrant-client>=1.13.0",
+    "psycopg2-binary>=2.9.0",
+    "redis>=5.2.0",
+]

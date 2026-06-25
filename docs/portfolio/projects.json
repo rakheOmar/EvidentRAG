@@ -1,0 +1,548 @@
+{
+  "projects": [
+    {
+      "title": "ECI-SLM",
+      "href": "https://github.com/rakheOmar/eci-slm",
+      "active": true,
+      "description": "ECI-SLM is a compact TensorFlow decoder-only language model for Election Commission of India domain knowledge. Built from scratch with RoPE, RMSNorm, ReLU^2 MLP, and grouped-query attention. The most intensive part was data gathering — I collected content from ECI handbooks, official websites, the constitution, various election acts, and articles. Manual extraction combined with regex cleaning and OCR for scanned documents took weeks. I then augmented the dataset using a Qwen 397B model to 2.5x the original size, followed by supervised fine-tuning using Unsloth/Llama-3.2-1B-Instruct with proper data formatting for assistant-masked training.",
+      "techStack": [
+        "TensorFlow",
+        "Python",
+        "Jupyter Notebook",
+        "SentencePiece",
+        "Unsloth",
+        "Llama-3.2-1B-Instruct",
+        "Qwen",
+        "OCR",
+        "Regex"
+      ],
+      "teammates": [],
+      "links": [
+        {
+          "type": "Source",
+          "href": "https://github.com/rakheOmar/eci-slm",
+          "icon": "github"
+        }
+      ],
+      "image": "",
+      "video": ""
+    },
+    {
+      "title": "DebunkAI",
+      "href": "",
+      "active": true,
+      "description": "DebunkAI is an agentic misinformation detection ecosystem with a FastAPI + LangGraph backend, a React dashboard, a Chrome extension, and a Flutter mobile app. It ingests content from social platforms, verifies claims against trusted sources, and can generate evidence-backed counter-responses when high-risk false narratives start spreading.",
+      "techStack": [
+        "LangGraph",
+        "Groq",
+        "Supabase",
+        "Flutter",
+        "React",
+        "Vite",
+        "shadcn/ui",
+        "Chrome Extension",
+        "Node.js",
+        "Python",
+        "FastAPI"
+      ],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Shreyas Pansare",
+          "avatar": "https://github.com/shreyas-exe.png",
+          "url": "https://github.com/shreyas-exe"
+        },
+        {
+          "name": "Tejas Sidhwani",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        },
+        {
+          "name": "Janesh Shetty",
+          "avatar": "https://github.com/JANESH0007.png",
+          "url": "https://github.com/JANESH0007"
+        }
+      ],
+      "links": [],
+      "image": "/project-preview/debunkai_preview.png",
+      "video": ""
+    },
+    {
+      "title": "ML Network Security Project",
+      "href": "https://github.com/rakheOmar/ml-network-security-project",
+      "active": true,
+      "description": "This is an end-to-end phishing detection MLOps pipeline. It runs data ingestion, validation, transformation, model training, and experiment tracking, then serves predictions through a FastAPI API. I built it to make model training and deployment repeatable instead of notebook-driven.",
+      "techStack": [
+        "Python",
+        "scikit-learn",
+        "FastAPI",
+        "MLflow",
+        "MongoDB Atlas",
+        "Docker"
+      ],
+      "teammates": [],
+      "links": [
+        {
+          "type": "Source",
+          "href": "https://github.com/rakheOmar/ml-network-security-project",
+          "icon": "github"
+        }
+      ],
+      "image": "",
+      "video": ""
+    },
+    {
+      "title": "RubixProctor",
+      "href": "",
+      "active": true,
+      "description": "RubixProctor is our attempt to make remote exams harder to game without turning them into a privacy nightmare. It uses a dual-device setup: an Electron desktop app locks the system, and a companion Flutter mobile app gives a 360-degree room view. Edge models flag suspicious behavior, multiple faces, and unauthorized devices in real time. We also built offline handling so sessions remain reliable during unstable network conditions.",
+      "techStack": [
+        "Electron",
+        "React",
+        "Node.js",
+        "TensorFlow.js",
+        "WebRTC",
+        "Socket.io"
+      ],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Tejas Sidhwani",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        },
+        {
+          "name": "Yash Singrodia",
+          "avatar": "https://github.com/Yash19075.png",
+          "url": "https://github.com/Yash19075"
+        },
+        {
+          "name": "Rishit Sharma",
+          "avatar": "https://github.com/RishitSharma88.png",
+          "url": "https://github.com/RishitSharma88"
+        }
+      ],
+      "links": [],
+      "image": "/project-preview/rubixproctor_preview.png",
+      "video": ""
+    },
+    {
+      "title": "Mirage",
+      "href": "",
+      "active": true,
+      "description": "Mirage is an AI companion that reacts to how you sound and look, not just what you type. It uses computer vision and audio cues to estimate emotional state, then responds through a 3D avatar with voice modulation and facial expressions. Long-term memory keeps conversations consistent over time, which makes interactions feel less disposable.",
+      "techStack": [
+        "Python",
+        "OpenCV",
+        "Three.js",
+        "OpenAI API",
+        "React",
+        "R3F"
+      ],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Tejas Sidhwani",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        },
+        {
+          "name": "Yash Singrodia",
+          "avatar": "https://github.com/Yash19075.png",
+          "url": "https://github.com/Yash19075"
+        },
+        {
+          "name": "Shreyas Pansare",
+          "avatar": "https://github.com/shreyas-exe.png",
+          "url": "https://github.com/shreyas-exe"
+        }
+      ],
+      "links": [],
+      "image": "/project-preview/mirage_preview.png",
+      "video": ""
+    },
+    {
+      "title": "PromptZerk",
+      "href": "",
+      "active": true,
+      "description": "PromptZerk is a workspace for prompt engineers and AI developers. It helps you write, test, and version prompts across multiple LLM providers without switching tools. It includes variable injection, A/B prompt testing, cost estimation, and a shared prompt library.",
+      "techStack": ["Next.js", "TypeScript", "Tailwind CSS", "Prisma"],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Tejas Sidhwani",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        }
+      ],
+      "links": [],
+      "image": "/project-preview/promptzerk_preview.png",
+      "video": ""
+    },
+    {
+      "title": "Markdrop",
+      "href": "https://markdrop.vercel.app/",
+      "active": true,
+      "description": "I built Markdrop because writing README files in raw markdown slows me down. It gives you a visual editor, drag-and-drop blocks, and cloud sync so you can publish polished docs quickly.",
+      "techStack": [
+        "Next.js",
+        "TypeScript",
+        "Tailwind CSS",
+        "Supabase",
+        "React DnD"
+      ],
+      "teammates": [],
+      "links": [
+        {
+          "type": "Website",
+          "href": "https://markdrop.vercel.app/",
+          "icon": "globe"
+        },
+        {
+          "type": "Source",
+          "href": "https://github.com/rakheOmar/Markdrop",
+          "icon": "github"
+        }
+      ],
+      "image": "/project-preview/markdrop_preview.avif",
+      "video": "/project-demo/markdrop.webm"
+    },
+    {
+      "title": "AnalyserGPT",
+      "href": "https://github.com/rakheOmar/AnalyserGPT",
+      "active": true,
+      "description": "AnalyserGPT is a multi-agent data analysis app I built with Microsoft AutoGen. You can drop in a raw dataset, and the agents handle hypothesis generation, code writing, execution, and report creation. I containerized the runtime with Docker so generated code runs in an isolated, reproducible environment.",
+      "techStack": [
+        "Python",
+        "Microsoft AutoGen",
+        "Streamlit",
+        "Docker",
+        "Pandas",
+        "Plotly"
+      ],
+      "teammates": [],
+      "links": [
+        {
+          "type": "Source",
+          "href": "https://github.com/rakheOmar/AnalyserGPT",
+          "icon": "github"
+        }
+      ],
+      "image": "/project-preview/analysergpt_preview.webp",
+      "video": ""
+    },
+    {
+      "title": "Forensight",
+      "href": "",
+      "active": true,
+      "description": "Forensight automates parts of digital forensics that usually take hours of manual triage. It uses a multi-agent pipeline to parse logs, network traffic, and file metadata, then flags likely anomalies and breach signals. We used graph visualization so investigators can trace attack paths and timelines faster.",
+      "techStack": [
+        "Python",
+        "LangChain",
+        "Neo4j",
+        "React",
+        "FastAPI",
+        "D3.js"
+      ],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Tejas Sidhwani",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        },
+        {
+          "name": "Yash Singrodia",
+          "avatar": "https://github.com/Yash19075.png",
+          "url": "https://github.com/Yash19075"
+        },
+        {
+          "name": "Rishit Sharma",
+          "avatar": "https://github.com/RishitSharma88.png",
+          "url": "https://github.com/RishitSharma88"
+        },
+        {
+          "name": "Raj Telang",
+          "avatar": "https://github.com/TelangRaj.png",
+          "url": "https://github.com/TelangRaj"
+        }
+      ],
+      "links": [],
+      "image": "/project-preview/forensight_preview.png",
+      "video": ""
+    },
+    {
+      "title": "CiviSeva",
+      "href": "",
+      "active": true,
+      "description": "CiviSeva is a civic reporting app for issues like potholes and garbage buildup. Citizens submit reports from mobile, computer vision tags severity, and geo-based routing helps municipal teams plan responses. The goal is simple: close issues faster with better use of field crews.",
+      "techStack": [
+        "Flutter",
+        "Firebase",
+        "Google Maps API",
+        "TensorFlow Lite",
+        "Python"
+      ],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Tejas Sidhwani",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        },
+        {
+          "name": "Yash Singrodia",
+          "avatar": "https://github.com/Yash19075.png",
+          "url": "https://github.com/Yash19075"
+        },
+        {
+          "name": "Rishit Sharma",
+          "avatar": "https://github.com/RishitSharma88.png",
+          "url": "https://github.com/RishitSharma88"
+        },
+        {
+          "name": "Raj Telang",
+          "avatar": "https://github.com/TelangRaj.png",
+          "url": "https://github.com/TelangRaj"
+        }
+      ],
+      "links": [],
+      "image": "/project-preview/civiseva_preview.png",
+      "video": ""
+    },
+    {
+      "title": "LifeSave",
+      "href": "",
+      "active": true,
+      "description": "LifeSave coordinates donors, hospitals, and blood banks in one system with live inventory visibility. An agentic matching flow monitors demand and supply, triggers alerts, and suggests likely donor matches for urgent cases. We focused on reducing search time and wastage during emergencies.",
+      "techStack": [
+        "MERN Stack",
+        "Socket.io",
+        "Twilio API",
+        "OpenAI",
+        "Google Maps API"
+      ],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Tejas Sidhwani",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        },
+        {
+          "name": "Yash Singrodia",
+          "avatar": "https://github.com/Yash19075.png",
+          "url": "https://github.com/Yash19075"
+        },
+        {
+          "name": "Raj Telang",
+          "avatar": "https://github.com/TelangRaj.png",
+          "url": "https://github.com/TelangRaj"
+        }
+      ],
+      "links": [],
+      "image": "/project-preview/lifesave_preview.png",
+      "video": ""
+    },
+    {
+      "title": "KisaanCredit",
+      "href": "https://github.com/rakheOmar/KisaanCredit",
+      "active": true,
+      "description": "KisaanCredit helps small farmers access carbon credit markets. The platform uses satellite imagery and AI checks to verify sustainable farming activity, then records credits on-chain for traceability. We also added a gamified mobile flow to keep day-to-day usage simple.",
+      "techStack": [
+        "Flutter",
+        "Solidity",
+        "Polygon",
+        "Python",
+        "Satellite API",
+        "FastAPI"
+      ],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Tejas Sidhwani",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        },
+        {
+          "name": "Yash Singrodia",
+          "avatar": "https://github.com/Yash19075.png",
+          "url": "https://github.com/Yash19075"
+        },
+        {
+          "name": "Rishit Sharma",
+          "avatar": "https://github.com/RishitSharma88.png",
+          "url": "https://github.com/RishitSharma88"
+        }
+      ],
+      "links": [
+        {
+          "type": "Source",
+          "href": "https://github.com/rakheOmar/KisaanCredit",
+          "icon": "github"
+        }
+      ],
+      "image": "/project-preview/kisaancredit_preview.png",
+      "video": "/project-demo/kisaan-credit.webm"
+    },
+    {
+      "title": "SkillVerse",
+      "href": "",
+      "active": true,
+      "description": "SkillVerse is a student freelance marketplace built around trust and payout safety. Escrow and payments run through smart contracts, AI tools help with proposal drafting and rate estimation, and verified skill tests help clients evaluate candidates.",
+      "techStack": [
+        "Next.js",
+        "Ethereum",
+        "IPFS",
+        "Tailwind CSS",
+        "Solidity",
+        "Web3.js"
+      ],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Tejas",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        },
+        {
+          "name": "Yash Singrodia",
+          "avatar": "https://github.com/Yash19075.png",
+          "url": "https://github.com/Yash19075"
+        },
+        {
+          "name": "Raj Telang",
+          "avatar": "https://github.com/TelangRaj.png",
+          "url": "https://github.com/TelangRaj"
+        }
+      ],
+      "links": [],
+      "image": "/project-preview/skillverse_preview.png",
+      "video": ""
+    },
+    {
+      "title": "PaperSprint",
+      "href": "",
+      "active": true,
+      "description": "PaperSprint handles last-minute campus printing. Students can upload files, pay online, and get prints delivered in about 15 minutes. It supports cloud file imports and live order tracking.",
+      "techStack": [
+        "React",
+        "Node.js",
+        "Razorpay",
+        "AWS S3",
+        "Express",
+        "MongoDB"
+      ],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Tejas Sidhwani",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        },
+        {
+          "name": "Yash Singrodia",
+          "avatar": "https://github.com/Yash19075.png",
+          "url": "https://github.com/Yash19075"
+        },
+        {
+          "name": "Raj Telang",
+          "avatar": "https://github.com/TelangRaj.png",
+          "url": "https://github.com/TelangRaj"
+        }
+      ],
+      "links": [],
+      "image": "/project-preview/papersprint_preview.png",
+      "video": ""
+    },
+    {
+      "title": "TSEC - Student Dashboard",
+      "href": "",
+      "active": true,
+      "description": "TSEC Student Dashboard combines timetables, exam schedules, attendance, and notices in one place. We built it as a responsive interface so students can keep up with academic tasks from any device.",
+      "techStack": ["HTML", "CSS", "JavaScript", "Bootstrap", "Chart.js"],
+      "teammates": [
+        {
+          "name": "Omar Rakhe",
+          "avatar": "/portfolio_pfp.webp",
+          "url": "https://github.com/rakheOmar"
+        },
+        {
+          "name": "Tejas Sidhwani",
+          "avatar": "https://github.com/TejasS1233.png",
+          "url": "https://github.com/TejasS1233"
+        },
+        {
+          "name": "Yash Singrodia",
+          "avatar": "https://github.com/Yash19075.png",
+          "url": "https://github.com/Yash19075"
+        },
+        {
+          "name": "Rishit Sharma",
+          "avatar": "https://github.com/RishitSharma88.png",
+          "url": "https://github.com/RishitSharma88"
+        }
+      ],
+      "links": [],
+      "image": "/project-preview/tsec_student_dashboard_preview.png",
+      "video": ""
+    },
+    {
+      "title": "Replacement Calculator",
+      "href": "https://github.com/rakheOmar/Replacement-Calculator",
+      "active": true,
+      "description": "This app solves the Equipment Replacement Problem from Operations Research. Users enter maintenance, purchase, and resale values, and the tool computes the optimal replacement year. It also plots the average annual cost curve so the tradeoffs are easy to read.",
+      "techStack": ["Java", "Swing", "JFreeChart", "AWT"],
+      "teammates": [],
+      "links": [
+        {
+          "type": "Source",
+          "href": "https://github.com/rakheOmar/Replacement-Calculator",
+          "icon": "github"
+        }
+      ],
+      "image": "/project-preview/replacement_calculator_preview.webp",
+      "video": ""
+    }
+  ]
+}
