@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
@@ -6,12 +6,12 @@ Stand up the full Docker Compose environment with all services healthy and talki
 
 ## Acceptance criteria
 
-- [ ] `docker compose up` starts FastAPI, React/Vite (dev server or nginx), PostgreSQL, Qdrant, and Redis
-- [ ] FastAPI `/health` returns `{"status": "ok"}` and verifies PostgreSQL, Qdrant, and Redis connectivity
-- [ ] React frontend loads at `localhost:3000` and displays "EvidentRAG" placeholder
-- [ ] `.env.example` exists with placeholder values for `GOOGLE_API_KEY`, `COHERE_API_KEY`, DB URLs
-- [ ] `pyproject.toml` renamed from "rag" to "evidentrag" with FastAPI, uvicorn, httpx, qdrant-client, psycopg2, redis as dependencies
-- [ ] No business logic — just the skeleton
+- [x] `docker compose up` starts FastAPI, React/Vite (dev server or nginx), PostgreSQL, Qdrant, and Redis
+- [x] FastAPI `/health` returns `{"status": "ok"}` and verifies PostgreSQL, Qdrant, and Redis connectivity
+- [x] React frontend loads at `localhost:3000` and displays "EvidentRAG" placeholder
+- [x] `.env.example` exists with placeholder values for `GOOGLE_API_KEY`, `COHERE_API_KEY`, DB URLs
+- [x] `pyproject.toml` renamed from "rag" to "evidentrag" with FastAPI, uvicorn, httpx, qdrant-client, psycopg2, redis as dependencies
+- [x] No business logic — just the skeleton
 
 ## Blocked by
 

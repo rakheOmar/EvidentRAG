@@ -33,7 +33,7 @@ def health():
         checks["postgres"] = f"error: {e}"
 
     try:
-        qdrant = QdrantClient(url=os.getenv("QDRANT_URL", "http://qdrant:6334"))
+        qdrant = QdrantClient(url=os.getenv("QDRANT_URL", "http://qdrant:6333"))
         qdrant.get_collections()
         checks["qdrant"] = "ok"
     except Exception as e:
