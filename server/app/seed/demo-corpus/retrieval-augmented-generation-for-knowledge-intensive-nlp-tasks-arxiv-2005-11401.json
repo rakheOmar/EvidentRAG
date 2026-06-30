@@ -1,0 +1,983 @@
+{
+  "document": {
+    "title": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401",
+    "slug": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401",
+    "source_path": "corpus/retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401.pdf",
+    "source_type": "pdf",
+    "content_hash": "23e3249e9a1e75418d82efecab0ea8c4d033b89c93742f63208d47ce01f21233",
+    "page_count": 19,
+    "metadata": {}
+  },
+  "evidence": [
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p1-c0",
+      "content": "Patrick Lewis \u2020\u2021 , Ethan Perez \u22c6 ,\nAleksandra Piktus \u2020 , Fabio Petroni \u2020 , Vladimir Karpukhin \u2020 , Naman Goyal \u2020 , Heinrich K\u00fcttler \u2020 ,\nMike Lewis \u2020 , Wen-tau Yih \u2020 , Tim Rockt\u00e4schel \u2020\u2021 , Sebastian Riedel \u2020\u2021 , Douwe Kiela \u2020\n\u2020 Facebook AI Research; \u2021 University College London; \u22c6 New York University; plewis@fb.com",
+      "content_hash": "9771fe7b3c846175292fd180789a499c9b27945407b15bc05acf607b6772fbc3",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 1.",
+      "page": 1,
+      "chunk_index": 0,
+      "token_count": 60,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p1-c1",
+      "content": "Large pre-trained language models have been shown to store factual knowledge in their parameters, and achieve state-of-the-art results when fine-tuned on downstream NLP tasks. However, their ability to access and precisely manipulate knowledge is still limited, and hence on knowledge-intensive tasks, their performance lags behind task-specific architectures. Additionally, providing provenance for their decisions and updating their world knowledge remain open research problems. Pretrained models with a differentiable access mechanism to explicit non-parametric memory have so far been only investigated for extractive downstream tasks. We explore a general-purpose fine-tuning recipe for retrieval-augmented generation (RAG) - models which combine pre-trained parametric and non-parametric memory for language generation. We introduce RAG models where the parametric memory is a pre-trained seq2seq model and the non-parametric memory is a dense vector index of Wikipedia, accessed with a pre-trained neural retriever. We compare two RAG formulations, one which conditions on the same retrieved passages across the whole generated sequence, and another which can use different passages per token.",
+      "content_hash": "d58abb940a0b379870a5bb0f689f43e3f46a4fe82d63bc30531f0c5c62ab0818",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 1.",
+      "page": 1,
+      "chunk_index": 1,
+      "token_count": 162,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p1-c2",
+      "content": "We fine-tune and evaluate our models on a wide range of knowledgeintensive NLP tasks and set the state of the art on three open domain QA tasks, outperforming parametric seq2seq models and task-specific retrieve-and-extract architectures. For language generation tasks, we find that RAG models generate more specific, diverse and factual language than a state-of-the-art parametric-only seq2seq baseline.",
+      "content_hash": "ffad5e33a87725dc0f71cfa864390150f1070b1834599f40b906825628af9d9e",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 1.",
+      "page": 1,
+      "chunk_index": 2,
+      "token_count": 57,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p1-c3",
+      "content": "Pre-trained neural language models have been shown to learn a substantial amount of in-depth knowledge from data [47]. They can do so without any access to an external memory, as a parameterized implicit knowledge base [51, 52]. While this development is exciting, such models do have downsides: They cannot easily expand or revise their memory, can't straightforwardly provide insight into their predictions, and may produce 'hallucinations' [38]. Hybrid models that combine parametric memory with non-parametric (i.e., retrieval-based) memories [20, 26, 48] can address some of these issues because knowledge can be directly revised and expanded, and accessed knowledge can be inspected and interpreted. REALM [20] and ORQA [31], two recently introduced models that combine masked language models [8] with a differentiable retriever, have shown promising results, but have only explored open-domain extractive question answering. Here, we bring hybrid parametric and non-parametric memory to the 'workhorse of NLP,' i.e. sequence-to-sequence (seq2seq) models.",
+      "content_hash": "ea756a28d0b391cc852c5d4614f3cdf59fcbfcaf036757a3235aa296fc207078",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 1.",
+      "page": 1,
+      "chunk_index": 3,
+      "token_count": 151,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p2-c4",
+      "content": "Figure 1: Overview of our approach. We combine a pre-trained retriever ( Query Encoder + Document Index ) with a pre-trained seq2seq model ( Generator ) and fine-tune end-to-end. For query x , we use Maximum Inner Product Search (MIPS) to find the top-K documents z i . For final prediction y , we treat z as a latent variable and marginalize over seq2seq predictions given different documents.",
+      "content_hash": "885d72f09d95b5c544a8bcd3c7995760c1990ce5b322980717600265bef6a023",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 2.",
+      "page": 2,
+      "chunk_index": 4,
+      "token_count": 68,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p2-c5",
+      "content": "We endow pre-trained, parametric-memory generation models with a non-parametric memory through a general-purpose fine-tuning approach which we refer to as retrieval-augmented generation (RAG). We build RAG models where the parametric memory is a pre-trained seq2seq transformer, and the non-parametric memory is a dense vector index of Wikipedia, accessed with a pre-trained neural retriever. We combine these components in a probabilistic model trained end-to-end (Fig. 1). The retriever (Dense Passage Retriever [26], henceforth DPR) provides latent documents conditioned on the input, and the seq2seq model (BART [32]) then conditions on these latent documents together with the input to generate the output. We marginalize the latent documents with a top-K approximation, either on a per-output basis (assuming the same document is responsible for all tokens) or a per-token basis (where different documents are responsible for different tokens). Like T5 [51] or BART, RAG can be fine-tuned on any seq2seq task, whereby both the generator and retriever are jointly learned.",
+      "content_hash": "b4cbb48da961581f1aed246452c27b007f584758a61dcf61b318fb4658cc915e",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 2.",
+      "page": 2,
+      "chunk_index": 5,
+      "token_count": 157,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p2-c6",
+      "content": "There has been extensive previous work proposing architectures to enrich systems with non-parametric memory which are trained from scratch for specific tasks, e.g. memory networks [64, 55], stackaugmented networks [25] and memory layers [30]. In contrast, we explore a setting where both parametric and non-parametric memory components are pre-trained and pre-loaded with extensive knowledge. Crucially, by using pre-trained access mechanisms, the ability to access knowledge is present without additional training.",
+      "content_hash": "8c9840394f4863b94b6362c651a9c2ef4a7d4e55b535903d256dcf6ae11e6de5",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 2.",
+      "page": 2,
+      "chunk_index": 6,
+      "token_count": 70,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p2-c7",
+      "content": "Our results highlight the benefits of combining parametric and non-parametric memory with generation for knowledge-intensive tasks -tasks that humans could not reasonably be expected to perform without access to an external knowledge source. Our RAG models achieve state-of-the-art results on open Natural Questions [29], WebQuestions [3] and CuratedTrec [2] and strongly outperform recent approaches that use specialised pre-training objectives on TriviaQA [24]. Despite these being extractive tasks, we find that unconstrained generation outperforms previous extractive approaches. For knowledge-intensive generation, we experiment with MS-MARCO [1] and Jeopardy question generation, and we find that our models generate responses that are more factual, specific, and diverse than a BART baseline. For FEVER [56] fact verification, we achieve results within 4.3% of state-of-the-art pipeline models which use strong retrieval supervision. Finally, we demonstrate that the non-parametric memory can be replaced to update the models' knowledge as the world changes. 1",
+      "content_hash": "f0bcbece1a3bd6acf739466ae9f0aa9253d59c532a0c69d58d9bee630458af10",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 2.",
+      "page": 2,
+      "chunk_index": 7,
+      "token_count": 146,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p2-c8",
+      "content": "We explore RAG models, which use the input sequence x to retrieve text documents z and use them as additional context when generating the target sequence y . As shown in Figure 1, our models leverage two components: (i) a retriever p \u03b7 ( z | x ) with parameters \u03b7 that returns (top-K truncated) distributions over text passages given a query x and (ii) a generator p \u03b8 ( y i | x, z, y 1: i -1 ) parametrized by \u03b8 that generates a current token based on a context of the previous i -1 tokens y 1: i -1 , the original input x and a retrieved passage z .\n1 Code to run experiments with RAG has been open-sourced as part of the HuggingFace Transformers Library [66] and can be found at https://github.com/huggingface/transformers/blob/master/ examples/rag/ . An interactive demo of RAG models can be found at https://huggingface.co/rag/",
+      "content_hash": "a2e82274fba61dbdafa8d55bc20a71523e0ec64862cce82c3c3364d5cddf1395",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 2.",
+      "page": 2,
+      "chunk_index": 8,
+      "token_count": 150,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p3-c9",
+      "content": "To train the retriever and generator end-to-end, we treat the retrieved document as a latent variable. We propose two models that marginalize over the latent documents in different ways to produce a distribution over generated text. In one approach, RAG-Sequence , the model uses the same document to predict each target token. The second approach, RAG-Token , can predict each target token based on a different document. In the following, we formally introduce both models and then describe the p \u03b7 and p \u03b8 components, as well as the training and decoding procedure.",
+      "content_hash": "62c9c98727c7926dc08588bcebc98d27f6f54c59979577b09eeb1089c378b3d9",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 3.",
+      "page": 3,
+      "chunk_index": 9,
+      "token_count": 93,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p3-c10",
+      "content": "RAG-Sequence Model The RAG-Sequence model uses the same retrieved document to generate the complete sequence . Technically, it treats the retrieved document as a single latent variable that is marginalized to get the seq2seq probability p ( y | x ) via a top-K approximation. Concretely, the top K documents are retrieved using the retriever, and the generator produces the output sequence probability for each document, which are then marginalized,\n<!-- formula-not-decoded -->\nRAG-Token Model In the RAG-Token model we can draw a different latent document for each target token and marginalize accordingly. This allows the generator to choose content from several documents when producing an answer. Concretely, the top K documents are retrieved using the retriever, and then the generator produces a distribution for the next output token for each document, before marginalizing, and repeating the process with the following output token, Formally, we define:\n<!-- formula-not-decoded -->\nFinally, we note that RAG can be used for sequence classification tasks by considering the target class as a target sequence of length one, in which case RAG-Sequence and RAG-Token are equivalent.",
+      "content_hash": "bec4b7c32e6af55b3bd1e5eb058c13a8806d4645fd85b4f626a61960012918fc",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 3.",
+      "page": 3,
+      "chunk_index": 10,
+      "token_count": 181,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p3-c11",
+      "content": "The retrieval component p \u03b7 ( z | x ) is based on DPR [26]. DPR follows a bi-encoder architecture:\n<!-- formula-not-decoded -->\nwhere d ( z ) is a dense representation of a document produced by a BERTBASE document encoder [8], and q ( x ) a query representation produced by a query encoder , also based on BERTBASE. Calculating top-k ( p \u03b7 ( \u00b7| x )) , the list of k documents z with highest prior probability p \u03b7 ( z | x ) , is a Maximum Inner Product Search (MIPS) problem, which can be approximately solved in sub-linear time [23]. We use a pre-trained bi-encoder from DPR to initialize our retriever and to build the document index. This retriever was trained to retrieve documents which contain answers to TriviaQA [24] questions and Natural Questions [29]. We refer to the document index as the non-parametric memory .",
+      "content_hash": "25a949bc7f137c7ffdf2f7881fe2415feb1a00a642b6c9bad5ef0bbe31daf8f5",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 3.",
+      "page": 3,
+      "chunk_index": 11,
+      "token_count": 151,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p3-c12",
+      "content": "The generator component p \u03b8 ( y i | x, z, y 1: i -1 ) could be modelled using any encoder-decoder. We use BART-large [32], a pre-trained seq2seq transformer [58] with 400M parameters. To combine the input x with the retrieved content z when generating from BART, we simply concatenate them. BART was pre-trained using a denoising objective and a variety of different noising functions. It has obtained state-of-the-art results on a diverse set of generation tasks and outperforms comparably-sized T5 models [32]. We refer to the BART generator parameters \u03b8 as the parametric memory henceforth.",
+      "content_hash": "45fe86a33b22863dfa5652406d49caab693082cc1f82b95f332036b1c699891d",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 3.",
+      "page": 3,
+      "chunk_index": 12,
+      "token_count": 97,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p3-c13",
+      "content": "We jointly train the retriever and generator components without any direct supervision on what document should be retrieved. Given a fine-tuning training corpus of input/output pairs ( x j , y j ) , we minimize the negative marginal log-likelihood of each target, \u2211 j -log p ( y j | x j ) using stochastic gradient descent with Adam [28]. Updating the document encoder BERT d during training is costly as it requires the document index to be periodically updated as REALM does during pre-training [20]. We do not find this step necessary for strong performance, and keep the document encoder (and index) fixed, only fine-tuning the query encoder BERT q and the BART generator.",
+      "content_hash": "a986472bf6dbbbfc137661588068e76061d9148dda4a00e1b6a2023518977a51",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 3.",
+      "page": 3,
+      "chunk_index": 13,
+      "token_count": 116,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p4-c14",
+      "content": "At test time, RAG-Sequence and RAG-Token require different ways to approximate arg max y p ( y | x ) .\nRAG-Token The RAG-Token model can be seen as a standard, autoregressive seq2seq generator with transition probability: p \u2032 \u03b8 ( y i | x, y 1: i -1 ) = \u2211 z \u2208 topk ( p ( \u00b7| x )) p \u03b7 ( z i | x ) p \u03b8 ( y i | x, z i , y 1: i -1 ) To decode, we can plug p \u2032 \u03b8 ( y i | x, y 1: i -1 ) into a standard beam decoder.",
+      "content_hash": "77cae9e9135bac187149b7cc7ae744725a9978f7bbcdd9a0140d4a2b1ac47fc6",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 4.",
+      "page": 4,
+      "chunk_index": 14,
+      "token_count": 107,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p4-c15",
+      "content": "RAG-Sequence For RAG-Sequence, the likelihood p ( y | x ) does not break into a conventional pertoken likelihood, hence we cannot solve it with a single beam search. Instead, we run beam search for each document z , scoring each hypothesis using p \u03b8 ( y i | x, z, y 1: i -1 ) . This yields a set of hypotheses Y , some of which may not have appeared in the beams of all documents. To estimate the probability of an hypothesis y we run an additional forward pass for each document z for which y does not appear in the beam, multiply generator probability with p \u03b7 ( z | x ) and then sum the probabilities across beams for the marginals. We refer to this decoding procedure as 'Thorough Decoding.' For longer output sequences, | Y | can become large, requiring many forward passes. For more efficient decoding, we can make a further approximation that p \u03b8 ( y | x, z i ) \u2248 0 where y was not generated during beam search from x, z i . This avoids the need to run additional forward passes once the candidate set Y has been generated.",
+      "content_hash": "6b84c13a9eb683d2bb634affa0728719a359520910218d1b0cbc8e716f1562af",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 4.",
+      "page": 4,
+      "chunk_index": 15,
+      "token_count": 201,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p4-c16",
+      "content": "We refer to this decoding procedure as 'Fast Decoding.'",
+      "content_hash": "8fbb02f6391e491b869e723ae3ce0d4badc497610d0de96e8082132cd6ae64b4",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 4.",
+      "page": 4,
+      "chunk_index": 16,
+      "token_count": 9,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p4-c17",
+      "content": "We experiment with RAG in a wide range of knowledge-intensive tasks. For all experiments, we use a single Wikipedia dump for our non-parametric knowledge source. Following Lee et al. [31] and Karpukhin et al. [26], we use the December 2018 dump. Each Wikipedia article is split into disjoint 100-word chunks, to make a total of 21M documents. We use the document encoder to compute an embedding for each document, and build a single MIPS index using FAISS [23] with a Hierarchical Navigable Small World approximation for fast retrieval [37]. During training, we retrieve the top k documents for each query. We consider k \u2208 { 5 , 10 } for training and set k for test time using dev data. We now discuss experimental details for each task.",
+      "content_hash": "f0a54087e96f7ed9fe80280bc71c2644a88e57200c57b53bd816686daf4138eb",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 4.",
+      "page": 4,
+      "chunk_index": 17,
+      "token_count": 128,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p4-c18",
+      "content": "Open-domain question answering (QA) is an important real-world application and common testbed for knowledge-intensive tasks [20]. We treat questions and answers as input-output text pairs ( x, y ) and train RAG by directly minimizing the negative log-likelihood of answers. We compare RAG to the popular extractive QA paradigm [5, 7, 31, 26], where answers are extracted spans from retrieved documents, relying primarily on non-parametric knowledge. We also compare to 'Closed-Book QA' approaches [52], which, like RAG, generate answers, but which do not exploit retrieval, instead relying purely on parametric knowledge. We consider four popular open-domain QA datasets: Natural Questions (NQ) [29], TriviaQA (TQA) [24]. WebQuestions (WQ) [3] and CuratedTrec (CT) [2]. As CT and WQ are small, we follow DPR [26] by initializing CT and WQ models with our NQ RAG model.",
+      "content_hash": "f67146d81a19c0f0cf7ef5a7c4685ebfb57b9a082f34db9ebedeaefe75b4c6f9",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 4.",
+      "page": 4,
+      "chunk_index": 18,
+      "token_count": 133,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p4-c19",
+      "content": "We use the same train/dev/test splits as prior work [31, 26] and report Exact Match (EM) scores. For TQA, to compare with T5 [52], we also evaluate on the TQA Wiki test set.",
+      "content_hash": "63defffe3ca646b610942674b6b50fbaf1e36984d76166c79bc975c11de030bb",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 4.",
+      "page": 4,
+      "chunk_index": 19,
+      "token_count": 33,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p4-c20",
+      "content": "RAG models can go beyond simple extractive QA and answer questions with free-form, abstractive text generation. To test RAG's natural language generation (NLG) in a knowledge-intensive setting, we use the MSMARCO NLG task v2.1 [43]. The task consists of questions, ten gold passages retrieved from a search engine for each question, and a full sentence answer annotated from the retrieved passages. We do not use the supplied passages, only the questions and answers, to treat MSMARCO as an open-domain abstractive QA task. MSMARCO has some questions that cannot be answered in a way that matches the reference answer without access to the gold passages, such as 'What is the weather in Volcano, CA?' so performance will be lower without using gold passages. We also note that some MSMARCO questions cannot be answered using Wikipedia alone. Here, RAG can rely on parametric knowledge to generate reasonable responses.",
+      "content_hash": "34eeb337f04eed80549f46ba6dbcb578278a0c20950d6b560ac8bee2ebdb3b5d",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 4.",
+      "page": 4,
+      "chunk_index": 20,
+      "token_count": 146,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p5-c21",
+      "content": "To evaluate RAG's generation abilities in a non-QA setting, we study open-domain question generation. Rather than use questions from standard open-domain QA tasks, which typically consist of short, simple questions, we propose the more demanding task of generating Jeopardy questions. Jeopardy is an unusual format that consists of trying to guess an entity from a fact about that entity. For example, 'The World Cup' is the answer to the question 'In 1986 Mexico scored as the first country to host this international sports competition twice.' As Jeopardy questions are precise, factual statements, generating Jeopardy questions conditioned on their answer entities constitutes a challenging knowledge-intensive generation task.",
+      "content_hash": "1c45bcf22623f52f9e985ed489f0076ef81cd4d26e2c099468050436fad8b438",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 5.",
+      "page": 5,
+      "chunk_index": 21,
+      "token_count": 106,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p5-c22",
+      "content": "We use the splits from SearchQA [10], with 100K train, 14K dev, and 27K test examples. As this is a new task, we train a BART model for comparison. Following [67], we evaluate using the SQuAD-tuned Q-BLEU-1 metric [42]. Q-BLEU is a variant of BLEU with a higher weight for matching entities and has higher correlation with human judgment for question generation than standard metrics. We also perform two human evaluations, one to assess generation factuality, and one for specificity. We define factuality as whether a statement can be corroborated by trusted external sources, and specificity as high mutual dependence between the input and output [33]. We follow best practice and use pairwise comparative evaluation [34]. Evaluators are shown an answer and two generated questions, one from BART and one from RAG. They are then asked to pick one of four options-quuestion A is better, question B is better, both are good, or neither is good.",
+      "content_hash": "9834923c0280b77b5f86e777bc457711ec8720c8832a882e9ac47f9b187c8bf6",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 5.",
+      "page": 5,
+      "chunk_index": 22,
+      "token_count": 156,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p5-c23",
+      "content": "FEVER [56] requires classifying whether a natural language claim is supported or refuted by Wikipedia, or whether there is not enough information to decide. The task requires retrieving evidence from Wikipedia relating to the claim and then reasoning over this evidence to classify whether the claim is true, false, or unverifiable from Wikipedia alone. FEVER is a retrieval problem coupled with an challenging entailment reasoning task. It also provides an appropriate testbed for exploring the RAG models' ability to handle classification rather than generation. We map FEVER class labels (supports, refutes, or not enough info) to single output tokens and directly train with claim-class pairs. Crucially, unlike most other approaches to FEVER, we do not use supervision on retrieved evidence. In many real-world applications, retrieval supervision signals aren't available, and models that do not require such supervision will be applicable to a wider range of tasks. We explore two variants: the standard 3-way classification task (supports/refutes/not enough info) and the 2-way (supports/refutes) task studied in Thorne and Vlachos [57]. In both cases we report label accuracy.",
+      "content_hash": "33d48aad84b15663f587fc0c87306825df5c71e7e845b090dd76473084fc8123",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 5.",
+      "page": 5,
+      "chunk_index": 23,
+      "token_count": 176,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p5-c24",
+      "content": "Table 1 shows results for RAG along with state-of-the-art models. On all four open-domain QA tasks, RAG sets a new state of the art (only on the T5-comparable split for TQA). RAG combines the generation flexibility of the 'closed-book' (parametric only) approaches and the performance of \"open-book\" retrieval-based approaches. Unlike REALM and T5+SSM, RAG enjoys strong results without expensive, specialized 'salient span masking' pre-training [20]. It is worth noting that RAG's retriever is initialized using DPR's retriever, which uses retrieval supervision on Natural Questions and TriviaQA. RAG compares favourably to the DPR QA system, which uses a BERT-based 'crossencoder' to re-rank documents, along with an extractive reader. RAG demonstrates that neither a re-ranker nor extractive reader is necessary for state-of-the-art performance.",
+      "content_hash": "348b6ecd04a77c45945bee644167f5bb41b8316f98144300e5f6b8319fc640cd",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 5.",
+      "page": 5,
+      "chunk_index": 24,
+      "token_count": 121,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p5-c25",
+      "content": "There are several advantages to generating answers even when it is possible to extract them. Documents with clues about the answer but do not contain the answer verbatim can still contribute towards a correct answer being generated, which is not possible with standard extractive approaches, leading to more effective marginalization over documents. Furthermore, RAG can generate correct answers even when the correct answer is not in any retrieved document, achieving 11.8% accuracy in such cases for NQ, where an extractive model would score 0%.",
+      "content_hash": "1ab2d92a36924ebb50611f119dffb1769e8075f811070fac88e93aa86a200367",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 5.",
+      "page": 5,
+      "chunk_index": 25,
+      "token_count": 84,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p6-c26",
+      "content": "Table 1: Open-Domain QA Test Scores. For TQA, left column uses the standard test set for OpenDomain QA, right column uses the TQA-Wiki test set. See Appendix D for further details.\n\nModel\n\nNQ\n\nTQA\n\nWQ\n\nCT\n\nClosed\n\nBook\n\nT5-11B [52]\n\n34.5\n\n-\n\n/50.1\n\n37.4\n\n-\n\nT5-11B+SSM[52]\n\n36.6\n\n-\n\n/60.5\n\n44.7\n\n-\n\nOpen\n\nBook\n\nREALM [20]\n\n40.4\n\n-\n\n/\n\n-\n\n40.7\n\n46.8\n\nDPR [26]\n\n41.5\n\n57.9\n\n/\n\n-\n\n41.1\n\n50.6\n\nRAG-Token\n\n44.1\n\n55.2/66.1\n\n45.5\n\n50.0\n\nRAG-Seq.\n\n44.5\n\n56.8/\n\n68.0\n\n45.2\n\n52.2",
+      "content_hash": "99f53173e8773b7ea2656b9ff7f7e7fd5b3cdea132eb8f6d00828be6b82bfe62",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 6.",
+      "page": 6,
+      "chunk_index": 26,
+      "token_count": 80,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p6-c27",
+      "content": "Table 2: Generation and classification Test Scores. MS-MARCO SotA is [4], FEVER-3 is [68] and FEVER-2 is [57] *Uses gold context/evidence. Best model without gold access underlined.\n\nModel\n\nJeopardy\n\nMSMARCO FVR3 FVR2\n\nB-1\n\nQB-1\n\nR-L\n\nB-1\n\nLabel Acc.\n\nSotA\n\n-\n\n-\n\n49.8\n\n*\n\n49.9\n\n*\n\n76.8\n\n92.2\n\n*\n\nBART\n\n15.1\n\n19.7\n\n38.2\n\n41.6\n\n64.0\n\n81.1\n\nRAG-Tok.\n\n17.3\n\n22.2\n\n40.1\n\n41.5\n\n72.5\n\n89.5\n\nRAG-Seq.\n\n14.7\n\n21.4\n\n40.8\n\n44.2",
+      "content_hash": "702cab195dbabe6d9974ce94316d30d1b832efffc0bd5c4902d33c4b6ad7cb58",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 6.",
+      "page": 6,
+      "chunk_index": 27,
+      "token_count": 67,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p6-c28",
+      "content": "As shown in Table 2, RAG-Sequence outperforms BART on Open MS-MARCO NLG by 2.6 Bleu points and 2.6 Rouge-L points. RAG approaches state-of-the-art model performance, which is impressive given that (i) those models access gold passages with specific information required to generate the reference answer , (ii) many questions are unanswerable without the gold passages, and (iii) not all questions are answerable from Wikipedia alone. Table 3 shows some generated answers from our models. Qualitatively, we find that RAG models hallucinate less and generate factually correct text more often than BART. Later, we also show that RAG generations are more diverse than BART generations (see \u00a74.5).",
+      "content_hash": "59bf2b0a3426c677fb700127e0d83bb9832b83eaf74fb303f44f2b3d01145bd1",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 6.",
+      "page": 6,
+      "chunk_index": 28,
+      "token_count": 106,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p6-c29",
+      "content": "Table 2 shows that RAG-Token performs better than RAG-Sequence on Jeopardy question generation, with both models outperforming BART on Q-BLEU-1. 4 shows human evaluation results, over 452 pairs of generations from BART and RAG-Token. Evaluators indicated that BART was more factual than RAG in only 7.1% of cases, while RAG was more factual in 42.7% of cases, and both RAG and BART were factual in a further 17% of cases, clearly demonstrating the effectiveness of RAG on the task over a state-of-the-art generation model. Evaluators also find RAG generations to be more specific by a large margin. Table 3 shows typical generations from each model.",
+      "content_hash": "51c573159b958b6d1c30e26699c52620d687ad6e49575f58ecf093bea04d58ff",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 6.",
+      "page": 6,
+      "chunk_index": 29,
+      "token_count": 105,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p6-c30",
+      "content": "Jeopardy questions often contain two separate pieces of information, and RAG-Token may perform best because it can generate responses that combine content from several documents. Figure 2 shows an example. When generating 'Sun', the posterior is high for document 2 which mentions 'The Sun Also Rises'. Similarly, document 1 dominates the posterior when 'A Farewell to Arms' is generated. Intriguingly, after the first token of each book is generated, the document posterior flattens. This observation suggests that the generator can complete the titles without depending on specific documents. In other words, the model's parametric knowledge is sufficient to complete the titles. We find evidence for this hypothesis by feeding the BART-only baseline with the partial decoding \"The Sun . BART completes the generation \"The Sun Also Rises\" is a novel by this author of \"The Sun Also Rises\" indicating the title \"The Sun Also Rises\" is stored in BART's parameters. Similarly, BART will complete the partial decoding \"The Sun Also Rises\" is a novel by this author of \"A with \"The Sun Also Rises\" is a novel by this author of \"A Farewell to Arms\" .",
+      "content_hash": "b517b671d50a05c45a25bc412d99dbc28cb988a0c49309688bba851dba4c6ed9",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 6.",
+      "page": 6,
+      "chunk_index": 30,
+      "token_count": 186,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p6-c31",
+      "content": "This example shows how parametric and non-parametric memories work together -the non-parametric component helps to guide the generation, drawing out specific knowledge stored in the parametric memory.",
+      "content_hash": "cc37f4390981cc0365fda6e98e8e36f26a5656e6bfd58c53fe32e0111bfa5bcb",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 6.",
+      "page": 6,
+      "chunk_index": 31,
+      "token_count": 27,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p6-c32",
+      "content": "Table 2 shows our results on FEVER. For 3-way classification, RAG scores are within 4.3% of state-of-the-art models, which are complex pipeline systems with domain-specific architectures and substantial engineering, trained using intermediate retrieval supervision, which RAG does not require.\nFigure 2: RAG-Token document posterior p ( z i | x, y i , y -i ) for each generated token for input 'Hemingway\" for Jeopardy generation with 5 retrieved documents. The posterior for document 1 is high when generating 'A Farewell to Arms\" and for document 2 when generating 'The Sun Also Rises\".\n",
+      "content_hash": "87524a47b9ca77e4c23bcdcd8dc1c3de9e70da10133319c7dc97671b2bab1c00",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 6.",
+      "page": 6,
+      "chunk_index": 32,
+      "token_count": 93,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p7-c33",
+      "content": "Table 3: Examples from generation tasks. RAG models generate more specific and factually accurate responses. '?' indicates factually incorrect responses, * indicates partially correct responses.TaskInputModelGenerationMS-MARCOdefine middleearBART?The middle ear is the part of the ear between the middle ear and the nose.RAG-T The middle ear is the portion of the ear internal to the eardrum.RAG-SThe middle ear includes the tympanic cavity and the three ossicles.what currencyneeded inscotlandBARTThe currency needed in Scotland is Pound sterling.RAG-T Pound is the currency needed in Scotland.RAG-SThe currency needed in Scotland is the pound sterling.JeopardyQuestionGener-ationWashingtonBART?This state has the largest number of counties in the U.S.RAG-T It's the only U.S. state named for a U.S. presidentRAG-SIt's the state where you'll find Mount Rainier National ParkThe DivineComedyBART*This epic poem by Dante is divided into 3 parts: the Inferno, the Purgatorio & the PurgatorioRAG-T Dante's \"Inferno\" is the first part of this epic poemRAG-S",
+      "content_hash": "b461941c22e63d1a8f247cf00c80f7ed4b0434cfa6435de7bbe6086b4ec7946a",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 7.",
+      "page": 7,
+      "chunk_index": 33,
+      "token_count": 144,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p7-c34",
+      "content": "This 14th century work is divided into 3 sections: \"Inferno\", \"Purgatorio\" & \"Paradiso\"\nFor 2-way classification, we compare against Thorne and Vlachos [57], who train RoBERTa [35] to classify the claim as true or false given the gold evidence sentence. RAG achieves an accuracy within 2.7% of this model, despite being supplied with only the claim and retrieving its own evidence. We also analyze whether documents retrieved by RAG correspond to documents annotated as gold evidence in FEVER. We calculate the overlap in article titles between the top k documents retrieved by RAG and gold evidence annotations. We find that the top retrieved document is from a gold article in 71% of cases, and a gold article is present in the top 10 retrieved articles in 90% of cases.",
+      "content_hash": "db2c3e77bec9b17e385074f8be57f786e0127ff203eb67b7891e6d708ffd92d9",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 7.",
+      "page": 7,
+      "chunk_index": 34,
+      "token_count": 129,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p7-c35",
+      "content": "Generation Diversity Section 4.3 shows that RAG models are more factual and specific than BART for Jeopardy question generation. Following recent work on diversity-promoting decoding [33, 59, 39], we also investigate generation diversity by calculating the ratio of distinct ngrams to total ngrams generated by different models. Table 5 shows that RAG-Sequence's generations are more diverse than RAG-Token's, and both are significantly more diverse than BART without needing any diversity-promoting decoding.\nRetrieval Ablations A key feature of RAG is learning to retrieve relevant information for the task. To assess the effectiveness of the retrieval mechanism, we run ablations where we freeze the retriever during training. As shown in Table 6, learned retrieval improves results for all tasks.",
+      "content_hash": "5f79f156b113f9d9203022fa3d142572bcd725788a2478f1d9b79a0fc7bf312a",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 7.",
+      "page": 7,
+      "chunk_index": 35,
+      "token_count": 117,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p7-c36",
+      "content": "We compare RAG's dense retriever to a word overlap-based BM25 retriever [53]. Here, we replace RAG's retriever with a fixed BM25 system, and use BM25 retrieval scores as logits when calculating p ( z | x ) . Table 6 shows the results. For FEVER, BM25 performs best, perhaps since FEVER claims are heavily entity-centric and thus well-suited for word overlap-based retrieval. Differentiable retrieval improves results on all other tasks, especially for Open-Domain QA, where it is crucial.",
+      "content_hash": "3648c4deaca28c3396dd9d3c30f712a7d552379d3163b2f5d251d353d7a88199",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 7.",
+      "page": 7,
+      "chunk_index": 36,
+      "token_count": 78,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p7-c37",
+      "content": "Index hot-swapping An advantage of non-parametric memory models like RAG is that knowledge can be easily updated at test time. Parametric-only models like T5 or BART need further training to update their behavior as the world changes. To demonstrate, we build an index using the DrQA [5] Wikipedia dump from December 2016 and compare outputs from RAG using this index to the newer index from our main results (December 2018). We prepare a list of 82 world leaders who had changed between these dates and use a template 'Who is {position}?' (e.g. 'Who is the President of Peru?') to query our NQ RAG model with each index. RAG answers 70% correctly using the 2016 index for 2016 world leaders and 68% using the 2018 index for 2018 world leaders. Accuracy with mismatched indices is low (12% with the 2018 index and 2016 leaders, 4% with the 2016 index and 2018 leaders). This shows we can update RAG's world knowledge by simply replacing its non-parametric memory.",
+      "content_hash": "96c8c57b6d0818388871d14ed70e68f999305860fb42bc9d9bf1b9c1ceb6eeea",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 7.",
+      "page": 7,
+      "chunk_index": 37,
+      "token_count": 165,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p8-c38",
+      "content": "Table 4: Human assessments for the Jeopardy Question Generation Task.\n\nFactuality\n\nSpecificity\n\nBART better\n\n7.1%\n\n16.8%\n\nRAG better\n\n42.7%\n\n37.4%\n\nBoth good\n\n11.7%\n\n11.8%\n\nBoth poor\n\n17.7%\n\n6.9%\n\nNo majority\n\n20.8%\n\n20.1%\nTable 5: Ratio of distinct to total tri-grams for generation tasks.\n\nMSMARCO\n\nJeopardy QGen\n\nGold\n\n89.6%\n\n90.0%\n\nBART\n\n70.7%\n\n32.4%\n\nRAG-Token\n\n77.8%\n\n46.8%\n\nRAG-Seq.\n\n83.5%\n\n53.8%\nTable 6: Ablations on the dev set. As FEVER is a classification task, both RAG models are equivalent.",
+      "content_hash": "bdab5d13baece20c5de0b553904b01bb1b497c8bdfcd1a41f16ce5256bd9dff8",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 8.",
+      "page": 8,
+      "chunk_index": 38,
+      "token_count": 76,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p8-c39",
+      "content": "Model\n\nNQ\n\nTQA\n\nWQ\n\nCT\n\nJeopardy-QGen\n\nMSMarco\n\nFVR-3\n\nFVR-2\n\nExact Match\n\nB-1\n\nQB-1\n\nR-L\n\nB-1\n\nLabel Accuracy\n\nRAG-Token-BM25\n\n29.7\n\n41.5\n\n32.1\n\n33.1\n\n17.5\n\n22.3\n\n55.5\n\n48.4\n\n75.1\n\n91.6\n\nRAG-Sequence-BM25\n\n31.8\n\n44.1\n\n36.6\n\n33.8\n\n11.1\n\n19.5\n\n56.5\n\n46.9\n\nRAG-Token-Frozen\n\n37.8\n\n50.1\n\n37.1\n\n51.1\n\n16.7\n\n21.7\n\n55.9\n\n49.4\n\n72.9\n\n89.4\n\nRAG-Sequence-Frozen\n\n41.2\n\n52.1\n\n41.8\n\n52.6\n\n11.8\n\n19.6\n\n56.7\n\n47.3\n\nRAG-Token\n\n43.5\n\n54.8\n\n46.5\n\n51.9\n\n17.9\n\n22.6\n\n56.2\n\n49.4\n\n74.5\n\n90.6\n\nRAG-Sequence\n\n44.0\n\n55.8\n\n44.9\n\n53.4\n\n15.3\n\n21.5\n\n57.2\n\n47.5",
+      "content_hash": "988391e7e5e20e37bb3ce4d579cbc0e0f5bab9c9997242d5f27eb4a25203aa19",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 8.",
+      "page": 8,
+      "chunk_index": 39,
+      "token_count": 77,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p8-c40",
+      "content": "Effect of Retrieving more documents Models are trained with either 5 or 10 retrieved latent documents, and we do not observe significant differences in performance between them. We have the flexibility to adjust the number of retrieved documents at test time, which can affect performance and runtime. Figure 3 (left) shows that retrieving more documents at test time monotonically improves Open-domain QA results for RAG-Sequence, but performance peaks for RAG-Token at 10 retrieved documents. Figure 3 (right) shows that retrieving more documents leads to higher Rouge-L for RAG-Token at the expense of Bleu-1, but the effect is less pronounced for RAG-Sequence.\nFigure 3: Left: NQ performance as more documents are retrieved. Center: Retrieval recall performance in NQ. Right: MS-MARCO Bleu-1 and Rouge-L as more documents are retrieved.",
+      "content_hash": "37261b49ed5eacc676586af7972a3fa94a34a2c6aec13f8da61e9c808be727ee",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 8.",
+      "page": 8,
+      "chunk_index": 40,
+      "token_count": 127,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p8-c41",
+      "content": "Single-Task Retrieval Prior work has shown that retrieval improves performance across a variety of NLP tasks when considered in isolation. Such tasks include open-domain question answering [5, 29], fact checking [56], fact completion [48], long-form question answering [12], Wikipedia article generation [36], dialogue [41, 65, 9, 13], translation [17], and language modeling [19, 27]. Our work unifies previous successes in incorporating retrieval into individual tasks, showing that a single retrieval-based architecture is capable of achieving strong performance across several tasks.",
+      "content_hash": "94e25c4dd1c854e9cc412ce4e366fd7ad4ed4174e49db1a39c4a09f53993c9e8",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 8.",
+      "page": 8,
+      "chunk_index": 41,
+      "token_count": 80,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p9-c42",
+      "content": "General-Purpose Architectures for NLP Prior work on general-purpose architectures for NLP tasks has shown great success without the use of retrieval. A single, pre-trained language model has been shown to achieve strong performance on various classification tasks in the GLUE benchmarks [60, 61] after fine-tuning [49, 8]. GPT-2 [50] later showed that a single, left-to-right, pre-trained language model could achieve strong performance across both discriminative and generative tasks. For further improvement, BART [32] and T5 [51, 52] propose a single, pre-trained encoder-decoder model that leverages bi-directional attention to achieve stronger performance on discriminative and generative tasks. Our work aims to expand the space of possible tasks with a single, unified architecture, by learning a retrieval module to augment pre-trained, generative language models.",
+      "content_hash": "558d5de08f0da7a49de913106bd3d2e48ac1f1aa72264652fe8f341116a6954d",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 9.",
+      "page": 9,
+      "chunk_index": 42,
+      "token_count": 122,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p9-c43",
+      "content": "Learned Retrieval There is significant work on learning to retrieve documents in information retrieval, more recently with pre-trained, neural language models [44, 26] similar to ours. Some work optimizes the retrieval module to aid in a specific, downstream task such as question answering, using search [46], reinforcement learning [6, 63, 62], or a latent variable approach [31, 20] as in our work. These successes leverage different retrieval-based architectures and optimization techniques to achieve strong performance on a single task, while we show that a single retrieval-based architecture can be fine-tuned for strong performance on a variety of tasks.",
+      "content_hash": "55fd3ffa1dabb854633db3455b70d20f35984d279a9bf2528042c95bbddeb4b2",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 9.",
+      "page": 9,
+      "chunk_index": 43,
+      "token_count": 98,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p9-c44",
+      "content": "Memory-based Architectures Our document index can be seen as a large external memory for neural networks to attend to, analogous to memory networks [64, 55]. Concurrent work [14] learns to retrieve a trained embedding for each entity in the input, rather than to retrieve raw text as in our work. Other work improves the ability of dialog models to generate factual text by attending over fact embeddings [15, 13]. A key feature of our memory is that it is comprised of raw text rather distributed representations, which makes the memory both (i) human-readable, lending a form of interpretability to our model, and (ii) human-writable, enabling us to dynamically update the model's memory by editing the document index. This approach has also been used in knowledge-intensive dialog, where generators have been conditioned on retrieved text directly, albeit obtained via TF-IDF rather than end-to-end learnt retrieval [9].",
+      "content_hash": "eb45708d71608f58756efb45578d405560bfdc284fc4814792a35fae123b6998",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 9.",
+      "page": 9,
+      "chunk_index": 44,
+      "token_count": 145,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p9-c45",
+      "content": "Retrieve-and-Edit approaches Our method shares some similarities with retrieve-and-edit style approaches, where a similar training input-output pair is retrieved for a given input, and then edited to provide a final output. These approaches have proved successful in a number of domains including Machine Translation [18, 22] and Semantic Parsing [21]. Our approach does have several differences, including less of emphasis on lightly editing a retrieved item, but on aggregating content from several pieces of retrieved content, as well as learning latent retrieval, and retrieving evidence documents rather than related training pairs. This said, RAG techniques may work well in these settings, and could represent promising future work.",
+      "content_hash": "ffe6f02f97668329a0a49da49971bb52d23d064e389438e3ec8c55a852e12470",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 9.",
+      "page": 9,
+      "chunk_index": 45,
+      "token_count": 107,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p9-c46",
+      "content": "In this work, we presented hybrid generation models with access to parametric and non-parametric memory. We showed that our RAG models obtain state of the art results on open-domain QA. We found that people prefer RAG's generation over purely parametric BART, finding RAG more factual and specific. We conducted an thorough investigation of the learned retrieval component, validating its effectiveness, and we illustrated how the retrieval index can be hot-swapped to update the model without requiring any retraining. In future work, it may be fruitful to investigate if the two components can be jointly pre-trained from scratch, either with a denoising objective similar to BART or some another objective. Our work opens up new research directions on how parametric and non-parametric memories interact and how to most effectively combine them, showing promise in being applied to a wide variety of NLP tasks.",
+      "content_hash": "a4c5f27de49d1a8ce1336569367e75124aeb05432b1056c2c498699c18bcfb26",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 9.",
+      "page": 9,
+      "chunk_index": 46,
+      "token_count": 142,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p10-c47",
+      "content": "This work offers several positive societal benefits over previous work: the fact that it is more strongly grounded in real factual knowledge (in this case Wikipedia) makes it 'hallucinate' less with generations that are more factual, and offers more control and interpretability. RAG could be employed in a wide variety of scenarios with direct benefit to society, for example by endowing it with a medical index and asking it open-domain questions on that topic, or by helping people be more effective at their jobs.\nWith these advantages also come potential downsides: Wikipedia, or any potential external knowledge source, will probably never be entirely factual and completely devoid of bias. Since RAG can be employed as a language model, similar concerns as for GPT-2 [50] are valid here, although arguably to a lesser extent, including that it might be used to generate abuse, faked or misleading content in the news or on social media; to impersonate others; or to automate the production of spam/phishing content [54]. Advanced language models may also lead to the automation of various jobs in the coming decades [16]. In order to mitigate these risks, AI systems could be employed to fight against misleading content and automated spam/phishing.",
+      "content_hash": "9b6183668b814e270a3ff3732047aabf34ed257c3dca476dc1cfa5590f1a181c",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 10.",
+      "page": 10,
+      "chunk_index": 47,
+      "token_count": 201,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p10-c48",
+      "content": "The authors would like to thank the reviewers for their thoughtful and constructive feedback on this paper, as well as HuggingFace for their help in open-sourcing code to run RAG models. The authors would also like to thank Kyunghyun Cho and Sewon Min for productive discussions and advice. EP thanks supports from the NSF Graduate Research Fellowship. PL is supported by the FAIR PhD program.",
+      "content_hash": "689f85863e376eedc7f06df2cf3537c7f7e46049360a89d9ff56a17d7b8d8747",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 10.",
+      "page": 10,
+      "chunk_index": 48,
+      "token_count": 65,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p10-c49",
+      "content": "- [1] Payal Bajaj, Daniel Campos, Nick Craswell, Li Deng, Jianfeng Gao, Xiaodong Liu, Rangan Majumder, Andrew McNamara, Bhaskar Mitra, Tri Nguyen, Mir Rosenberg, Xia Song, Alina Stoica, Saurabh Tiwary, and Tong Wang. MS MARCO: A Human Generated MAchine Reading COmprehension Dataset. arXiv:1611.09268 [cs] , November 2016. URL http: //arxiv.org/abs/1611.09268 . arXiv: 1611.09268.\n- [2] Petr Baudi\u0161 and Jan \u0160ediv` y. Modeling of the question answering task in the yodaqa system. In International Conference of the Cross-Language Evaluation Forum for European Languages , pages 222-228. Springer, 2015. URL https://link.springer.com/chapter/10.1007% 2F978-3-319-24027-5_20 .",
+      "content_hash": "6ab86e9d0f34aa789d7aa883de49a79d65eccc3a505542196840c4bad6c35ee9",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 10.",
+      "page": 10,
+      "chunk_index": 49,
+      "token_count": 91,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p10-c50",
+      "content": "- [3] Jonathan Berant, Andrew Chou, Roy Frostig, and Percy Liang. Semantic Parsing on Freebase from Question-Answer Pairs. In Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing , pages 1533-1544, Seattle, Washington, USA, October 2013. Association for Computational Linguistics. URL http://www.aclweb.org/anthology/ D13-1160 .\n- [4] Bin Bi, Chenliang Li, Chen Wu, Ming Yan, and Wei Wang. Palm: Pre-training an autoencoding&autoregressive language model for context-conditioned generation. ArXiv , abs/2004.07159, 2020. URL https://arxiv.org/abs/2004.07159 .",
+      "content_hash": "0d32e4accd6934f5e57f1ea3e8fe7389281af83be8d453887f2a8d6464f74dc7",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 10.",
+      "page": 10,
+      "chunk_index": 50,
+      "token_count": 76,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p10-c51",
+      "content": "- [5] Danqi Chen, Adam Fisch, Jason Weston, and Antoine Bordes. Reading Wikipedia to Answer Open-Domain Questions. In Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 1870-1879, Vancouver, Canada, July 2017. Association for Computational Linguistics. doi: 10.18653/v1/P17-1171. URL https://www.aclweb.org/anthology/P17-1171 .\n- [6] Eunsol Choi, Daniel Hewlett, Jakob Uszkoreit, Illia Polosukhin, Alexandre Lacoste, and Jonathan Berant. Coarse-to-fine question answering for long documents. In Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 209-220, Vancouver, Canada, July 2017. Association for Computational Linguistics. doi: 10.18653/v1/P17-1020. URL https://www.aclweb.org/anthology/P17-1020 .",
+      "content_hash": "f0bc7385d46ab0688d7f2e081a4d5df4774ee2c5a17dd62cfe07aae7b3ef75e6",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 10.",
+      "page": 10,
+      "chunk_index": 51,
+      "token_count": 104,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p11-c52",
+      "content": "- [7] Christopher Clark and Matt Gardner. Simple and Effective Multi-Paragraph Reading Comprehension. arXiv:1710.10723 [cs] , October 2017. URL http://arxiv.org/abs/1710.10723 . arXiv: 1710.10723.\n- [8] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers) , pages 4171-4186, Minneapolis, Minnesota, June 2019. Association for Computational Linguistics. doi: 10.18653/v1/N19-1423. URL https://www.aclweb.org/anthology/N19-1423 .",
+      "content_hash": "2ec3d50614394c42266deeff0b8876948be097a98d815b1b19e8a07b91f80a67",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 11.",
+      "page": 11,
+      "chunk_index": 52,
+      "token_count": 85,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p11-c53",
+      "content": "- [9] Emily Dinan, Stephen Roller, Kurt Shuster, Angela Fan, Michael Auli, and Jason Weston. Wizard of wikipedia: Knowledge-powered conversational agents. In International Conference on Learning Representations , 2019. URL https://openreview.net/forum?id=r1l73iRqKm .\n- [10] Matthew Dunn, Levent Sagun, Mike Higgins, V. Ugur Guney, Volkan Cirik, and Kyunghyun Cho. SearchQA: A New Q&A Dataset Augmented with Context from a Search Engine. arXiv:1704.05179 [cs] , April 2017. URL http://arxiv.org/abs/1704.05179 . arXiv: 1704.05179.",
+      "content_hash": "c90a391a416fd7309bb8f87dd25bf49d52aaa995b5bc7edd2a99ab586427089f",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 11.",
+      "page": 11,
+      "chunk_index": 53,
+      "token_count": 70,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p11-c54",
+      "content": "- [11] Angela Fan, Mike Lewis, and Yann Dauphin. Hierarchical neural story generation. In Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 889-898, Melbourne, Australia, July 2018. Association for Computational Linguistics. doi: 10.18653/v1/P18-1082. URL https://www.aclweb.org/anthology/ P18-1082 .\n- [12] Angela Fan, Yacine Jernite, Ethan Perez, David Grangier, Jason Weston, and Michael Auli. ELI5: Long form question answering. In Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics , pages 3558-3567, Florence, Italy, July 2019. Association for Computational Linguistics. doi: 10.18653/v1/P19-1346. URL https://www.aclweb.org/ anthology/P19-1346 .",
+      "content_hash": "3a80c88622e32f9527e0fd3c34b31583fefbb1ac81034cffca76c3ace05be184",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 11.",
+      "page": 11,
+      "chunk_index": 54,
+      "token_count": 97,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p11-c55",
+      "content": "- [13] Angela Fan, Claire Gardent, Chloe Braud, and Antoine Bordes. Augmenting transformers with KNN-based composite memory, 2020. URL https://openreview.net/forum?id= H1gx1CNKPH .\n- [14] Thibault F\u00e9vry, Livio Baldini Soares, Nicholas FitzGerald, Eunsol Choi, and Tom Kwiatkowski. Entities as experts: Sparse memory access with entity supervision. ArXiv , abs/2004.07202, 2020. URL https://arxiv.org/abs/2004.07202 .\n- [15] Marjan Ghazvininejad, Chris Brockett, Ming-Wei Chang, Bill Dolan, Jianfeng Gao, Wen tau Yih, and Michel Galley. A knowledge-grounded neural conversation model. In AAAI Conference on Artificial Intelligence , 2018. URL https://www.aaai.org/ocs/index.php/ AAAI/AAAI18/paper/view/16710 .",
+      "content_hash": "89ab848176367dcd30bba2202e20464a65ddd42731013a50c28d88ccc278a225",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 11.",
+      "page": 11,
+      "chunk_index": 55,
+      "token_count": 87,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p11-c56",
+      "content": "- [16] Katja Grace, John Salvatier, Allan Dafoe, Baobao Zhang, and Owain Evans. When will AI exceed human performance? evidence from AI experts. CoRR , abs/1705.08807, 2017. URL http://arxiv.org/abs/1705.08807 .\n- [17] Jiatao Gu, Yong Wang, Kyunghyun Cho, and Victor O.K. Li. Search engine guided neural machine translation. In AAAI Conference on Artificial Intelligence , 2018. URL https: //www.aaai.org/ocs/index.php/AAAI/AAAI18/paper/view/17282 .\n- [18] Jiatao Gu, Yong Wang, Kyunghyun Cho, and Victor O.K. Li. Search engine guided neural machine translation. In 32nd AAAI Conference on Artificial Intelligence, AAAI 2018 , 32nd AAAI Conference on Artificial Intelligence, AAAI 2018, pages 5133-5140. AAAI press, 2018. 32nd AAAI Conference on Artificial Intelligence, AAAI 2018 ; Conference date: 02-02-2018 Through 07-02-2018.",
+      "content_hash": "d2c34539c3af442c9192a99d2c37121520630684d89c58f6e4e9dd7bdad2ec3c",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 11.",
+      "page": 11,
+      "chunk_index": 56,
+      "token_count": 115,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p11-c57",
+      "content": "- [19] Kelvin Guu, Tatsunori B. Hashimoto, Yonatan Oren, and Percy Liang. Generating sentences by editing prototypes. Transactions of the Association for Computational Linguistics , 6:437-450, 2018. doi: 10.1162/tacl_a_00030. URL https://www.aclweb.org/anthology/Q18-1031 .",
+      "content_hash": "d712d4c15ce0272cdd90de33b419731b8b69426602508e8d896831c20a29573b",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 11.",
+      "page": 11,
+      "chunk_index": 57,
+      "token_count": 32,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p12-c58",
+      "content": "- [20] Kelvin Guu, Kenton Lee, Zora Tung, Panupong Pasupat, and Ming-Wei Chang. REALM: Retrieval-augmented language model pre-training. ArXiv , abs/2002.08909, 2020. URL https: //arxiv.org/abs/2002.08909 .\n- [21] Tatsunori B Hashimoto, Kelvin Guu, Yonatan Oren, and Percy S Liang. A retrieve-and-edit framework for predicting structured outputs. In S. Bengio, H. Wallach, H. Larochelle, K. Grauman, N. Cesa-Bianchi, and R. Garnett, editors, Advances in Neural Information Processing Systems 31 , pages 1005210062. Curran Associates, Inc., 2018. URL http://papers.nips.cc/paper/ 8209-a-retrieve-and-edit-framework-for-predicting-structured-outputs. pdf .",
+      "content_hash": "fd83c4730b44285ceee0f345bcb556ced2f5b2c68bfc0b1ed635e7e00cd117f3",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 12.",
+      "page": 12,
+      "chunk_index": 58,
+      "token_count": 80,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p12-c59",
+      "content": "- [22] Nabil Hossain, Marjan Ghazvininejad, and Luke Zettlemoyer. Simple and effective retrieveedit-rerank text generation. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics , pages 2532-2538, Online, July 2020. Association for Computational Linguistics. doi: 10.18653/v1/2020.acl-main.228. URL https://www.aclweb.org/ anthology/2020.acl-main.228 .\n- [23] Jeff Johnson, Matthijs Douze, and Herv\u00e9 J\u00e9gou. Billion-scale similarity search with gpus. arXiv preprint arXiv:1702.08734 , 2017. URL https://arxiv.org/abs/1702.08734 .",
+      "content_hash": "91e8ba07e92583411ea94efe91d1ee7295e528d77512a1c1d0a1829904b5584c",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 12.",
+      "page": 12,
+      "chunk_index": 59,
+      "token_count": 66,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p12-c60",
+      "content": "- [24] Mandar Joshi, Eunsol Choi, Daniel Weld, and Luke Zettlemoyer. TriviaQA: A Large Scale Distantly Supervised Challenge Dataset for Reading Comprehension. In Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 1601-1611, Vancouver, Canada, July 2017. Association for Computational Linguistics. doi: 10.18653/v1/P17-1147. URL https://www.aclweb.org/anthology/P17-1147 .\n- [25] Armand Joulin and Tomas Mikolov. Inferring algorithmic patterns with stackaugmented recurrent nets. In Proceedings of the 28th International Conference on Neural Information Processing Systems -Volume 1 , NIPS'15, page 190-198, Cambridge, MA, USA, 2015. MIT Press. URL https://papers.nips.cc/paper/ 5857-inferring-algorithmic-patterns-with-stack-augmented-recurrent-nets .",
+      "content_hash": "a20bfc524b7ffc8086f0560475f4b93cf0dadeb931355db7274e5a5dc8cfebb1",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 12.",
+      "page": 12,
+      "chunk_index": 60,
+      "token_count": 97,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p12-c61",
+      "content": "- [26] Vladimir Karpukhin, Barlas Oguz, Sewon Min, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen-tau Yih. Dense passage retrieval for open-domain question answering. arXiv preprint arXiv:2004.04906 , 2020. URL https://arxiv.org/abs/2004.04906 .\n- [27] Urvashi Khandelwal, Omer Levy, Dan Jurafsky, Luke Zettlemoyer, and Mike Lewis. Generalization through memorization: Nearest neighbor language models. In International Conference on Learning Representations , 2020. URL https://openreview.net/forum?id=HklBjCEKvH .\n- [28] Diederik P. Kingma and Jimmy Ba. Adam: A method for stochastic optimization. In Yoshua Bengio and Yann LeCun, editors, 3rd International Conference on Learning Representations, ICLR 2015, San Diego, CA, USA, May 7-9, 2015, Conference Track Proceedings , 2015. URL http://arxiv.org/abs/1412.6980 .",
+      "content_hash": "bc69a3306cad3b4bbfe0d581700da1e5373f82c05cb4d28b2f71ada1fafa323d",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 12.",
+      "page": 12,
+      "chunk_index": 61,
+      "token_count": 107,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p12-c62",
+      "content": "- [29] Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Matthew Kelcey, Jacob Devlin, Kenton Lee, Kristina N. Toutanova, Llion Jones, Ming-Wei Chang, Andrew Dai, Jakob Uszkoreit, Quoc Le, and Slav Petrov. Natural Questions: a Benchmark for Question Answering Research. Transactions of the Association of Computational Linguistics , 2019. URL https://tomkwiat.users.x20web.corp.google.com/papers/ natural-questions/main-1455-kwiatkowski.pdf .",
+      "content_hash": "02321b0cd00c7fc82d06d3bdd6cb841677b4462076eebe9a6c5f61960921e58a",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 12.",
+      "page": 12,
+      "chunk_index": 62,
+      "token_count": 61,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p12-c63",
+      "content": "- [30] Guillaume Lample, Alexandre Sablayrolles, Marc' Aurelio Ranzato, Ludovic Denoyer, and Herve Jegou. Large memory layers with product keys. In H. Wallach, H. Larochelle, A. Beygelzimer, F. d' Alch\u00e9-Buc, E. Fox, and R. Garnett, editors, Advances in Neural Information Processing Systems 32 , pages 8548-8559. Curran Associates, Inc., 2019. URL http: //papers.nips.cc/paper/9061-large-memory-layers-with-product-keys.pdf .\n- [31] Kenton Lee, Ming-Wei Chang, and Kristina Toutanova. Latent retrieval for weakly supervised open domain question answering. In Proceedings of the 57th Annual Meeting of the Association\nfor Computational Linguistics , pages 6086-6096, Florence, Italy, July 2019. Association for Computational Linguistics. doi: 10.18653/v1/P19-1612. URL https://www.aclweb.org/ anthology/P19-1612 .",
+      "content_hash": "45c18f8ab775ce6f1572d159d5471e6aab5b9f167bc1b35777e61d85d72c7bc1",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 12.",
+      "page": 12,
+      "chunk_index": 63,
+      "token_count": 102,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p13-c64",
+      "content": "- [32] Mike Lewis, Yinhan Liu, Naman Goyal, Marjan Ghazvininejad, Abdelrahman Mohamed, Omer Levy, Veselin Stoyanov, and Luke Zettlemoyer. BART: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension. arXiv preprint arXiv:1910.13461 , 2019. URL https://arxiv.org/abs/1910.13461 .\n- [33] Jiwei Li, Michel Galley, Chris Brockett, Jianfeng Gao, and Bill Dolan. A diversity-promoting objective function for neural conversation models. In Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies , pages 110-119, San Diego, California, June 2016. Association for Computational Linguistics. doi: 10.18653/v1/N16-1014. URL https://www.aclweb.org/anthology/ N16-1014 .",
+      "content_hash": "c372a83c5be60bde0c1728dc15af29ac9081a7a9a489f46c4fa1f99f5aa1ae63",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 13.",
+      "page": 13,
+      "chunk_index": 64,
+      "token_count": 97,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p13-c65",
+      "content": "- [34] Margaret Li, Jason Weston, and Stephen Roller. Acute-eval: Improved dialogue evaluation with optimized questions and multi-turn comparisons. ArXiv , abs/1909.03087, 2019. URL https://arxiv.org/abs/1909.03087 .\n- [35] Hairong Liu, Mingbo Ma, Liang Huang, Hao Xiong, and Zhongjun He. Robust neural machine translation with joint textual and phonetic embedding. In Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics , pages 3044-3049, Florence, Italy, July 2019. Association for Computational Linguistics. doi: 10.18653/v1/P19-1291. URL https://www.aclweb.org/anthology/P19-1291 .",
+      "content_hash": "aba521c743b8cc967e465d1e3e581dba64aa1bc3a86be2099b1820a001c63286",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 13.",
+      "page": 13,
+      "chunk_index": 65,
+      "token_count": 78,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p13-c66",
+      "content": "- [36] Peter J. Liu*, Mohammad Saleh*, Etienne Pot, Ben Goodrich, Ryan Sepassi, Lukasz Kaiser, and Noam Shazeer. Generating wikipedia by summarizing long sequences. In International Conference on Learning Representations , 2018. URL https://openreview.net/forum? id=Hyg0vbWC-.\n- [37] Yury A. Malkov and D. A. Yashunin. Efficient and robust approximate nearest neighbor search using hierarchical navigable small world graphs. IEEE Transactions on Pattern Analysis and Machine Intelligence , 42:824-836, 2016. URL https://arxiv.org/abs/1603.09320 .\n- [38] Gary Marcus. The next decade in ai: four steps towards robust artificial intelligence. arXiv preprint arXiv:2002.06177 , 2020. URL https://arxiv.org/abs/2002.06177 .",
+      "content_hash": "0a1dc65eea76c2807cb4e583a3c4a2ae5447fe6b21e21cec1b6ea45b67b07e85",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 13.",
+      "page": 13,
+      "chunk_index": 66,
+      "token_count": 94,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p13-c67",
+      "content": "- [39] Luca Massarelli, Fabio Petroni, Aleksandra Piktus, Myle Ott, Tim Rockt\u00e4schel, Vassilis Plachouras, Fabrizio Silvestri, and Sebastian Riedel. How decoding strategies affect the verifiability of generated text. arXiv preprint arXiv:1911.03587 , 2019. URL https: //arxiv.org/abs/1911.03587 .\n- [40] Paulius Micikevicius, Sharan Narang, Jonah Alben, Gregory Diamos, Erich Elsen, David Garcia, Boris Ginsburg, Michael Houston, Oleksii Kuchaiev, Ganesh Venkatesh, and Hao Wu. Mixed precision training. In ICLR , 2018. URL https://openreview.net/forum?id=r1gs9JgRZ .",
+      "content_hash": "9448a4186b9e301e57a874cee14631150e45ff74824f8f271ab4ba1244f4e572",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 13.",
+      "page": 13,
+      "chunk_index": 67,
+      "token_count": 72,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p13-c68",
+      "content": "- [41] Nikita Moghe, Siddhartha Arora, Suman Banerjee, and Mitesh M. Khapra. Towards exploiting background knowledge for building conversation systems. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing , pages 2322-2332, Brussels, Belgium, October-November 2018. Association for Computational Linguistics. doi: 10.18653/v1/D18-1255. URL https://www.aclweb.org/anthology/D18-1255 .\n- [42] Preksha Nema and Mitesh M. Khapra. Towards a better metric for evaluating question generation systems. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing , pages 3950-3959, Brussels, Belgium, October-November 2018. Association for Computational Linguistics. doi: 10.18653/v1/D18-1429. URL https://www.aclweb.org/ anthology/D18-1429 .",
+      "content_hash": "35b860ffc222792b44674f36da15849440e351b229a2371d069fc589f2246d2c",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 13.",
+      "page": 13,
+      "chunk_index": 68,
+      "token_count": 96,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p13-c69",
+      "content": "- [43] Tri Nguyen, Mir Rosenberg, Xia Song, Jianfeng Gao, Saurabh Tiwary, Rangan Majumder, and Li Deng. MS MARCO: A human generated machine reading comprehension dataset. In Tarek Richard Besold, Antoine Bordes, Artur S. d'Avila Garcez, and Greg Wayne, editors, Proceedings of the Workshop on Cognitive Computation: Integrating neural and symbolic\napproaches 2016 co-located with the 30th Annual Conference on Neural Information Processing Systems (NIPS 2016), Barcelona, Spain, December 9, 2016 , volume 1773 of CEUR Workshop Proceedings . CEUR-WS.org, 2016. URL http://ceur-ws.org/Vol-1773/CoCoNIPS_ 2016_paper9.pdf .",
+      "content_hash": "3e47fe3970e3fab4fa65f85c8000ecd268f64e645c556b2dedf97e0cba644c81",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 13.",
+      "page": 13,
+      "chunk_index": 69,
+      "token_count": 85,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p14-c70",
+      "content": "- [44] Rodrigo Nogueira and Kyunghyun Cho. Passage re-ranking with BERT. arXiv preprint arXiv:1901.04085 , 2019. URL https://arxiv.org/abs/1901.04085 .\n- [45] Myle Ott, Sergey Edunov, Alexei Baevski, Angela Fan, Sam Gross, Nathan Ng, David Grangier, and Michael Auli. fairseq: A fast, extensible toolkit for sequence modeling. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics (Demonstrations) , pages 48-53, Minneapolis, Minnesota, June 2019. Association for Computational Linguistics. doi: 10.18653/v1/N19-4009. URL https://www.aclweb. org/anthology/N19-4009 .",
+      "content_hash": "989034a7e777c58650c2499c26248f6fa05e57c022cb6a732a5e2c00563da8a7",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 14.",
+      "page": 14,
+      "chunk_index": 70,
+      "token_count": 81,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p14-c71",
+      "content": "- [46] Ethan Perez, Siddharth Karamcheti, Rob Fergus, Jason Weston, Douwe Kiela, and Kyunghyun Cho. Finding generalizable evidence by learning to convince q&a models. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP) , pages 2402-2411, Hong Kong, China, November 2019. Association for Computational Linguistics. doi: 10.18653/v1/D19-1244. URL https://www.aclweb.org/anthology/D19-1244 .",
+      "content_hash": "888fc0d1336680accee20e85ca5306ba2243b599917492f4f0b79ff7bcc578f6",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 14.",
+      "page": 14,
+      "chunk_index": 71,
+      "token_count": 65,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p14-c72",
+      "content": "- [47] Fabio Petroni, Tim Rockt\u00e4schel, Sebastian Riedel, Patrick Lewis, Anton Bakhtin, Yuxiang Wu, and Alexander Miller. Language models as knowledge bases? In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP) , pages 2463-2473, Hong Kong, China, November 2019. Association for Computational Linguistics. doi: 10.18653/v1/ D19-1250. URL https://www.aclweb.org/anthology/D19-1250 .\n- [48] Fabio Petroni, Patrick Lewis, Aleksandra Piktus, Tim Rockt\u00e4schel, Yuxiang Wu, Alexander H. Miller, and Sebastian Riedel. How context affects language models' factual predictions. In Automated Knowledge Base Construction , 2020. URL https://openreview.net/forum? id=025X0zPfn .",
+      "content_hash": "feae39d68ff6b8295bb3c248e7a43e28b99709f7aa58f6872af2603cbf22d8b1",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 14.",
+      "page": 14,
+      "chunk_index": 72,
+      "token_count": 100,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p14-c73",
+      "content": "- [49] Alec Radford, Karthik Narasimhan, Tim Salimans, and Ilya Sutskever. Improving Language Understanding by Generative Pre-Training, 2018. URL https://s3-us-west-2.amazonaws.com/openai-assets/research-covers/ language-unsupervised/language_understanding_paper.pdf .\n- [50] Alec Radford, Jeff Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. Language models are unsupervised multitask learners, 2019. URL https://d4mucfpksywv.cloudfront.net/better-language-models/language_ models_are_unsupervised_multitask_learners.pdf .",
+      "content_hash": "07f381a891fa32c273d5780eb8237dc91d0f605f8322cfc53f913ef40f309998",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 14.",
+      "page": 14,
+      "chunk_index": 73,
+      "token_count": 48,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p14-c74",
+      "content": "- [51] Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael Matena, Yanqi Zhou, Wei Li, and Peter J. Liu. Exploring the limits of transfer learning with a unified text-to-text transformer. arXiv e-prints , 2019. URL https://arxiv.org/abs/1910.10683 .\n- [52] Adam Roberts, Colin Raffel, and Noam Shazeer. How much knowledge can you pack into the parameters of a language model? arXiv e-prints , 2020. URL https://arxiv.org/abs/ 2002.08910 .\n- [53] Stephen Robertson and Hugo Zaragoza. The probabilistic relevance framework: Bm25 and beyond. Found. Trends Inf. Retr. , 3(4):333-389, April 2009. ISSN 1554-0669. doi: 10.1561/ 1500000019. URL https://doi.org/10.1561/1500000019 .",
+      "content_hash": "6d7deb197c19bde0dbe8e3419b1c69a04329886f9c4dcb1982bca9acad5c4fc7",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 14.",
+      "page": 14,
+      "chunk_index": 74,
+      "token_count": 100,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p14-c75",
+      "content": "- [54] Irene Solaiman, Miles Brundage, Jack Clark, Amanda Askell, Ariel Herbert-Voss, Jeff Wu, Alec Radford, and Jian-Bing Wang. Release strategies and the social impacts of language models. ArXiv , abs/1908.09203, 2019.\n- [55] Sainbayar Sukhbaatar, Arthur Szlam, Jason Weston, and Rob Fergus. End-to-end memory networks. In C. Cortes, N. D. Lawrence, D. D. Lee, M. Sugiyama, and R. Garnett, editors, Advances in Neural Information Processing Systems 28 , pages 2440-2448. Curran Associates, Inc., 2015. URL http://papers.nips.cc/paper/5846-end-to-end-memory-networks.pdf .",
+      "content_hash": "05af8b475a6f5ba6a2cc73bddb290db356af847a19dc360fca899a22f43aa405",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 14.",
+      "page": 14,
+      "chunk_index": 75,
+      "token_count": 78,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p15-c76",
+      "content": "- [56] James Thorne, Andreas Vlachos, Christos Christodoulopoulos, and Arpit Mittal. FEVER: a large-scale dataset for fact extraction and VERification. In Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long Papers) , pages 809-819, New Orleans, Louisiana, June 2018. Association for Computational Linguistics. doi: 10.18653/v1/N18-1074. URL https://www.aclweb.org/anthology/N18-1074 .\n- [57] James H. Thorne and Andreas Vlachos. Avoiding catastrophic forgetting in mitigating model biases in sentence-pair classification with elastic weight consolidation. ArXiv , abs/2004.14366, 2020. URL https://arxiv.org/abs/2004.14366 .",
+      "content_hash": "bc05b16d28e9ab223647af175a4e1609914e2518f7ea6bba2a675a806b806c86",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 15.",
+      "page": 15,
+      "chunk_index": 76,
+      "token_count": 90,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p15-c77",
+      "content": "- [58] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, \u0141 ukasz Kaiser, and Illia Polosukhin. Attention is all you need. In I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett, editors, Advances in Neural Information Processing Systems 30 , pages 5998-6008. Curran Associates, Inc., 2017. URL http://papers.nips.cc/paper/7181-attention-is-all-you-need.pdf .\n- [59] Ashwin Vijayakumar, Michael Cogswell, Ramprasaath Selvaraju, Qing Sun, Stefan Lee, David Crandall, and Dhruv Batra. Diverse beam search for improved description of complex scenes. AAAI Conference on Artificial Intelligence , 2018. URL https://www.aaai.org/ocs/index. php/AAAI/AAAI18/paper/view/17329 .",
+      "content_hash": "4ad858a60da00f3b85897f31c1b559351050bc7557708a23d2e528463a65892e",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 15.",
+      "page": 15,
+      "chunk_index": 77,
+      "token_count": 98,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p15-c78",
+      "content": "- [60] Alex Wang, Amanpreet Singh, Julian Michael, Felix Hill, Omer Levy, and Samuel Bowman. GLUE: A multi-task benchmark and analysis platform for natural language understanding. In Proceedings of the 2018 EMNLP Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP , pages 353-355, Brussels, Belgium, November 2018. Association for Computational Linguistics. doi: 10.18653/v1/W18-5446. URL https://www.aclweb.org/ anthology/W18-5446 .",
+      "content_hash": "e522f6c64060be7b38bfb9124705d0efcaac9d4c9d15bb8288cb4fd073700f77",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 15.",
+      "page": 15,
+      "chunk_index": 78,
+      "token_count": 58,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p15-c79",
+      "content": "- [61] Alex Wang, Yada Pruksachatkun, Nikita Nangia, Amanpreet Singh, Julian Michael, Felix Hill, Omer Levy, and Samuel Bowman. SuperGLUE: A Stickier Benchmark for GeneralPurpose Language Understanding Systems. In H. Wallach, H. Larochelle, A. Beygelzimer, F. d\\textquotesingle Alch\u00e9-Buc, E. Fox, and R. Garnett, editors, Advances in Neural Information Processing Systems 32 , pages 3261-3275. Curran Associates, Inc., 2019. URL https:// arxiv.org/abs/1905.00537 .",
+      "content_hash": "d0921088a55440045d4daf27d879dd8be5380ca717872376270a0655139ed665",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 15.",
+      "page": 15,
+      "chunk_index": 79,
+      "token_count": 62,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p15-c80",
+      "content": "- [62] Shuohang Wang, Mo Yu, Xiaoxiao Guo, Zhiguo Wang, Tim Klinger, Wei Zhang, Shiyu Chang, Gerry Tesauro, Bowen Zhou, and Jing Jiang. R 3 : Reinforced ranker-reader for open-domain question answering. In Sheila A. McIlraith and Kilian Q. Weinberger, editors, Proceedings of the Thirty-Second AAAI Conference on Artificial Intelligence, (AAAI-18), the 30th innovative Applications of Artificial Intelligence (IAAI-18), and the 8th AAAI Symposium on Educational Advances in Artificial Intelligence (EAAI-18), New Orleans, Louisiana, USA, February 2-7, 2018 , pages 5981-5988. AAAI Press, 2018. URL https://www.aaai.org/ocs/index. php/AAAI/AAAI18/paper/view/16712 .",
+      "content_hash": "1e1167ec791d816ee1ec0fcefb31d873cca0ca80d24f671b292534f05d333133",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 15.",
+      "page": 15,
+      "chunk_index": 80,
+      "token_count": 88,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p15-c81",
+      "content": "- [63] Shuohang Wang, Mo Yu, Jing Jiang, Wei Zhang, Xiaoxiao Guo, Shiyu Chang, Zhiguo Wang, Tim Klinger, Gerald Tesauro, and Murray Campbell. Evidence aggregation for answer reranking in open-domain question answering. In ICLR , 2018. URL https://openreview. net/forum?id=rJl3yM-Ab .\n- [64] Jason Weston, Sumit Chopra, and Antoine Bordes. Memory networks. In Yoshua Bengio and Yann LeCun, editors, 3rd International Conference on Learning Representations, ICLR 2015, San Diego, CA, USA, May 7-9, 2015, Conference Track Proceedings , 2015. URL http://arxiv.org/abs/1410.3916 .",
+      "content_hash": "05d603c5cbdd4f6159226c5734e3f15739148036270305d16acb2e3fc69892be",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 15.",
+      "page": 15,
+      "chunk_index": 81,
+      "token_count": 81,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p15-c82",
+      "content": "- [65] Jason Weston, Emily Dinan, and Alexander Miller. Retrieve and refine: Improved sequence generation models for dialogue. In Proceedings of the 2018 EMNLP Workshop SCAI: The 2nd International Workshop on Search-Oriented Conversational AI , pages 87-92, Brussels, Belgium, October 2018. Association for Computational Linguistics. doi: 10.18653/v1/W18-5713. URL https://www.aclweb.org/anthology/W18-5713 .\n- [66] Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement Delangue, Anthony Moi, Pierric Cistac, Tim Rault, R\u00e9mi Louf, Morgan Funtowicz, Joe Davison, Sam Shleifer, Patrick von Platen, Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu, Teven Le Scao, Sylvain Gugger, Mariama Drame, Quentin Lhoest, and Alexander M. Rush. Huggingface's transformers: State-of-the-art natural language processing. ArXiv , abs/1910.03771, 2019.",
+      "content_hash": "f4cc9ef2ba0192ec7f22f713c11894bab321bebc814fe54800031250eb056881",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 15.",
+      "page": 15,
+      "chunk_index": 82,
+      "token_count": 110,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p16-c83",
+      "content": "- [67] Shiyue Zhang and Mohit Bansal. Addressing semantic drift in question generation for semisupervised question answering. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP) , pages 2495-2509, Hong Kong, China, November 2019. Association for Computational Linguistics. doi: 10.18653/v1/D19-1253. URL https://www.aclweb.org/anthology/D19-1253 .\n- [68] Wanjun Zhong, Jingjing Xu, Duyu Tang, Zenan Xu, Nan Duan, Ming Zhou, Jiahai Wang, and Jian Yin. Reasoning over semantic-level graph for fact checking. ArXiv , abs/1909.03745, 2019. URL https://arxiv.org/abs/1909.03745 .",
+      "content_hash": "c83fb0da915757e0e50745dce0d143352040653521cb4b2227d982a9445cfd90",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 16.",
+      "page": 16,
+      "chunk_index": 83,
+      "token_count": 91,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p17-c84",
+      "content": "For Open-domain QA we report test numbers using 15 retrieved documents for RAG-Token models. For RAG-Sequence models, we report test results using 50 retrieved documents, and we use the Thorough Decoding approach since answers are generally short. We use greedy decoding for QA as we did not find beam search improved results. For Open-MSMarco and Jeopardy question generation, we report test numbers using ten retrieved documents for both RAG-Token and RAG-Sequence, and we also train a BART-large model as a baseline. We use a beam size of four, and use the Fast Decoding approach for RAG-Sequence models, as Thorough Decoding did not improve performance.",
+      "content_hash": "0920bc4ae089ea4a6ab9fb8a5b8bdd7e9426ec9774215f1640cc9661045e9360",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 17.",
+      "page": 17,
+      "chunk_index": 84,
+      "token_count": 104,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p17-c85",
+      "content": "Figure 4: Annotation interface for human evaluation of factuality. A pop-out for detailed instructions and a worked example appear when clicking \"view tool guide\".\nFigure 4 shows the user interface for human evaluation. To avoid any biases for screen position, which model corresponded to sentence A and sentence B was randomly selected for each example. Annotators were encouraged to research the topic using the internet, and were given detailed instructions and worked examples in a full instructions tab. We included some gold sentences in order to assess the accuracy of the annotators. Two annotators did not perform well on these examples and their annotations were removed from the results.",
+      "content_hash": "d5139f4b3b24570af6afddeafc8a405c1829926c583cbe3dce7ec2cfee08e61e",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 17.",
+      "page": 17,
+      "chunk_index": 85,
+      "token_count": 109,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p17-c86",
+      "content": "We train all RAG models and BART baselines using Fairseq [45]. 2 We train with mixed precision floating point arithmetic [40], distributing training across 8, 32GB NVIDIA V100 GPUs, though training and inference can be run on one GPU. We find that doing Maximum Inner Product Search with FAISS is sufficiently fast on CPU, so we store document index vectors on CPU, requiring \u223c 100 GBof CPU memory for all of Wikipedia. After submission, We have ported our code to HuggingFace Transformers [66] 3 , which achieves equivalent performance to the previous version but is a cleaner and easier to use implementation. This version is also open-sourced. We also compress the document index using FAISS's compression tools, reducing the CPU memory requirement to 36GB. Scripts to run experiments with RAG can be found at https://github.com/huggingface/transformers/ blob/master/examples/rag/README.md and an interactive demo of a RAG model can be found at https://huggingface.co/rag/",
+      "content_hash": "d0c7303117a04026d679fca3bbe784a43c8ae062373578a6e89d58565afcbbf5",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 17.",
+      "page": 17,
+      "chunk_index": 86,
+      "token_count": 149,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p17-c87",
+      "content": "[2 https://github.com/pytorch/fairseq](https://github.com/pytorch/fairseq)\n[3 https://github.com/huggingface/transformers](https://github.com/huggingface/transformers)",
+      "content_hash": "854d0b8c9c00eadb3410079629d969e42d9ef7c63363c3888de8b48ee2ca3112",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 17.",
+      "page": 17,
+      "chunk_index": 87,
+      "token_count": 4,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p18-c88",
+      "content": "For open-domain QA, multiple answer annotations are often available for a given question. These answer annotations are exploited by extractive models during training as typically all the answer annotations are used to find matches within documents when preparing training data. For RAG, we also make use of multiple annotation examples for Natural Questions and WebQuestions by training the model with each ( q, a ) pair separately, leading to a small increase in accuracy. For TriviaQA, there are often many valid answers to a given question, some of which are not suitable training targets, such as emoji or spelling variants. For TriviaQA, we filter out answer candidates if they do not occur in top 1000 documents for the query.",
+      "content_hash": "a25046df47469e2b857e54c7845cbe12ee429a8cf50f03f247563cce550b2535",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 18.",
+      "page": 18,
+      "chunk_index": 88,
+      "token_count": 119,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p18-c89",
+      "content": "CuratedTrec preprocessing The answers for CuratedTrec are given in the form of regular expressions, which has been suggested as a reason why it is unsuitable for answer-generation models [20]. To overcome this, we use a pre-processing step where we first retrieve the top 1000 documents for each query, and use the answer that most frequently matches the regex pattern as the supervision target. If no matches are found, we resort to a simple heuristic: generate all possible permutations for each regex, replacing non-deterministic symbols in the regex nested tree structure with a whitespace.",
+      "content_hash": "eb75f8ad29c240e6074b5a348005db4c655ec8a6d9dc3cd268e29f6e49d3ffa3",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 18.",
+      "page": 18,
+      "chunk_index": 89,
+      "token_count": 93,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p18-c90",
+      "content": "TriviaQA Evaluation setups The open-domain QA community customarily uses public development datasets as test datasets, as test data for QA datasets is often restricted and dedicated to reading compehension purposes. We report our results using the datasets splits used in DPR [26], which are consistent with common practice in Open-domain QA. For TriviaQA, this test dataset is the public TriviaQA Web Development split. Roberts et al. [52] used the TriviaQA official Wikipedia test set instead. F\u00e9vry et al. [14] follow this convention in order to compare with Roberts et al. [52] (See appendix of [14]). We report results on both test sets to enable fair comparison to both approaches. We find that our performance is much higher using the official Wiki test set, rather than the more conventional open-domain test set, which we attribute to the official Wiki test set questions being simpler to answer from Wikipedia.",
+      "content_hash": "be43ff099db86405e8f90025473d0a3302ef43c9225b35ba3a7ce0299ae6ce76",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 18.",
+      "page": 18,
+      "chunk_index": 90,
+      "token_count": 147,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p18-c91",
+      "content": "For FEVER classification, we follow the practice from [32], and first re-generate the claim, and then classify using the representation of the final hidden state, before finally marginalizing across documents to obtain the class probabilities. The FEVER task traditionally has two sub-tasks. The first is to classify the claim as either \"Supported\", \"Refuted\" or \"Not Enough Info\", which is the task we explore in the main paper. FEVER's other sub-task involves extracting sentences from Wikipedia as evidence supporting the classification prediction. As FEVER uses a different Wikipedia dump to us, directly tackling this task is not straightforward. We hope to address this in future work.",
+      "content_hash": "8eb225c6896736e8e309741572c12e50602a73e3775b3c3a379aa720e6adf844",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 18.",
+      "page": 18,
+      "chunk_index": 91,
+      "token_count": 105,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p18-c92",
+      "content": "We experimented with adding \"Null document\" mechanism to RAG, similar to REALM [20] in order to model cases where no useful information could be retrieved for a given input. Here, if k documents were retrieved, we would additionally \"retrieve\" an empty document and predict a logit for the null document, before marginalizing over k +1 predictions. We explored modelling this null document logit by learning (i) a document embedding for the null document, (ii) a static learnt bias term, or (iii) a neural network to predict the logit. We did not find that these improved performance, so in the interests of simplicity, we omit them. For Open MS-MARCO, where useful retrieved documents cannot always be retrieved, we observe that the model learns to always retrieve a particular set of documents for questions that are less likely to benefit from retrieval, suggesting that null document mechanisms may not be necessary for RAG.",
+      "content_hash": "e8cf808a3a89dbe9c69892fbf2231d9508c5390a52fa10d96ecf9ee04829a888",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 18.",
+      "page": 18,
+      "chunk_index": 92,
+      "token_count": 151,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p18-c93",
+      "content": "Our RAG models contain the trainable parameters for the BERT-base query and document encoder of DPR, with 110M parameters each (although we do not train the document encoder ourselves) and 406M trainable parameters from BART-large, 406M parameters, making a total of 626M trainable parameters. The best performing \"closed-book\" (parametric only) open-domain QA model is T5-11B with 11 Billion trainable parameters. The T5 model with the closest number of parameters to our models is T5-large (770M parameters), which achieves a score of 28.9 EM on Natural Questions [52], substantially below the 44.5 that RAG-Sequence achieves, indicating that hybrid parametric/nonparametric models require far fewer trainable parameters for strong open-domain QA performance. The non-parametric memory index does not consist of trainable parameters, but does consists of 21M 728 dimensional vectors, consisting of 15.3B values. These can be easily be stored at 8-bit floating point precision to manage memory and disk footprints.",
+      "content_hash": "16314857137b4d91eda02a42fc529085adb8aa0231de25f29cb26b999e576192",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 18.",
+      "page": 18,
+      "chunk_index": 93,
+      "token_count": 148,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p19-c94",
+      "content": "Table 7: Number of instances in the datasets used. *A hidden subset of this data is used for evaluation\n\nTask\n\nTrain\n\nDevelopment\n\nTest\n\nNatural Questions\n\n79169\n\n8758\n\n3611\n\nTriviaQA\n\n78786\n\n8838\n\n11314\n\nWebQuestions\n\n3418\n\n362\n\n2033\n\nCuratedTrec\n\n635\n\n134\n\n635\n\nJeopardy Question Generation\n\n97392\n\n13714\n\n26849\n\nMS-MARCO\n\n153726\n\n12468\n\n101093*\n\nFEVER-3-way\n\n145450\n\n10000\n\n10000\n\nFEVER-2-way\n\n96966\n\n6666\n\n6666",
+      "content_hash": "f873e2f825a280b42245d8ecae3e94f80dd13deb6a95e6a538a4beda8956ed47",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 19.",
+      "page": 19,
+      "chunk_index": 94,
+      "token_count": 58,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p19-c95",
+      "content": "In preliminary experiments, we observed that for some tasks such as story generation [11], the retrieval component would 'collapse' and learn to retrieve the same documents regardless of the input. In these cases, once retrieval had collapsed, the generator would learn to ignore the documents, and the RAG model would perform equivalently to BART. The collapse could be due to a less-explicit requirement for factual knowledge in some tasks, or the longer target sequences, which could result in less informative gradients for the retriever. Perez et al. [46] also found spurious retrieval results when optimizing a retrieval component in order to improve performance on downstream tasks.",
+      "content_hash": "b50bd54ab4e89f3597e241c533860ed24cf3742c6166b176e8262609a1be6315",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 19.",
+      "page": 19,
+      "chunk_index": 95,
+      "token_count": 106,
+      "metadata": {}
+    },
+    {
+      "locator": "retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005-11401-p19-c96",
+      "content": "The number of training, development and test datapoints in each of our datasets is shown in Table 7.",
+      "content_hash": "1cdb737bff40ff4bb4910ab85f62da2d6e46ede54d13c339329532b97298cfc3",
+      "context_header": "Passage from retrieval-augmented-generation-for-knowledge-intensive-nlp-tasks-arxiv-2005.11401, page 19.",
+      "page": 19,
+      "chunk_index": 96,
+      "token_count": 18,
+      "metadata": {}
+    }
+  ]
+}

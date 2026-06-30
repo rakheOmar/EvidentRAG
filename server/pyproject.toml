@@ -1,14 +1,29 @@
 [project]
-name = "evidentrag"
+name = "server"
 version = "0.1.0"
-description = "Adaptive RAG Engine with Evidence Retrieval Memory"
+description = "Minimal server scaffold"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi[standard]>=0.138.0",
-    "uvicorn[standard]>=0.34.0",
-    "httpx>=0.28.0",
+    "fastapi[standard]>=0.138.2",
+    "httpx>=0.28.1",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.36.0",
+    "opentelemetry-instrumentation-fastapi>=0.57b0",
+    "opentelemetry-instrumentation-httpx>=0.57b0",
+    "opentelemetry-sdk>=1.36.0",
+    "asyncpg>=0.30.0",
+    "sqlalchemy[asyncio]>=2.0.36",
     "qdrant-client>=1.13.0",
-    "psycopg2-binary>=2.9.0",
     "redis>=5.2.0",
+    # "docling>=2.107.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.15.20",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

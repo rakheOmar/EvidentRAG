@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+from fastapi import FastAPI
+
+from app.core.config import (
+    DatabaseSettings,
+    EmbeddingSettings,
+    LLMSettings,
+    QdrantSettings,
+    RedisSettings,
+    Settings,
+)
+
+
+def test_configure_telemetry_instruments_app_when_enabled(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeProvider:
+        def __init__(self, *, resource) -> None:
+            captured["resource"] = resource
+
+        def add_span_processor(self, processor) -> None:
+            captured["processor"] = processor
+
+    class FakeExporter:
+        def __init__(self, **kwargs) -> None:
+            captured["exporter_kwargs"] = kwargs
+
+    class FakeBatchProcessor:
+        def __init__(self, exporter) -> None:
+            captured["batch_exporter"] = exporter
+
+    def fake_instrument_app(app: FastAPI, **kwargs) -> None:
+        captured["instrumented_app"] = app
+        captured["instrument_kwargs"] = kwargs
+
+    def fake_set_tracer_provider(provider) -> None:
+        captured["provider"] = provider
+
+    monkeypatch.setattr("app.core.telemetry.TracerProvider", FakeProvider)
+    monkeypatch.setattr("app.core.telemetry.OTLPSpanExporter", FakeExporter)
+    monkeypatch.setattr("app.core.telemetry.BatchSpanProcessor", FakeBatchProcessor)
+    monkeypatch.setattr(
+        "app.core.telemetry.FastAPIInstrumentor.instrument_app", fake_instrument_app
+    )
+    monkeypatch.setattr(
+        "app.core.telemetry.trace.set_tracer_provider", fake_set_tracer_provider
+    )
+
+    from app.core.telemetry import configure_telemetry
+
+    app = FastAPI()
+    settings = Settings(
+        app_name="EvidentRAG",
+        environment="development",
+        log_level="INFO",
+        log_format="json",
+        otel_enabled=True,
+        otel_service_name="evidentrag-server",
+        otel_exporter_otlp_endpoint="http://collector:4317",
+        otel_exporter_otlp_headers="authorization=token",
+        otel_exporter_otlp_protocol="grpc",
+        otel_excluded_urls="/health",
+        embeddings=EmbeddingSettings(
+            api_base="http://optiplex-3020:8081/v1",
+            api_key=None,
+            seed_demo_data=False,
+            model="google/gemini-embedding-2",
+            dimensions=768,
+        ),
+        llm=LLMSettings(
+            api_base="http://optiplex-3020:8081/v1",
+            api_key=None,
+            generation_model="gemini-2.5-pro",
+            utility_model="gemini-2.5-flash",
+        ),
+        db=DatabaseSettings(
+            host="localhost",
+            port=5432,
+            user="evidentrag",
+            password=None,
+            db="evidentrag",
+        ),
+        qdrant=QdrantSettings(
+            url="http://localhost:6333",
+            evidence_collection="evidentrag_evidence",
+        ),
+        redis=RedisSettings(url="redis://localhost:6379/0"),
+    )
+
+    configure_telemetry(app, settings)
+
+    assert captured["instrumented_app"] is app
+    assert captured["instrument_kwargs"]["excluded_urls"] == "/health"
+    assert captured["exporter_kwargs"]["endpoint"] == "http://collector:4317"
+    assert captured["exporter_kwargs"]["headers"] == {"authorization": "token"}

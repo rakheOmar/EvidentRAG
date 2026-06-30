@@ -1,0 +1,863 @@
+{
+  "document": {
+    "title": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443",
+    "slug": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443",
+    "source_path": "corpus/filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443.pdf",
+    "source_type": "pdf",
+    "content_hash": "a1500f645cca6ab6bc8200259496fdf010a42feadf25b79582698c8c9e7e0e44",
+    "page_count": 21,
+    "metadata": {}
+  },
+  "evidence": [
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p1-c0",
+      "content": "Abylay Amanbayev, Brian Tsan, Tri Dang, Florin Rusu { amanbayev, btsan, tridang, frusu } @ucmerced.edu University of California Merced\nFebruary 2026",
+      "content_hash": "16ddf22abda65eb8148e67b87f246de8fc5c47f009ae601c06bd7ce8be0b34d8",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 1.",
+      "page": 1,
+      "chunk_index": 0,
+      "token_count": 21,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p1-c1",
+      "content": "Retrieval-Augmented Generation (RAG) applications increasingly rely on Filtered Approximate Nearest Neighbor Search (FANNS) to combine semantic retrieval with metadata constraints. While algorithmic innovations for FANNS have been proposed, there remains a lack of understanding regarding how generic filtering strategies perform within Vector Databases. In this work, we systematize the taxonomy of filtering strategies and evaluate their integration into FAISS, Milvus, and pgvector. To provide a robust benchmarking framework, we introduce a new relational dataset, MoReVec , consisting of two tables, featuring 768-dimensional text embeddings and a rich schema of metadata attributes. We further propose the Global-Local Selectivity (GLS) correlation metric to quantify the relationship between filters and query vectors.",
+      "content_hash": "53fc716e2fed9aad995588d1457a194f17e1fc7edba16ebded0a9b5f7e64f490",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 1.",
+      "page": 1,
+      "chunk_index": 1,
+      "token_count": 109,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p1-c2",
+      "content": "Our experiments reveal that algorithmic adaptations within the engine often override raw index performance. Specifically, we find that: (1) Milvus achieves superior recall stability through hybrid approximate/exact execution; (2) pgvector 's cost-based query optimizer frequently selects suboptimal execution plans, favoring approximate index scans even when exact sequential scans would yield perfect recall at comparable latency; and (3) partition-based indexes (IVFFlat) outperform graph-based indexes (HNSW) for low-selectivity queries. To facilitate this analysis, we extend the widely-used ANN-Benchmarks to support filtered vector search and make it available online. Finally, we synthesize our findings into a set of practical guidelines for selecting index types and configuring query optimizers for hybrid search workloads.",
+      "content_hash": "ef4fa77f5f049b91ab1fc35044688f90ddb2dd83ba338ef65c15dfba91649f90",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 1.",
+      "page": 1,
+      "chunk_index": 2,
+      "token_count": 109,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p1-c3",
+      "content": "Vector Databases have emerged as an important component in the modern AI stack, serving as the long-term memory for Large Language Models (LLMs) [25]. In particular, they mitigate hallucinations by providing relevant context from external knowledge bases to Retrieval-Augmented Generation (RAG) applications [22, 29]. This is done by retrieval from unstructured data, such as text, images, and audio, stored as vector embeddings, using Approximate Nearest Neighbor Search (ANNS) algorithms. While standard ANNS is a well-studied problem with efficient algorithms [35, 15, 36, 20] and established benchmarks [2, 6, 55], real-world deployment reveals that semantic similarity alone is rarely sufficient for context retrieval.",
+      "content_hash": "1b92adf1a849f1c1488202763f473131aeb4b7729df1bdad8105a2a4293c8d2c",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 1.",
+      "page": 1,
+      "chunk_index": 3,
+      "token_count": 102,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p1-c4",
+      "content": "As vector search systems mature from prototypes to production, they are expected to handle hybrid queries , where irrelevant search results are excluded by filters over structured metadata [60, 30]. This requirement is ubiquitous across domains: a medical RAG system must find patients with similar symptoms ( vector ) who are also within a specific age range (fi lter ); a legal search engine must locate relevant cases ( vector ) within a specific jurisdiction (fi lter ); and ecommerce platforms must recommend visually similar products ( vector ) that are highly rated (fi lter ) [58, 10].\nDespite the universality of these queries, the interaction between structured filtering and vector index traversal remains a critical blind spot in current research. While recent algorithmic work has proposed specialized fusion methods (e.g., ACORN [45], Filtered-DiskANN [15], HQANN [61]), these approaches often sacrifice flexibility, requiring the index to be tuned for specific attributes or workloads. In contrast, general-purpose Vector Databases aim to be schema-agnostic and data-agnostic, necessitating the use of generic strategies like pre-filtering and post-filtering .",
+      "content_hash": "898ad031cea2fdbe3fc6dd48337761ae32ee713c7ee555ede623c116a6c3dca3",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 1.",
+      "page": 1,
+      "chunk_index": 4,
+      "token_count": 175,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p2-c5",
+      "content": "This creates a gap between algorithmic theory and real-world applications. First, the literature lacks a unified taxonomy to describe these strategies, leading to ambiguous definitions and inconsistent implementations across systems. Second, while generic strategies are flexible, their performance limitations and interplay with system components remain underexplored.\nFurthermore, the community lacks the tooling to properly benchmark these scenarios. Existing benchmarks fail to stress these systems realistically; they are predominantly 'flat,' relying on image-based datasets (like SIFT or GIST) or pure text corpora (like BEIR [54]) with synthetic or limited metadata. Crucially, they lack robust correlation metrics to distinguish whether a performance drop is due to the system's architecture or the intrinsic 'hardness' of the filtervector distribution. Without a rigorous evaluation of these factors, it remains unclear how architectural choices of Vector Databases impact the trade-off between recall and query latency in filtered workloads.",
+      "content_hash": "5c8f81977f52b99eea9ee91c8ba4c8e221550d6f808e1b77f5ade928342af9ec",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 2.",
+      "page": 2,
+      "chunk_index": 5,
+      "token_count": 142,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p2-c6",
+      "content": "To address these challenges, we present a comprehensive evaluation of generic filtering strategies within vector database systems. Our specific contributions are as follows:",
+      "content_hash": "92f03b41d17be347a05b1aba17d0a2aca432dafb4fbfbe1de46957ba2c2c539d",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 2.",
+      "page": 2,
+      "chunk_index": 6,
+      "token_count": 23,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p2-c7",
+      "content": "- Taxonomy and System Analysis. Wesystematize the taxonomy of filtering strategies (Pre-, Post-, and Runtimefiltering) and analyze their implementation in three widely-used systems: FAISS , Milvus , and pgvector . We highlight how system-level architectural decisions, such as adaptive query execution and query planning, often override raw algorithmic properties in production environments.\n- Global-Local Selectivity (GLS) Metric. We propose the Global-Local Selectivity (GLS) correlation metric to rigorously quantify the independence between metadata filters and vector neighborhoods. Unlike previous distance-based metrics, GLS normalizes local filter prevalence against global selectivity, providing a robust signal for indexing decisions.\n- FANNSDataset and Workload. Weconduct our experiments on a new relational dataset, MoReVec , comprising two tables: Movies and Reviews . This dataset features 768-dimensional dense text embeddings and a rich schema of scalar and categorical metadata, enabling the evaluation of filtered ANNS queries. Furthermore, the relational schema is designed to support future benchmarking of ANNS queries with join predicates.",
+      "content_hash": "9dc34324ea90367620d5bcd6ae32c7f7b55ea410079dc8c2d4c975c28bce7d2d",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 2.",
+      "page": 2,
+      "chunk_index": 7,
+      "token_count": 155,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p2-c8",
+      "content": "- Open-source Benchmarking Framework. We release an extension of the industry-standard ANN-Benchmarks framework capable of executing filtered queries with dynamic selectivity targets, facilitating future research into hybrid search performance. Our extended framework, the MoReVec dataset, and GLS correlation analysis tools are publicly available [3].\n- Empirical Insights on System Behavior. Through extensive experimentation, we reveal counter-intuitive performance characteristics in modern Vector Databases:\n- -Algorithmic Adaptation: Milvus achieves superior recall stability at low selectivities compared to standard implementations by employing a hybrid execution model that dynamically switches between 'Dual-Pool' graph traversal and adaptive brute-force fallbacks.\n- -Optimizer Limitations: We identify that pgvector 's cost-based optimizer frequently misjudges execution costs, favoring approximate index scans even when exact sequential scans would yield perfect recall at comparable latency.\n- -Index Capabilities: Contrary to standard ANNS wisdom, we demonstrate that partition-based indexes (IVFFlat) often outperform graph-based indexes (HNSW) in low-selectivity regimes due to efficient cluster pruning.",
+      "content_hash": "8a383800ea29c884593437053b4cf2bb1a1772d17b1eb677dc3ba380bd1c5c9e",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 2.",
+      "page": 2,
+      "chunk_index": 8,
+      "token_count": 151,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p3-c9",
+      "content": "- -Practical Guidelines. We synthesize our findings into a set of actionable guidelines for index selection, parameter tuning, and query plan verification, providing practitioners with a roadmap for optimizing hybrid search workloads in production.\nOrganization. The remainder of this paper is organized as follows. We begin with Section 2, which reviews recent work in this field, followed by the necessary background on Approximate Nearest Neighbor Search (ANNS) in Section 3. Section 4 describes our proposed Global-Local Selectivity (GLS) correlation metric. Section 5 systematizes the taxonomy of filtering strategies and details the specific architectures of the systems evaluated. Section 6 outlines our benchmarking framework, introducing the MoReVec dataset and workload. Section 7 presents the experimental results, analyzing the impact of selectivity and system architecture on performance. Finally, Section 8 concludes with a summary of our findings and potential future directions.",
+      "content_hash": "08aad1149a3515e1ddf388eadc4a1e70ab1f25cc87178338cf7bf62d896335df",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 3.",
+      "page": 3,
+      "chunk_index": 9,
+      "token_count": 139,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p3-c10",
+      "content": "The systematization of Filtered ANNS (FANNS) draws upon high-dimensional indexing, hybrid search algorithms, and the evolving architecture of modern Vector Databases.\n",
+      "content_hash": "498ef21188622a9dc1804b2cd9862f9de3da0f979c6b7bd29fa6e86ca3c8e240",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 3.",
+      "page": 3,
+      "chunk_index": 10,
+      "token_count": 21,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p3-c11",
+      "content": "Table 1: Comparison between this work and other recent FANNS benchmarks.PaperDescriptionResearch Goal & FramingThis WorkSystem-Level Analysis: Focuses on production Vector Databases (FAISS, Milvus, pgvec-tor).Systematizes generic filtering (Pre/Post/Runtime) and investigates how architecturalchoices (algorithmic adaptability, query planning) override raw algorithmic performance.Shi et al.[51]Unified Benchmark: Focuses on robustness and fairness. Establishes a standardized tuningprotocol and classification of strategy families (Filter-then, Search-then, Hybrid) to mitigateimplementation bias.Li et al.[31]Component Taxonomy: Focuses on internal index levers. Analyzes performance variabilitythrough specific components like pruning heuristics, entry-point selection, and edge-filtercosts.Iff et al.[19]Algorithm Survey:Focuses on specialized/fusion methods.Benchmarks state-of-the-artalgorithms (ACORN, Filtered-DiskANN) specifically on Transformer-based embeddings.Dataset ModelThis WorkRelational (IMDb): Two tables (Movies, Reviews) with 768d text embeddings and severalreal-world attributes.",
+      "content_hash": "1702bab10f79f933ccb8dc887297c1801b018049e39ab94e205c038ac7ea1276",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 3.",
+      "page": 3,
+      "chunk_index": 11,
+      "token_count": 109,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p3-c12",
+      "content": "Has 1-to-many foreign key between tables, can be used for ANNSwith JOIN-filtering.Shi et al.[51]Real-World Curated:Selection of diverse datasets,unified into a single harness to testgeneral robustness across varying data distributions.Li et al.[31]Synthetic + Real:4 datasets (up to 10M vectors) mixing real and synthetic attributes toallow precise control over selectivity sweeps (0.1%-100%).Iff et al.[19]Flat (ArXiv): Single table with 2.7M vectors and 11 real-world attributes. Large-scale textdata designed to test fusion algorithms.Key InsightsThis WorkArchitecture Dominates:Milvus's algorithmic adaptability and brute-force fallbacks sta-bilize recall; pgvector's optimizer often chooses suboptimal approximate scans. IntroducesGLS Correlationto quantify filter independence.Continued on next page",
+      "content_hash": "446596ff805aadb589703f33d9934af63da99b9cb47ba30d17c6c15bd4af351e",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 3.",
+      "page": 3,
+      "chunk_index": 12,
+      "token_count": 94,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p4-c13",
+      "content": "Table 1 - continued from previous page\n\nPaper\n\nDescription\n\nShi et al.\n\n[51]\n\nTuning\n\nSensitivity\n\n:\n\nStandardized\n\ntuning\n\nsignificantly\n\nalters\n\nthe\n\nranking\n\nof\n\nstrategies;\n\n'Filter-then' vs. 'Search-then' trade-offs are highly sensitive to implementation details.\n\nLi et al.\n\n[31]\n\nPruning Drivers\n\n:\n\nPerformance is driven by pruning granularity and edge-traversal costs;\n\nprovides practical tuning guidelines per attribute type.\n\nIff et al.\n\n[19]\n\nScale Failures\n\n: Fusion methods (like ACORN) show promise but can struggle with index\n\nsize and build times at scale; no universal winner across all selectivities.",
+      "content_hash": "36f32054907d4132c7dcabaff8741143385c2ed53c234ce2eebecde29ae9c0ee",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 4.",
+      "page": 4,
+      "chunk_index": 13,
+      "token_count": 87,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p4-c14",
+      "content": "The integration of ANNS into database systems has followed two paths: Specialized Vector Databases and Relational Extensions . Systems like Milvus [57] and Pinecone [48] utilize distributed architectures optimized for horizontal scaling and data segmentation. In contrast, extensions like pgvector [46] and AnalyticDB-V [60] embed vector types into the relational core, leveraging existing cost-based optimizers (CBO). Alternatively, other approaches within the PostgreSQL ecosystem explore decoupling the vector search engine to bypass the overhead inherent from page-based design [23]. A critical research gap exists in understanding how these architectural choices-rather than just the underlying algorithms-impact performance. Recent studies comparing RDBMS and specialized Vector DBs [66] suggest that the performance gap is narrowing, yet the specific failure modes of query optimizers in the presence of high-dimensional vectors are not well-documented.",
+      "content_hash": "1bc768608eca47831fe5fba9a8e2e64b2906dd4304f99350939a0630c4436acb",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 4.",
+      "page": 4,
+      "chunk_index": 14,
+      "token_count": 128,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p4-c15",
+      "content": "Recent algorithmic work has attempted to integrate metadata constraints directly into the index structure to avoid the 'recall cliff' associated with post-filtering. Filtered-DiskANN [15] introduced a filter-aware graph construction strategy, while HQANN [61] utilized joint quantization of vectors and metadata. More recently, ACORN [45] proposed using hierarchical Navigable Small World graphs to maintain connectivity even under low selectivity predicates. While these 'fusion' methods offer high efficiency, they often require the index to be specialized for specific attributes, limiting their utility in general-purpose databases that must support ad-hoc queries over arbitrary schemas.",
+      "content_hash": "3391c33acc2998ba7a7c2bdde3b9b4c2120e6df79ca39ae2e22e2f227cb5a4c3",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 4.",
+      "page": 4,
+      "chunk_index": 15,
+      "token_count": 91,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p4-c16",
+      "content": "The foundations of ANNS are built upon four algorithmic pillars: graph-based (e.g., HNSW [35], Vamana [21]), partition-based (e.g., IVFFlat, LSH [20]), quantization-based (e.g., PQ [26]), and tree-based methods (e.g., Annoy [5]). The performance of these algorithms is typically evaluated via the ANN-Benchmarks framework [6], which formalizes the recall-vs-throughput trade-off. However, traditional benchmarks focus almost exclusively on 'flat' vector search, utilizing datasets like SIFT and GIST that lack structured metadata. Consequently, the impact of selection predicates remains under-explored in standard literature.",
+      "content_hash": "1611f0e5f50613ccbfa749e18b978cbe7dde3159a804fde8264bcd216927e5a6",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 4.",
+      "page": 4,
+      "chunk_index": 16,
+      "token_count": 80,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p4-c17",
+      "content": "Recent studies have begun to address the complexities of Filtered ANNS. Notably, Shi et al. [51], Li et al. [31] and Iff et al. [19] provide valuable benchmarks for hybrid vector search. However, our work diverges from these studies in three critical aspects, which are detailed in Table 1.\nSystem Architecture vs. Algorithmic Fusion. While recent benchmarks primarily evaluate specialized algorithms, including fusion-based approaches (e.g., ACORN, UNG) that tightly couple metadata with index structures, we focus on the system-level integration of generic filtering strategies (Pre-, Post-, and Runtime-filtering). We contend that fusion methods, while theoretically efficient, lack the schema-agnosticism required for general-purpose Vector Databases. Our results demonstrate that system architectural choices, such as Milvus 's algorithmic adaptability or pgvector 's query optimizer cost models, often override raw algorithmic performance.",
+      "content_hash": "831e3454a5a9ab86aaf5fc9278c4a3ee4b1897bf8b32b925ca19cb61cd332ada",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 4.",
+      "page": 4,
+      "chunk_index": 17,
+      "token_count": 129,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p5-c18",
+      "content": "Relational vs. Flat Data Models. Unlike prior benchmarks that rely on 'flat' datasets with simple tag-based metadata [19, 31], we introduce a relational dataset with Movies and Reviews tables connected via a foreign key, enabling the evaluation of complex query plans (e.g., joins) inherent to real-world database workloads.\nQuery-Filter Relationship Study. We propose the Global-Local Selectivity (GLS) correlation, a normalized metric that explicitly isolates whether a filter enriches or depletes the semantic neighborhood, providing a clearer signal for index selection. To the best of our knowledge, prior benchmarks have not explicitly quantified this correlation between filter predicates and query vector neighborhoods.",
+      "content_hash": "ad8ab126f550fa7704e27a7e2de6b34af0d3beb976aa5e2a1ae54ad8e0a80493",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 5.",
+      "page": 5,
+      "chunk_index": 18,
+      "token_count": 101,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p5-c19",
+      "content": "In this section, we outline the fundamental concepts of vector similarity search, the indexing structures evaluated in this work, and the existing metrics for quantifying filter-query correlations.",
+      "content_hash": "2ce83b6e6f17512c8776c523f4d5d670cdf523474ec8d0da5be25810049ade7c",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 5.",
+      "page": 5,
+      "chunk_index": 19,
+      "token_count": 27,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p5-c20",
+      "content": "Modern information retrieval relies heavily on dense vector embeddings [27] - fixed-dimensional representations of unstructured data (text, images, audio) where semantic similarity is preserved as geometric proximity [37]. Unlike traditional sparse methods (e.g., BM25 [50], TF-IDF), dense embeddings capture semantic nuance, enabling the retrieval of conceptually related items that may not share exact keywords.\nThe current state-of-the-art for text embeddings utilizes Transformer-based architectures (e.g., GPT [42, 8], BERT [11]) and contrastive learning [33, 65]. These models map variable-length text into a fixed-size vector v \u2208 R d (commonly d = 768 or d = 1024 ).\nMTEB Leaderboard. The Massive Text Embedding Benchmark (MTEB) [39, 40] has emerged as the standard for evaluating embedding quality across diverse tasks, including retrieval [54], clustering, and classification. It ranks models based on their generalized performance, guiding the selection of embedding models for production systems.",
+      "content_hash": "da96f52de14e71476639ef7a6932528650225d31edd2b11b4121e301c8d43118",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 5.",
+      "page": 5,
+      "chunk_index": 20,
+      "token_count": 141,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p5-c21",
+      "content": "Vector similarity metrics quantify the semantic relationship between a query vector q and a database vector v . These metrics generally fall into two categories: distance-based metrics , which measure the geometric distance in vector space, and angle-based metrics , which measure directional alignment. While recent works have proposed fusion distances that aggregate vector similarity with metadata distinctness [61], generic Vector Databases predominantly rely on three standard metrics:\nL p -norm . This metric generalizes the standard Euclidean ( L 2 ) and Manhattan ( L 1 ) distances. It is defined as d ( v, q ) = || v -q || p = ( \u2211 n i =1 | v i -q i | p ) 1 /p . Euclidean distance ( L 2 ) is the most ubiquitous metric. However, it is susceptible to the ' Curse of Dimensionality '. As dimensionality increases, the volume of the space expands exponentially, causing the ratio of distances between the nearest and farthest points to approach 1. This loss of contrast can make distance-based discrimination difficult in extremely high-dimensional sparse spaces, though modern dense embeddings (e.g., 768 dimensions) generally retain sufficient structural locality.",
+      "content_hash": "7f5baaa0c90ad7db1e0034ccf2cff9d04c92bec411043765ea44a2da6d084b68",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 5.",
+      "page": 5,
+      "chunk_index": 21,
+      "token_count": 193,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p5-c22",
+      "content": "Inner Product . Defined as d ( v, q ) = \u27e8 v, q \u27e9 = \u2211 n i =1 v i q i , this metric projects v onto q scaled by the magnitude of q . It is computationally efficient but sensitive to vector magnitude; for example, two identical large vectors will yield a higher similarity score than two identical small vectors, which may not be desirable for all semantic tasks.\nCosine Similarity . This metric measures the cosine of the angle between two vectors, effectively normalizing the inner product: d ( v, q ) = \u27e8 v,q \u27e9 || v |||| q || . This is mathematically equivalent to the Inner Product of L 2 -normalized vectors [1]. It is widely favored in text retrieval as it captures semantic orientation independent of document length (vector magnitude); consequently, it serves as the standard metric for the majority of embedding models evaluated on the MTEB leaderboard [40].",
+      "content_hash": "c4b20ed46e1ab96a0ade9648773f212a03c9f33cc35d761264a8adca20de8bae",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 5.",
+      "page": 5,
+      "chunk_index": 22,
+      "token_count": 158,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p6-c23",
+      "content": "Table 2: Notation and key parameters.\n\nSymbol\n\nDescription\n\nDataset and Query\n\nD\n\n, N\n\nDataset of vectors and its cardinality (\n\n|D|\n\n=\n\nN\n\n)\n\nQ\n\nSet of query vectors\n\nd\n\nVector dimensionality (768 in our experiments)\n\nk\n\nNumber of nearest neighbors to retrieve\n\nFiltering and Selectivity\n\n\u03d5\n\n(\n\nv\n\n)\n\nFilter predicate function, returns 1 if valid, 0 otherwise\n\n\u03c3\n\ng\n\nGlobal Selectivity\n\n: Fraction of\n\nD\n\nsatisfying\n\n\u03d5\n\n\u03c3\n\nl\n\nLocal Selectivity\n\n: Fraction of\n\nk\n\n-NN satisfying\n\n\u03d5\n\nr\n\nSelectivity Ratio\n\n:\n\n\u03c3\n\nl\n\n/\u03c3\n\ng\n\n(as proposed in [62])\n\n\u03c1\n\nq\n\nGLS Correlation\n\n: Per-query filter-vector independence\n\n\u00af\n\n\u03c1\n\nMean GLS correlation across\n\nQ\n\nIndex Parameters\n\nM\n\nHNSW: Maximum number of edges per node\n\nef\n\nconst\n\nHNSW: Candidate queue size during construction\n\nef\n\nsearch\n\nHNSW: Candidate queue size during search\n\nn\n\nprobe\n\nIVFFlat: Number of clusters (centroids) to search",
+      "content_hash": "bf46af92b18c15422aedccccc0520cb8d8cd8138e03f3a4189382cd8b1c48911",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 6.",
+      "page": 6,
+      "chunk_index": 23,
+      "token_count": 143,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p6-c24",
+      "content": "The k -NN problem involves scanning through the entire set of vectors while maintaining a record of the k -nearest neighbors found thus far. This exhaustive search requires the distance calculation between all N vectors with the query vector, resulting in a time complexity of O ( Nd ) for a dataset of N vectors. Although polynomial, this approach demands substantial computational resources, especially for high-workload systems with large vector collections. To address that, ANNS algorithms have been developed to trade small amounts of accuracy for significant speed improvements [32].\nA wide variety of these indexing strategies exists, supported by established evaluation frameworks [2]. They are usually classified in four categories: graph-based , such as HNSW, Vamana, partition-based such as IVF, Locality Sensitive Hashing, quantization-based , such as PQ, and tree-based , such as ANNOY, k-d tree algorithms [21, 26, 20, 7, 41]. Some algorithms may combine multiple approaches into one. Below we will discuss the details of some commonly implemented ANNS algorithms: Inverted File Index, which is a partition-based algorithm, and HNSW which is graph-based algorithm.",
+      "content_hash": "78d0ccbe4c5da24b8c055f7ac73a14efe5072dd9ebd53365331325a4bd8ab03a",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 6.",
+      "page": 6,
+      "chunk_index": 24,
+      "token_count": 177,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p6-c25",
+      "content": "The Inverted File Index (IVF) is a data structure used in information retrieval systems to locate documents containing specific terms efficiently. It establishes a link between the terms t i and the set of documents D i containing them. For the ANNS, Inverted file indexes are often complemented by Voronoi diagrams or k-means clustering to partition a space into regions based on proximity to a set of points or objects [26, 53]. By associating each vector with a point in the Voronoi diagram or cluster centroid, queries can efficiently pinpoint relevant documents, thereby optimizing the retrieval process. This leverages spatial relationships between documents and also decreases the search space for ANNS problems. When the association is based on pure distance (L2 or Cosine) this algorithm is known as IVFFlat .",
+      "content_hash": "64c020b0f3783fccc0f2558ea6ffed29828a3684482746fc37d098656690ad7e",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 6.",
+      "page": 6,
+      "chunk_index": 25,
+      "token_count": 130,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p6-c26",
+      "content": "Hierarchical Navigable Small-Worlds (HNSW) is a graph-based indexing algorithm that extends the Navigable Small World (NSW) model to enable logarithmic scalability for high-dimensional vector search [35]. The standard NSW algorithm iteratively builds a graph by connecting each vector to its nearest neighbors and adding some longrange links that connect different regions of the vector space.\nThe core idea of HNSW is to separate connections by length: long-range links (shortcuts) are placed in upper layers to facilitate rapid traversal across the vector space, while short-range links remain in the lower layers for fine-grained local search. For that, vectors are inserted consecutively into the graph structure. For every inserted element, an integer maximum layer l is randomly selected with an exponentially decaying probability. This probabilistic assignment ensures that while all vectors are present in the lowest layer, only a sparse subset of 'hub' vertices populates the upper layers, acting as expressways into the graph.",
+      "content_hash": "188403cb028a8df4014f4b17f3d6821bf6d5b2c44b2e058acf6701143b0f59ca",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 6.",
+      "page": 6,
+      "chunk_index": 26,
+      "token_count": 152,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p7-c27",
+      "content": "The search process begins at the highest layer and proceeds top-down. The algorithm greedily traverses the graph elements in the current layer until a nearest neighbor is reached, at which point it descends to the next layer below. This 'zoom-in' strategy allows the algorithm to ignore the vast majority of distance computations. Upon reaching the base layer, a candidate priority queue is maintained to track the nearest neighbors found. The size of this queue is controlled by the parameter ef search , which serves as a tunable trade-off between search latency and recall quality.\nRecall@k serves as the primary metric for evaluating the accuracy of the approximate search. It measures the proportion of the true nearest neighbors that are successfully retrieved by the index and defined as:\n<!-- formula-not-decoded -->\n.\nHere, True Positives (TP) represent the number of relevant, while False Negatives (FN) represent the true neighbors missed by the approximation. Since TP + FN = k , this simplifies to the fraction of the topk ground truth found.",
+      "content_hash": "d86d964c5a832e38997cd48415fce2179476ab04a70a658859a3e4916ad6fee4",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 7.",
+      "page": 7,
+      "chunk_index": 27,
+      "token_count": 170,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p7-c28",
+      "content": "There is also another important characteristic, which is the speed of query processing, which is measured as number of queries processed per second or QPS (Queries Per Second). Indexing methods are usually evaluated as a graph where QPS is a function of Recall [6].",
+      "content_hash": "64a976345d18e5f343a4cb7d35a30922b3c1631b86a525acd98cb89bab740947",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 7.",
+      "page": 7,
+      "chunk_index": 28,
+      "token_count": 44,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p7-c29",
+      "content": "Filtering predicates in vector search generally fall into two primary categories based on the nature of the constraint: metadata-based and distance-based.\nMetadata-based filters enforce constraints on the structured attributes associated with vector embeddings (e.g., tags, timestamps, or unique identifiers). These are the direct equivalent of the WHERE clause in relational SQL and are now standard across modern Vector Databases [38, 48, 46, 49]. They can be subdivided into:\n- Categorical filters : Exact matches on discrete labels (e.g., category = 'electronics' ) or set membership checks (e.g., tags CONTAINS 'urgent' ). There is a benchmark dedicated specifically for such filters with many algorithms aimed to solve it [52, 36, 24].\n- Scalar filters : Numerical range queries on continuous values (e.g., price > 50.0 or year BETWEEN 2020 AND 2024 ).\n- String filters : Pattern matching operations using standard substring search (e.g., LIKE ) or regular expressions.",
+      "content_hash": "bea904458c987a3f6aea62fbdf975160635e59262dc85764183aa201b0c93396",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 7.",
+      "page": 7,
+      "chunk_index": 29,
+      "token_count": 148,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p7-c30",
+      "content": "Distance-based filters , often referred to as a separate problem, known as Range Search , leverage the distance between vectors to prune results. Instead of a fixed k -nearest neighbors retrieval, these filters return all vectors falling within a specified radius of the query (e.g., cosine similarity > 0.8 ) [9].\nA third, emerging paradigm is Semantic filtering, which operates outside these traditional categories. Here, constraints are defined by natural language predicates rather than structured schema fields. These systems typically employ a secondary LLM step to evaluate conditions that require semantic reasoning (e.g., 'find papers associated with vector databases ' where the topic is inferred rather than explicitly tagged) [44].\nIn this work, we focus exclusively on Metadata-based filters -specifically scalar inequalities-as they represent the standard integration point for Hybrid Search in production Vector Databases (see Section 6.4).",
+      "content_hash": "f80a8780e9075c177a95e0d2bac84e3072051b23fcfb51deb7159f58e69cdd1d",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 7.",
+      "page": 7,
+      "chunk_index": 30,
+      "token_count": 138,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p7-c31",
+      "content": "Throughout this work, we adopt the standard database definition where selectivity \u03c3 represents the fraction of valid rows satisfying filter predicates. Consequently, we use the term low selectivity to denote a strict filter (where \u03c3 \u2192 0 , e.g., 1% ), and high selectivity to denote a relaxed filter (where \u03c3 \u2192 1 , e.g., 50% ).",
+      "content_hash": "f050768aa99805df3ea8a9d573b569409ae40b3d3376369ca2dac8aa31aeed08",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 7.",
+      "page": 7,
+      "chunk_index": 31,
+      "token_count": 57,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p7-c32",
+      "content": "In FANNS, the integration of filters with vector similarity introduces challenges in balancing recall and latency. These challenges are amplified when filter attributes exhibit a correlation (or anti-correlation) with the spatial distribution of the vector embeddings.\nFigure 1: Comparison between correlation metrics. (a) The distance-based correlation [45] is sensitive to geometric density, potentially misidentifying dense clusters as non-correlated. (b) The proposed GLS correlation normalizes for density by comparing local selectivity \u03c3 l to the global baseline \u03c3 g .\nState-of-the-art approaches, such as ACORN [45], quantify this relationship using distance-based approach . In particular, they compare the distance distribution of filtered results against a random baseline, defining the query-filter correlation C ( D , Q ) for a workload Q over dataset D as the expected difference in minimum distances between the query vector and the equally-sized filtered and random subsets of D :\n<!-- formula-not-decoded -->",
+      "content_hash": "ffc036bf6819274e6f99eb59520667619e85328f545301704815e06cc957687c",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 7.",
+      "page": 7,
+      "chunk_index": 32,
+      "token_count": 147,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p8-c33",
+      "content": "- X p i is the subset of vectors satisfying the filter predicate p i .\n- R i is a random subset drawn uniformly from D , with | R i | = | X p i | .\n- g ( x, S ) = min y \u2208 S dist ( x, y ) is the distance from query x to the nearest vector in set S .\nIntuitively, a positive C ( D , Q ) indicates that the filtered vectors are spatially clustered around the query (closer than random chance), suggesting high local density. Conversely, a negative value implies the filtered subset is sparser or more distant than a random sample. While this metric effectively captures geometric 'hardness,' it is susceptible to the influence of the local neighborhood density , the varying average distance from each query q to its neighbors. By averaging minimum distances, that metric conflates global clustering with per-query locality, failing to distinguish enrichment (high local selectivity) from mere proximity in dense regions. Furthermore, estimating such a correlation metric for query optimization remains an open challenge.",
+      "content_hash": "742247dbdc44a96d59aaa649d71e60c07017eb4b7613df33f8f5239ca5c6ce9b",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 8.",
+      "page": 8,
+      "chunk_index": 33,
+      "token_count": 183,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p8-c34",
+      "content": "We introduce the Global-Local Selectivity (GLS) Correlation , a metric that quantifies the relationship between a filter's global selectivity and its selectivity within the query's local neighborhood. It explicitly reveals whether filters enrich or deplete the relevant neighborhood around the query vector on a per-query level.\nConsider a dataset D comprising N vectors v \u2208 R d . A filter \u03d5 : D \u2192 0 , 1 is applied to select vectors satisfying a predicate, with the assumption that the filtered subset is non-empty (i.e., | v \u2208 D | \u03d5 ( v ) = 1 | > 0 ; empty filters are ignored in analysis). The global filter selectivity , denoted \u03c3 g , quantifies the baseline prevalence of the filter across the entire dataset:\n<!-- formula-not-decoded -->\nThis serves as a corpus-level prior, independent of any specific query.",
+      "content_hash": "5b63d4b9bdf5aac18b402cca7445e7471b5639b3e69fe375151bd899b3e9ea6c",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 8.",
+      "page": 8,
+      "chunk_index": 34,
+      "token_count": 140,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p9-c35",
+      "content": "For a set of query vectors Q where each q \u2208 Q \u2286 R d , we define the local neighborhood N q as the k -nearest neighbors of q in D , with |N q | = k . The local filter selectivity \u03c3 l then measures the fraction of this neighborhood that passes the filter:\n<!-- formula-not-decoded -->\nHere, \u03c3 l > \u03c3 g indicates local enrichment (filter attributes cluster with similar vectors), while \u03c3 l < \u03c3 g suggests depletion (anti-correlation).\nTo derive a directional correlation from these selectivities, we compute the raw selectivity ratio :\n<!-- formula-not-decoded -->",
+      "content_hash": "739a9e803ea82bf104412943fadd9895997d3d1ffe1ea4920dc2ff3094bfb0b7",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 9.",
+      "page": 9,
+      "chunk_index": 35,
+      "token_count": 102,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p9-c36",
+      "content": "which normalizes the local prevalence against the global baseline: r = 1 denotes neutrality, r > 1 enrichment, and 0 < r < 1 depletion. We note that recent work has independently identified this ratio as a critical factor for estimating the computational cost of filtered ANN search [62]. However, the unbounded nature of r limits its utility in two key ways. First, it complicates aggregation : a simple mean is highly sensitive to outliers, where rare global filters appearing in local neighborhoods can yield exponentially large ratios that skew the dataset-level statistic. Second, for optimization , cost models typically require normalized inputs (e.g., [ -1 , 1] or [0 , 1] ) to establish stable thresholds for plan switching. An unbounded metric makes it difficult to define consistent heuristics for when to prefer specific indexing strategies. We thus apply the bilinear (M\u00a8 obius) transformation to obtain the per-query fi lter-vector selectivity correlation \u03c1 q :\n<!-- formula-not-decoded -->",
+      "content_hash": "5e49487089a5a30bc655f726e877170cd996f9486fc6a47307edd2e4c951af51",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 9.",
+      "page": 9,
+      "chunk_index": 36,
+      "token_count": 159,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p9-c37",
+      "content": "This maps the ratio symmetrically to [ -1 , 1) , where \u03c1 q = 0 signals neutrality, \u03c1 q > 0 positive correlation (enrichment strength), and \u03c1 q < 0 negative correlation (depletion strength). The transformation is monotonic and differentiable, with derivative f \u2032 ( r ) = 2 ( r +1) 2 > 0 . The inverse, for denormalization, is r = (1 + \u03c1 q ) / (1 -\u03c1 q ) for \u03c1 q \u2208 [ -1 , 1) .\nFinally, to aggregate across queries and assess systematic entanglement, we define the mean filter-vector selectivity correlation\n<!-- formula-not-decoded -->\nWe can also obtain a decent estimate of this metric by finding the selectivity of approximate k -nearest neighbors using an ANN-index (approximate local selectivity) and the selectivity of a sample drawn uniformly from our dataset (approximate global selectivity) .",
+      "content_hash": "b2d71079ddf9302801fc7d371064218b67009e93b816fb6aac19936749fb4691",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 9.",
+      "page": 9,
+      "chunk_index": 37,
+      "token_count": 142,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p9-c38",
+      "content": "When the set of returned results must also satisfy certain metadata (or structured data) constraints, such a query is generally known as a hybrid query or fi ltered ANNS or fi ltered vector search . In these cases, we need to apply a selection operation on the subset of elements that meet the given condition, which is commonly referred to as fi ltering . In relational database management systems (RDBMS), this operation is known as the application of a selection predicate .",
+      "content_hash": "0a540cd35754d5675ca02c3adeba1cc98b637343f84530d93c9ab395a0641298",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 9.",
+      "page": 9,
+      "chunk_index": 38,
+      "token_count": 82,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p10-c39",
+      "content": "StepCurrentResultsNeighborsCandidatesVisited0P2[]P3, P4, P11P3, P4, P11P2, P3, P4, P111P3P5, P9, P2P2, P5, P9P5, P9, P4P2, P3, P4, P5, P9, P112P5P1, P5, P10P1, P3, P10P1, P10, P9P1, P2, P3, P4, P5, P9, P10, P113P1P1, P5, P10P5, P6, P9P10, P9\u2217P1, P2, P3, P4, P5, P6, P9, P10, P114P10P1, P5, P10P4, P5, P7P9\u2217P1, P2, P3, P4, P5, P6, P7, P9, P10, P115P9P1, P5, P10P1, P3, P6[]\u2217",
+      "content_hash": "bb0297bb44c0d3839c05da74700bce8442ba01797e48abfc2fd623144a72f758",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 10.",
+      "page": 10,
+      "chunk_index": 39,
+      "token_count": 62,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p10-c40",
+      "content": "P1, P2, P3, P4, P5, P6, P7, P9, P10, P11\n|\nResults\n|\n< ef\nsearch\nFigure 2: Graph traversal using the pre-filtering strategy in 1-layer HNSW index with m = 3 and search parameters k = 3 , ef search = 3 .\nIn this work, we will use the terms Selection Predicate and Filter interchangeably, assuming they are equivalent across different systems.\nWe draw from recent surveys on vector databases [17, 43] to outline the primary strategies for Filtered ANNS and provide their exact definitions. There are generally three main methods used for filtering in hybrid queries: prefiltering , runtime-filtering , and post-filtering . While these terms may appear intuitively straightforward, the literature reveals a lack of systematic understanding, resulting in varying definitions and conceptual overlaps across works [43, 34, 58, 51], particularly with respect to pre-filtering. The specifics of each method depend on the underlying index type (e.g., graph-based or partition-based).",
+      "content_hash": "ea380b44db2a05ead7bded72449f43bde944a5cfa0627e91be52085250181de9",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 10.",
+      "page": 10,
+      "chunk_index": 40,
+      "token_count": 154,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p10-c41",
+      "content": "We exclude fusion-based methods [45, 61], where metadata values are fused into either the index construction or the distance calculation. We omit these approaches from this study primarily because they lack schema-agnosticism. By tightly coupling metadata with the vector index, these methods compromise system flexibility and scalability. Fusion methods struggle with sparse or high-dimensional attribute data; if many vectors lack certain attributes or if the total number of attributes is large, fusing all of them into a single, compact vector space or metric becomes a complex, non-trivial problem. Furthermore, fusion methods may require a priori knowledge of the query workload to effectively integrate metadata into the index or distance metric, limiting their applicability to arbitrary schemas or ad-hoc queries. For these reasons, they are not treated here as generic filtering strategies for existing ANNS indexes.",
+      "content_hash": "6503bd1fb4512ba0019985c05026e1578fbe7e8b5b230f46b88b3595e680fd02",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 10.",
+      "page": 10,
+      "chunk_index": 41,
+      "token_count": 135,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p10-c42",
+      "content": "The filter predicate is evaluated upfront to prepare a bitset indicating which vectors pass the filter criteria. This bitset is then used to guide the vector search, ideally reducing the effective search space by masking irrelevant points. However, in graph-based indices, this does not necessarily hold.\nFor graph-based indexes , distances must still be calculated during traversal to ensure the connectivity of the graph and navigate toward the query vector. The bitset is consulted to determine whether a visited vector should be added to the priority queue of candidates.\nFor partition-based indexes (e.g., IVFFlat), the bitset allows checking the filter before computing distances for each vector. This approach prunes the search space early, avoiding unnecessary distance computations on non-qualifying points.\nFigure 3: Filtering strategies for ANNS.\nNote on Pre-filtering + kNNS . Sometimes, for queries with low selectivities, vector search engines can apply filter and search exhaustively among survived points. It is important to distinguish it from Pre-filtering + ANNS, as it solves problem exactly rather than approximately.",
+      "content_hash": "6c04a9919aad3873323c5cb9d664becb37ca793c2761b75c889a0bdcc9422662",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 10.",
+      "page": 10,
+      "chunk_index": 42,
+      "token_count": 168,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p11-c43",
+      "content": "In this approach, attribute retrieval and predicate evaluation occur lazily, triggered only when a candidate vector is accessed during the search. While this on-demand pattern can introduce latency due to random I/O access, it significantly reduces the total count of predicate evaluations. This trade-off is particularly advantageous in memoryconstrained environments or when vector filters are computationally expensive, such as complex regular expressions, string pattern matching, or conditions involving joins across multiple relations.\nIn graph-based indexes , attributes are fetched for the vectors traversed during the graph navigation. To mitigate the I/O overhead from these repeated fetches, batching strategies can be employed, such as traversing multiple hops and fetching attributes for all visited points at once.\nIn partition-based indexes , attributes are fetched only for vectors within the search space (relevant clusters in IVFFlat). This targeted fetching typically incurs no additional I/O overhead beyond the standard cluster access, as the attributes of all points within the target cluster are loaded together.",
+      "content_hash": "4f360bbb4c478c8a3756a94381d95b4c3aeb5c0edd9d9a7c0fb4ef94d80e8b70",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 11.",
+      "page": 11,
+      "chunk_index": 43,
+      "token_count": 160,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p11-c44",
+      "content": "We exclude Runtime Filtering from our primary evaluation as it is not natively exposed by the standard APIs of the evaluated in-memory systems (FAISS, pgvector). While integral to disk-based systems like DiskANN [15] to mask I/O latency, adapting it for in-memory HNSW requires custom index modification that deviates from the 'off-the-shelf' system behavior this paper seeks to systematize.",
+      "content_hash": "464331cbf24e04ca91697d13801e98b05ead8642eda9fd0aa04ff89d6997d1c6",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 11.",
+      "page": 11,
+      "chunk_index": 44,
+      "token_count": 58,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p11-c45",
+      "content": "The filter is applied after the vector search retrieves a set of candidate vectors. This decouples the filtering from the search but risks including false candidates (similar vectors that fail the filter), which are discarded post-search. It often performs well in terms of search latency but may suffer from reduced recall. This method is commonly implemented in relational DBMS systems, such as pgvector in PostgreSQL, and potentially in proprietary systems like Oracle Database.\nIn graph-based indexes , filtering occurs only on the limited set of vectors in the candidate priority queue (e.g., in HNSW, a larger queue size increases traversal latency). For low selectivity predicates uncorrelated with vector similarities, this can lead to incomplete topk results (fewer than k survivors).\nIn partition-based indexes , search parameters typically allow probing a larger candidate set (e.g., setting nprobe in IVFFlat to check multiple clusters), reducing the risk of incomplete results compared to graph indexes, though it persists for extreme selectivity.",
+      "content_hash": "9030c50a7b8ad6b74ca0857f222d3972ab8b64928964339cf425321f139561df",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 11.",
+      "page": 11,
+      "chunk_index": 45,
+      "token_count": 158,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p12-c46",
+      "content": "Integration of vector search into relational DBMS introduces additional possibilities to write more complex queries, involving relational operators, such as joins with other tables or filters applied across joined relations. This introduces a fundamental dilemma in query optimization: whether to first do vector search and then execute the 'relational' part of query, or to first complete the 'relational' part of the query to determine the set of relevant vectors before performing the similarity search.\nThe query optimizer relies on cardinality estimates to choose between execution plans. However, to prioritize vector search, the optimizer requires accurate selectivity estimates to determine the expansion factor-calculating k/ selectivity candidates to ensure k results remain after filtering. However, without reliable estimates, the system is forced to complete the relational join or filter first to generate the subset of qualifying IDs. This subset is then passed as a constraint to the vector engine, ensuring accuracy at the cost of potential latency.",
+      "content_hash": "a86dfe61b6f1c50ed6e598fabe7f61b38be2cc1cd83b50d5a915f54de18837a2",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 12.",
+      "page": 12,
+      "chunk_index": 46,
+      "token_count": 155,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p12-c47",
+      "content": "All systems designed for vector similarity search can be divided into three main categories: Vector Extensions for Relational Databases (e.g., PG-Vector [46], PASE [63], VBASE [64]), Specialized Vector Databases (e.g., Milvus [57], Pinecone [48], Weaviate [59]), and Vector Search Libraries (e.g., FAISS [12], ParlayANN). We will test representative systems from each category.",
+      "content_hash": "efc585b69b5dfb8cff3e38022065e302a0250dffed3331c76c9602f36d2b5d05",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 12.",
+      "page": 12,
+      "chunk_index": 47,
+      "token_count": 52,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p12-c48",
+      "content": "Table 3: Comparison of vector search systems.\n\nSystem\n\nScalar\n\nCateg.\n\nStr. Match.\n\nFiltering Strategies\n\nExtensions\n\nPG-Vector\n\n\u2713\n\n\u2713\n\n\u2713\n\nCost-based (Post / Pre + ANNS)\n\nPASE\n\n\u2713\n\n\u2713\n\n\u2713\n\nIVFFlat / HNSW integrated w/ PG\n\nVBASE\n\n\u2713\n\n\u2713\n\n\u2713\n\nRelaxed Monotonicity (Kernel-integrated)\n\nSpecialized DBs\n\nMilvus\n\n\u2713\n\n\u2713\n\n\u2713\n\n(regex)\n\nPre-filtering + ANNS\n\nQdrant\n\n\u2713\n\n\u2713\n\n\u2713\n\n(exact/substr)\n\nPre-filtering (Payload Indexing)\n\nWeaviate\n\n\u2713\n\n\u2713\n\n\u2713\n\n(BM25)\n\nPre-filtering (Inverted Index)\n\nPinecone\n\n\u2713\n\n\u2713\n\n\u2713\n\n(prefix)\n\nPre-filtering (Metadata Index)\n\nVespa\n\n\u2713\n\n\u2713\n\n\u2713\n\n(ling)\n\nMulti-stage (Pre-filter/Rank)\n\nElasticsearch\n\n\u2713\n\n\u2713\n\n\u2713\n\n(full-text)\n\nHybrid (Pre/Post/Rescore)\n\nLibraries\n\nFAISS (w/ NumPy)\n\n\u2713\n\n\u00d7\n\n\u00d7\n\nPre-filtering + ANNS (IDSelector)\n\nHNSWlib\n\n\u00d7\n\n\u00d7\n\n\u00d7\n\nPost-filtering (during traversal)\n\nParlayANN\n\n\u00d7\n\n\u00d7\n\n\u00d7\n\nParallel Graph-based Search",
+      "content_hash": "410768581ab710c3d678f8b4e0d9b44465fca17ab2191b084e139c42cb5f1ce9",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 12.",
+      "page": 12,
+      "chunk_index": 48,
+      "token_count": 115,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p12-c49",
+      "content": "Vector Extensions integrate vector data types directly into relational database columns, thereby retaining core relational capabilities such as ACID compliance and queries with JOIN , GROUP BY -predicates via SQL syntax. A key benefit is seamless adoption within existing relational infrastructures, obviating the need for data migration. Nonetheless, these extensions may exhibit functional constraints compared to purpose-built solutions. We select PG-Vector [46] for its active maintenance and widespread adoption as a PostgreSQL extension [47]. It supports a comprehensive range of filters, encompassing essentially all predicates available in PostgreSQL (e.g., scalar, categorical and string operations via WHERE clauses). The cost-based model of the query optimizer allows switching between filtering strategies, however it doesn't always choose optimal Filtered ANNS queries as shown in Section 7.\nOther notable candidates include VBASE [64], a system built on PostgreSQL modifies the database kernel to support 'relaxed monotonicity' for smarter search termination check, and PASE [63], an Alibaba-developed extension on PostgreSQL with IVFFlat and HNSW indexes.",
+      "content_hash": "273c4cde7a591ca2164c0cdb408dc9f4e888d68fd6d61188dfd8346dd12b637f",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 12.",
+      "page": 12,
+      "chunk_index": 49,
+      "token_count": 160,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p13-c50",
+      "content": "Specialized Vector Databases eschew traditional relational schemas and usually don't support SQL-like syntax. They range from schema-less key-value stores to those enforcing predefined schemas for vector collection and often include native support for embedding generation. Compared to vector extensions, specialized vector databases offer performance advantages in indexing and querying, though these can often be mitigated to insignificant levels [66]. We opt for Milvus [57, 38] due to its open-source nature and robust maintenance. It supports a wide array of filters, including scalar and categorical predicates, and string matching via regular expressions. Knowhere , Milvus's vector search engine, is built on top of FAISS with customized optimizations. Milvus primarily utilizes a pre-filtering + ANNS strategy, and employs a logic-based query optimizer, which is evolving in newer versions.\nOther representative systems in this category include:",
+      "content_hash": "397b9fb83ed5ce9ea683a32e48069a6b54ba11c414cf8f10defc50a3fd6b0735",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 13.",
+      "page": 13,
+      "chunk_index": 50,
+      "token_count": 133,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p13-c51",
+      "content": "- Pinecone [48]: A proprietary, closed-source cloud database. While implementation details are opaque, it claims to utilize a custom graph-based index that integrates metadata filtering directly into the index structure. This approach aims to prevent the graph disconnectivity issues typically associated with aggressive pre-filtering on standard HNSW graphs.\n- Qdrant [49]: An open-source engine (Rust) that employs a 'segment-based' architecture. It maintains independent data structures for metadata (e.g., HashMaps for keywords, B-Trees for numeric ranges). During filtered search, these metadata indices generate a bitset used as a mask to identify qualifying points during vector retrieval.\n- Weaviate [59]: An open-source engine (Go) that couples an HNSW vector index with a traditional inverted index (posting lists) for scalar data. For filtered queries, the system first consults the inverted index to retrieve an allow-list of object IDs (or a bitmap), which is then used to filter candidates during the HNSW graph exploration.",
+      "content_hash": "201b4cb42685613dacfa370944bf6e60ba003356da35c33a6ee8bd849f113599",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 13.",
+      "page": 13,
+      "chunk_index": 51,
+      "token_count": 150,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p13-c52",
+      "content": "- Vespa [56]: An open-source tensor compute engine. Unlike pure vector stores, Vespa executes queries as tensor operations. It can also automatically switch to exact search to process the queries with low selectivity filters.\n- Elasticsearch [13]: Built on Apache Lucene, it utilizes the Lucene implementation of HNSW. The system assesses filter selectivity to decide between an approximate search (checking filters during graph traversal) or an exact brute-force scan of the filtered document set.",
+      "content_hash": "27baabc3c4a7a5bd063427e1d0264657c79703942302d130367bef6a08a7b98d",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 13.",
+      "page": 13,
+      "chunk_index": 52,
+      "token_count": 74,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p13-c53",
+      "content": "Vector Search Libraries , such as FAISS [12, 14], are lightweight, schema-agnostic tools optimized for vector indexing and retrieval. Unlike full databases, they do not handle persistent storage; instead, they operate on pre-loaded vectors for indexing. Filtered ANNS queries require an external bitset to delineate vectors satisfying the filter criteria. We employ FAISS due to its open-source nature and widespread adoption in the field.\nOther notable libraries in this category include:\n- HNSWlib [35]: A header-only C++ library implementing the HNSW graph algorithm. It serves as the core indexing engine for several vector databases (e.g., Chroma).\n- ScaNN [16]: Developed by Google, this library introduces anisotropic vector quantization . Unlike standard product quantization (PQ) which minimizes Euclidean reconstruction error, ScaNN optimizes a loss function that prioritizes directional accuracy, which is critical for Inner Product search.",
+      "content_hash": "719dad5017ecdaf133249f6f78217e7f873e18574ac69a77310c132d14d52ddf",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 13.",
+      "page": 13,
+      "chunk_index": 53,
+      "token_count": 135,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p14-c54",
+      "content": "- ParlayANN [36]: A research library focusing on parallel algorithms for ANNS, including graph indexes (e.g., HNSW, Vamana). Its architecture is designed to minimize thread contention and ensure deterministic behavior on high-concurrency multi-core systems.",
+      "content_hash": "af66197557263c912cb37adf9a90deb7ca4626f0a67111e325c7e03027c1c1f0",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 14.",
+      "page": 14,
+      "chunk_index": 54,
+      "token_count": 34,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p14-c55",
+      "content": "Evaluating ANNS algorithms is notoriously difficult due to varying hardware and implementation nuances. ANNBenchmarks [6] addresses this by providing a containerized testing environment for each algorithm, accompanied by a YAML configuration file that defines build instructions, hyperparameters, and indexing procedures. Once validated, these are executed on a fixed set of public datasets to evaluate trade-offs between recall (fraction of true nearest neighbors retrieved) and throughput (queries per second, QPS), typically under resource constraints like single-threaded CPU execution.",
+      "content_hash": "392e84485cdb3ff14b52da20c20bb5712aa08a73c92169463d237923fbedd624",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 14.",
+      "page": 14,
+      "chunk_index": 55,
+      "token_count": 77,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p14-c56",
+      "content": "The benchmarks employ a curated list of diverse, high-dimensional vector datasets, spanning domains like images and text, including word embeddings like GloVe-100 (angular distance, 100 dimensions) and image features like SIFT128 (Euclidean distance, 128 dimensions), as well as sparse sets such as Kosarak (Jaccard distance, up to 27,983 dimensions), as summarized in Table 4. Evaluations are conducted on standardized hardware, such as AWS r6i instances, to ensure reproducibility, with performance metrics plotted on logarithmic scales to illustrate the recallthroughput trade-off alongside secondary factors like index build time and memory footprint. This framework has benchmarked over 30 algorithms, including prominent libraries such as FAISS, Milvus, PG-Vector, HNSWlib, and Annoy, with contributions from the community keeping the results up to date.",
+      "content_hash": "782641bbc7dcbf584dc0fe1a9b9c6e1d203ca49e759a99b6684c49352c11fb76",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 14.",
+      "page": 14,
+      "chunk_index": 56,
+      "token_count": 119,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p14-c57",
+      "content": "",
+      "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 14.",
+      "page": 14,
+      "chunk_index": 57,
+      "token_count": 0,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p14-c58",
+      "content": "Table 4: Datasets used for ANNS benchmarking [4].Dataset NameDim.CardinalityQueriesDistanceDomainEmbedding type|V|\u2217|A|\u2217\u2217SIFT-1M1281,000,00010,000L2ImagesHand-crafted10GIST-1M9601,000,0001,000L2ImagesHand-crafted10GLOVE-1001001,183,51410,000CosineTextCount-based10MNIST-78478460,00010,000L2ImagesRaw pixels10NYTimes-256-ang256290,00010,000CosineTextWord2Vec embeddings10Kosarak27,98374,962500JaccardWebSparse binary10LAION-5B\u2217\u2217\u22177685.85\u00d7109-CosineMulti-modalCLIP (contrastive)26ArXiv\u2217\u2217\u22177682,700,00010,000CosineTextTransformer-based110Wiki-22-12-en76835,200,000-CosineTextTransformer-based",
+      "content_hash": "baa851f38bf208de8f9ff46a65d111f1c18aa32d057190124beb283dd14e73c6",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 14.",
+      "page": 14,
+      "chunk_index": 58,
+      "token_count": 14,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p14-c59",
+      "content": "15YFCC\u2217\u2217\u22174,096100,000,000-L2ImagesDeep CNN15Youtube audio\u2217\u2217\u22171286,100,000-L2AudioHand-crafted12Youtube video\u2217\u2217\u22171,0246,100,000-L2VideoHand-crafted12\n- \u2217 | V | - number of vectors per each record. \u2217\u2217 | A | - number of metadata attributes per each record. \u2217\u2217\u2217 Not included in ANN-Benchmarks; added here for comparison with emerging text-focused datasets.\nDespite their rigor, existing ANN datasets suffer from a key shortfall: they are predominantly derived from non-text embeddings (e.g., image or generic word vectors), limiting relevance to modern NLP tasks like dense text retrieval. The LAION-5B dataset, a popular large-scale alternative, mitigates scale issues with billions of image-text pairs but restricts attributes to basic categorical labels (e.g., aesthetics scores, content flags), lacking the continuous or versatile metadata needed for nuanced evaluations.",
+      "content_hash": "ead85fc67572e749289767474997a7c38a7dbdb143ed0e8de6dc9c85a5f7868a",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 14.",
+      "page": 14,
+      "chunk_index": 59,
+      "token_count": 112,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p14-c60",
+      "content": "ArXiv dataset is a notable exception, with transformer-based embeddings from over 2.7 million arXiv abstracts alongside 11 structured attributes (e.g., numerical citation counts, categorical domains, and temporal metadata). Similarly, Wikipedia-22-12-en-embeddings offers a massive scale of 35 million transformer-based vectors derived from Wikipedia. While it includes valuable structured metadata, it introduces a significant structural complexity: unlike standard 1-to-1 mappings, this dataset assigns an arbitrary number of vectors to each logical entity (article) because a separate vector is generated for each paragraph. This creates a 'variable cardinality' problem for entity retrieval, complicating benchmarking efforts that must distinguish between vector-level (paragraph) similarity and item-level (article) relevance.",
+      "content_hash": "5aa40f6417cdac3761d4a15241d4dc7aad8c64a8eaa168f6c72418deadfd0e5f",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 14.",
+      "page": 14,
+      "chunk_index": 60,
+      "token_count": 103,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p15-c61",
+      "content": "However, these datasets fall short because they cannot support complex joins. Their limited scope-primarily numerical and categorical fields without deeper relational structures-precludes extensibility for query compositions like temporal-range joins with categorical hierarchies. Moreover, attributes like author counts, category listings, and version histories, though scholarly in nature, hold marginal value for broader retrieval tasks beyond niche academic filtering. For completeness, datasets like YFCC100M and the YouTube audio/video sets, included here for multimodal comparison, are evidently inadequate: YFCC relies on image-centric deep CNN embeddings, while the YouTube datasets use hand-crafted features and minimal metadata.",
+      "content_hash": "a2b3d709ea7c6ebbb8426e8e79102157d01203bd57ab33fd0dfb1af239e91a09",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 15.",
+      "page": 15,
+      "chunk_index": 61,
+      "token_count": 92,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p15-c62",
+      "content": "To address these limitations, we introduce MoReVec (Movies and Reviews Vectors), a dataset designed to facilitate optimization over vector embeddings and structured attributes.\nDrawing from the rich ecosystem of IMDb data used for construction of Join-Ordering Benchmark (JOB) [28] for query optimizers evaluation in RDBMS, we merge text embeddings of movie synopsis and reviews with available web-sourced metadata. In particular, we generate 768-dimensional vectors using the gte-base-en-v1.5 model [33], a high-performing embedding method from the Massive Text Embedding Benchmark (MTEB) leaderboard, applied to textual fields such as movie synopsis and user reviews. All embeddings are L 2 -normalized, ensuring that cosine similarity is equivalent to inner product for all evaluated systems.\nThe resulting datasets adhere to extensible schemas detailed in Table 5, enabling advanced hybrid queries that combine semantic similarity searches with attribute-based filtering and extensible join operations. To enable scalability studies, we instantiate each dataset at three cardinalities:",
+      "content_hash": "7683f9ed8cf9730c50bb50dd9c6f98a41dc50944a32c04a348650b8014b9e3a9",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 15.",
+      "page": 15,
+      "chunk_index": 62,
+      "token_count": 149,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p15-c63",
+      "content": "- Small: | Movies | = 9 , 999 ; | Reviews | = 247 , 286 ;\n- Medium: | Movies | = 99 , 560 ; | Reviews | = 1 , 496 , 493 ;\n- Large: | Movies | = 551 , 155 , | Reviews | = 2 , 598 , 267 ;",
+      "content_hash": "a1a9b64be9d7fa4f77631dc5f3cdb5643113c40a89be2d7a2ea7fa8867e44ff7",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 15.",
+      "page": 15,
+      "chunk_index": 63,
+      "token_count": 58,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p15-c64",
+      "content": "Field\n\nDescription\n\nData Type\n\nmid\n\nUnique\n\nalphanu-\n\nmeric\n\nidentifier\n\nof\n\nthe movie\n\nVARCHAR\n\ntitle\n\nMovie title\n\nVARCHAR\n\nyear\n\nYear\n\nwhen\n\nmovie\n\nwas released\n\nINTEGER\n\ngenre\n\nMovie genre\n\nVARCHAR\n\navgrating\n\nAverage\n\nrating\n\nof\n\nthe movie\n\nFLOAT\n\nnumvotes\n\nNumber of votes for\n\nthe movie\n\nINTEGER\n\nmvector\n\nMovie synopsis em-\n\nbeddings\n\nVECTOR(768)\n\nField\n\nDescription\n\nData Type\n\nrid\n\nUnique alphanumeric identifier of\n\nthe review\n\nVARCHAR\n\nuid\n\nAlphanumeric identifier of a user\n\nwho left review\n\nVARCHAR\n\nmid\n\nForeign key to mid in movies table\n\nVARCHAR\n\nrvector\n\nVector embedding for the review to\n\na movie\n\nVECTOR(768)\n\nmovierating\n\nRating assigned to movie by user\n\nINTEGER\n\ntotalvotes\n\nTotal votes for the review\n\nINTEGER\n\nlikeshare\n\nShare of positive votes for the re-\n\nview\n\nFLOAT\n\nquality\n\nQuality of reviews based on their\n\ntotalvotes and likeshare\n\nVARCHAR\nTable 5: Schema of the proposed dataset.\nFigure 4: Distribution of per-query correlation values \u03c1 q between metadata attributes and vector embeddings at different target selectivities.",
+      "content_hash": "ed1d3e9ae62d08d07672272a3b1c93fcfb6c71a9ba92548eff962328b0b3b411",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 15.",
+      "page": 15,
+      "chunk_index": 64,
+      "token_count": 152,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p16-c65",
+      "content": "Filters . Figure 4 shows that the mean GLS correlation \u00af \u03c1 between vectors and metadata attributes tends to 0 for all examined attributes across the breadth of the selectivity range in both datasets. At low selectivity levels ( \u03c3 g \u2264 0 . 1 ), we observe a notable deviation toward negative values for some attributes. This can be partially attributed to a sampling artifact arising from the finite neighborhood size ( |N q | = 2048 ); when global selectivity is sufficiently low, the expected number of valid neighbors within the fixed neighborhood is small. Consequently, queries often yield fewer valid local neighbors than the expected value ( \u03c3 l < \u03c3 g ), driving \u03c1 q to -1 and skewing the mean.\nAccounting for this artifact, the results confirm that metadata attributes are mostly independent of the embedding space, allowing us to study the isolated effect of filter selectivity on filtered ANN performance. We therefore apply numeric/scalar filters on the avgrating column (Movies dataset) and totalvotes column (Reviews dataset). Filter thresholds are chosen such that the expected selectivity \u03c3 g (fraction of the dataset passing the filter) approximately matches the following target values:",
+      "content_hash": "30a45e7a73274d182e64e6286e83b4bb8dbd955d871ccc33e092c68c54277ca4",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 16.",
+      "page": 16,
+      "chunk_index": 65,
+      "token_count": 196,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p16-c66",
+      "content": "- Small dataset: \u03c3 g \u2248 { 0 . 01; 0 . 03; 0 . 05; 0 . 1; 0 . 2; 0 . 5 }\n- Medium dataset: \u03c3 g \u2248 { 0 . 0003; 0 . 001; 0 . 01; 0 . 03; 0 . 05; 0 . 1; 0 . 2 }\n- Large dataset: \u03c3 g \u2248 { 0 . 0003; 0 . 001; 0 . 01; 0 . 03; 0 . 05; 0 . 1 }\nFigure 5: Distribution of pairwise cosine distances for 1,000,000 randomly sampled vector pairs. Left: Movie embeddings only; Middle: Review embeddings only; Right: Mixed pairs with one movie and one review embedding each.\nQueries . Since semantic-search queries are derived from the same embedding model as the data, we assume that distributions of vectors from Movies and Reviews tables are similar. This is supported by Figure 5, which shows the distribution of pairwise cosine distances for vector pairs from each table and their mixture.",
+      "content_hash": "84ccdf4ca4282454c315e22e166bfff0dfa7bf16df87c6a6d4a40683cffe0943",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 16.",
+      "page": 16,
+      "chunk_index": 66,
+      "token_count": 164,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p17-c67",
+      "content": "Accordingly, we randomly sample 1,000 vectors from each dataset to serve as the query set. Each query semantically corresponds to 'find topk closest vectors to query vector q where value of scalar attribute is greater than or equal to threshold t ' . We test four different values of k : k \u2208 { 1 , 10 , 40 , 100 } . Each of the 1000 query vectors is executed with every filter condition and all four k , yielding 1000 \u00d7 7 \u00d7 4 = 28 , 000 fi ltered k -NN queries per dataset (including no filter runs).\nWe did not include multi-table JOIN predicates to our query workload. While pgvector supports them syntactically, its query optimizer consistently reverts to sequential scans for such queries, bypassing the vector index entirely. Conversely, schema-agnostic systems like Milvus and FAISS lack the relational operators to execute joins natively.",
+      "content_hash": "bd87d0a75804428322f52cb695a790686d204994ee36b1a680fc5d9c818b1556",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 17.",
+      "page": 17,
+      "chunk_index": 67,
+      "token_count": 148,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p17-c68",
+      "content": "We perform extensive empirical comparison of FANNS performance across FAISS , Milvus , and pgvector . We focus specifically on the trade-offs between query throughput and recall, as well as the underlying query planning and execution strategies employed by each system. Our main goal is to determine how generic filtering strategies (prefiltering and post-filtering) perform within real-world Vector Databases, and to what extent system-level architectural choices override the expected algorithmic behavior of the underlying index structures. To this end, our evaluation investigates the following questions:",
+      "content_hash": "e39cc567b7435862fde21023a4b557230beeef4054886d625565e9f77281bc02",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 17.",
+      "page": 17,
+      "chunk_index": 68,
+      "token_count": 85,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p17-c69",
+      "content": "- How does filter selectivity impact the recall-throughput trade-off? We examine whether low-selectivity filters universally degrade performance, or whether certain index types and filtering strategies adapt better to sparse result sets.\n- Does the traditional dominance of HNSW over IVFFlat hold under filtered search? We test whether the graphbased traversal of HNSW remains superior to the cluster-pruning mechanics of IVFFlat across varying selectivity regimes.\n- How do system-level architectural decisions affect performance? We investigate whether factors such as algorithmic adaptability, data segmentation (Milvus) and cost-based query optimization (pgvector) have a greater impact on filtered ANNS performance than the choice of index algorithm itself.\n- Can query optimizers in relational vector extensions make effective plan selections for hybrid queries? We analyze whether pgvector's cost-based optimizer reliably selects execution plans that balance recall and latency.\nTo facilitate reproducibility and further research, our extended Filtered ANN-Benchmarks framework, the MoReVec relational datasets, and our GLS correlation analysis tools are available on GitHub [3].",
+      "content_hash": "c7e857250a7ed679d0821c573f7f65caccc523bcf22054f89b5159bdc774b3e9",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 17.",
+      "page": 17,
+      "chunk_index": 69,
+      "token_count": 159,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p17-c70",
+      "content": "Table 6: Software versions used in experiments.\n\nSystem\n\nServer/Library Version\n\nNotes\n\nMilvus\n\nv2.6.6\n\npymilvus 2.6.3\n\nFAISS\n\n1.12.0 (faiss hnsw)\n\nCPU version\n\npgvector\n\n0.8.1 (git main)\n\nPostgreSQL 16",
+      "content_hash": "303e85bb127cb09661f6aca72e9b7ad704044043bc2c599284864ffc03ba37a1",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 17.",
+      "page": 17,
+      "chunk_index": 70,
+      "token_count": 27,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p17-c71",
+      "content": "Indexes. We evaluate two widely implemented ANN indexing methods: HNSW and IVFFlat . For the HNSW index, we explore the following hyperparameter configurations:\n- Construction parameters: ( M,ef construction ) \u2208 { (5 , 25) , (10 , 50) , (15 , 75) }\n- Search parameter: ef search \u2208 { 1 , 10 , 40 , 100 , 200 , 500 , 1000 }\nFor the IVFFlat index, we vary the number of centroids to control the trade-off depending on dataset size:\n- Construction parameters: clusters = { small : (100 , 500) , medium : (300 , 1200) , large : (750 , 1600) } . These ranges roughly follow the common C \u2248 \u221a N heuristic, where C is number of clusters, and N is the dataset size.\n- Search parameters: n probes = { 1 , 5 , 10 , 20 , 50 , 150 , 300 }\nFigure 6: QPS-Recall curves at different selectivity levels.",
+      "content_hash": "e263f570583e75120c52ab365b5dff98537b9f4be073127188a07e733e75e797",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 17.",
+      "page": 17,
+      "chunk_index": 71,
+      "token_count": 160,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p18-c72",
+      "content": "Changes to ANN-Benchmarks Implementation. We extended the ANN-Benchmarks experimental loop to generate YAML configurations dynamically: one 'run group' per index parameter set during preprocessing. In the query phase, we test filter/ k /index/search-parameter combinations on the same built index without rebuilds, encoding filters in HDF5 directory hierarchies and aggregating results in a comprehensive CSV (runtimes and recalls per filter/ k /query/index/search-parameter).\nExecution Protocol. Following the ANN-Benchmarks methodology, all queries are executed single-threaded , one query at a time. This design isolates the algorithmic and architectural performance characteristics of each system from concurrency effects, enabling controlled comparisons. All evaluated systems operate in in-memory mode; indexes and datasets are fully loaded into RAM before query execution begins. We do not evaluate disk-based or streaming workloads. Each query is executed once without repetition within the measurement phase; throughput (QPS) is computed as the inverse of the measured single-query latency. No batch query execution is employed-each query is submitted and completed individually.",
+      "content_hash": "52fa628558bc6caad8617b78837c4d43ac742c7963978fa588f1308367ec5192",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 18.",
+      "page": 18,
+      "chunk_index": 72,
+      "token_count": 158,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p19-c73",
+      "content": "Ground Truth for Filtered Recall. For filtered queries, ground truth is computed by first applying the filter predicate to the full dataset, then performing an exact k -NN search (brute-force distance computation) over the filtered subset. Formally, for a query vector q and filter predicate \u03d5 , we define the ground truth as the k vectors from { v \u2208 D | \u03d5 ( v ) = 1 } with the smallest distance to q .\nHardware and Software Configuration. As in ANN-Benchmarks [6], we run all experiments in a Docker container, which includes all necessary dependencies for the evaluated systems. We use a machine running Ubuntu 24.04 LTS equipped with a 56-core Intel Xeon E5-2660 (2.00 GHz) and 256 GB of RAM. Table 6 lists the exact versions of all evaluated systems. All experiments use the specified versions to ensure reproducibility.",
+      "content_hash": "111d3895eb3ef2cee46789405858e08b6b9a5d3ef8750e568cd6a46e4c3348f7",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 19.",
+      "page": 19,
+      "chunk_index": 73,
+      "token_count": 142,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p19-c74",
+      "content": "Scope. Our experiments focus exclusively on scalar inequality filters (e.g., rating >= threshold ). Categorical filters, string pattern matching, and multi-attribute conjunctions are excluded from the experimental workload. Additionally, we evaluate only in-memory execution; disk-based and runtime filtering strategies are out of scope.",
+      "content_hash": "d75202cf4c0fc5e357d71c487bbb50ef3dada57c4ada05be23f8b20ddcf1bcb4",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 19.",
+      "page": 19,
+      "chunk_index": 74,
+      "token_count": 43,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p19-c75",
+      "content": "As illustrated in Figure 6, an increase in filter selectivity consistently exerts negative pressure on recall for both HNSW and IVFFlat implementations. This degradation occurs regardless of whether a pre-filtering or post-filtering strategy is employed, though the mechanisms differ. In pre-filtering, low selectivity filters aggressively sparsify the distribution of true nearest neighbors, including the region surrounding the query vector. Conversely, in post-filtering, the effective candidate pool is drastically reduced after the index scan; if the initial search does not retrieve a sufficient number of candidates satisfying the predicate, the final result set is inevitably truncated. Milvus is the notable exception, maintaining higher recall at low selectivity due to its hybrid architecture (see Section 7.2.7).\nDespite yielding slight recall decrease at lower selectivity levels in general, IVFFlat may demonstrate superior QPS performance, as indicated by the elevated QPS-Recall curve in Figure 15. This result is expected, as the cluster-pruning mechanism of IVFFlat reduces the computational overhead of distance calculations.",
+      "content_hash": "c948ed4a4e25ef50ef8101110341409406ac63afc3eff553cf6b9e8893de02de",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 19.",
+      "page": 19,
+      "chunk_index": 75,
+      "token_count": 158,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p19-c76",
+      "content": "However, system throughput (QPS) in graph-based indexes remains largely insensitive to variations in selectivity, as the underlying graph structure necessitates consistent traversal efforts regardless of filter presence. This stability indicates that the overhead of filtering is negligible compared to the expensive distance computations required during graph traversal, particularly in large datasets.\nPredicate evaluation in FAISS . To satisfy the bitset requirement, we implemented a wrapper around the FAISS index that handles predicate evaluation using NumPy. For every query, we first compute a boolean mask indicating which vectors satisfy the filter, and then convert this mask into a FAISS IDSelector . This process occurs on-thefly with negligible overhead ( < 1 ms on the large datasets). Figure 7 summarizes the added latency across representative workloads.\nFigure 7: Bitset generation runtime in FAISS.",
+      "content_hash": "2301a21da55791dc36b54f0b1b31f4e580f859f2d05b817363dc70b6c8d413a9",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 19.",
+      "page": 19,
+      "chunk_index": 76,
+      "token_count": 131,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p19-c77",
+      "content": "Takeaway. Filter selectivity acts as a universal constraint on recall. However, its impact on throughput varies by architecture: graph-based indices exhibit QPS invariance, confirming that traversal costs mask filtering overheads, whereas partition-based indices (IVFFlat) leverage pruning to achieve superior throughput in low-selectivity regimes. Consequently, performance in filtered ANNS is determined less by metadata evaluation costs and more by the specific mechanics of the chosen vector index-balancing traversal robustness against pruning efficiency.",
+      "content_hash": "69fc1a1fefc5becfea7758c1c6bf9537c76576e9ee888ee8b328bc8ab3216c4f",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 19.",
+      "page": 19,
+      "chunk_index": 77,
+      "token_count": 71,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p20-c78",
+      "content": "Figure 14 analyzes the relationship between the number of requested nearest neighbors ( k ) and system recall. Given that search parameters (such as efSearch or nprobe ) were held constant, the raw size of the candidate pool generated by the index remains static. As k increases, the system must extract a larger number of valid results from this fixed-size candidate set. This leads to a systematic decrease in recall, as the probability of the fixed set containing k valid neighbors diminishes.\nThis effect is particularly pronounced in pgvector 's HNSW implementation using post-filtering, except when recall jumps to 1.0 at lower selectivities (triggered by the query optimizer switching to a sequential scan). Since filter is applied only to the final set of nearest neighbors bounded by efSearch , there is an increased statistical likelihood that a majority of candidates retrieved by the raw vector search will fail the predicate. Consequently, many true neighbors are never examined because they were not among the topefSearch candidates in the unfiltered vector space, causing a precipitous drop in recall.",
+      "content_hash": "1d751e562ad22274b01ad51bdb6d586da37813384fc2c7a529ff30b65d42de34",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 20.",
+      "page": 20,
+      "chunk_index": 78,
+      "token_count": 176,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p20-c79",
+      "content": "Takeaway. To sustain high recall when increasing the retrieval size k , it is imperative to proportionally scale the search parameters (e.g., increasing efSearch ). However, this necessitates a trade-off, as larger search parameters incur higher computational costs and increased query latency.\nFigure 8: QPS-Recall curves for HNSW at different values of M .",
+      "content_hash": "47f9387a8bbd5a94acbddcbc6c97eb6209797af761e5c8f3c6c0dfaaead12827",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 20.",
+      "page": 20,
+      "chunk_index": 79,
+      "token_count": 54,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p20-c80",
+      "content": "Post-filtering approach traverses the HNSW graph agnostically, without guidance from the predicate. This results in the admission of numerous candidates that are ultimately discarded, thereby reducing the effective recall achievable within the efSearch budget. Due to that, inferior recall for low-selectivity queries is expected. However, post-filtering implementation in pgvector shows comparable and even slightly better performance than pre-filtering implementation of FAISS for non-filtered or high-selectivity queries in terms of runtime. We attribute this to pgvector avoiding longer graph traversal and early filter evaluation overhead.\nAlthough Milvus 's Knowhere engine is built upon FAISS , its performance characteristics differ substantially, due to its hybrid architecture (see Section 7.2.7).\nTakeaway. While pre-filtering is generally expected to provide superior recall, post-filtering may be the optimal choice for filters with high selectivity.\nFigure 12: QPS-Recall curves for different levels of GLS correlation.",
+      "content_hash": "b816b6b3b869f92c35ea4d5802c8624550e2f536b65d705b25e63d8fed0a6e64",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 20.",
+      "page": 20,
+      "chunk_index": 80,
+      "token_count": 138,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p23-c81",
+      "content": "( \u03c1 q < -0 . 3 ), medium ( -0 . 3 \u2264 \u03c1 q \u2264 0 . 3 ), and high ( \u03c1 q > 0 . 3 ) GLS brackets, we show that lower GLS consistently results in lower recall across all tested systems. This does not contradict our previous assertion that selectivity can be studied as an isolated variable for system-level planning; rather, it suggests that while \u03c3 g determines the average system behavior, GLS correlation explains the per-query variance that individual users may experience.",
+      "content_hash": "43f093ac7e6c37595a26f5afc45a459a787f694244163742aed88d35c7b09f5e",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 23.",
+      "page": 23,
+      "chunk_index": 81,
+      "token_count": 89,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p23-c82",
+      "content": "The Milvus vector database operates on a specialized engine called Knowhere , which diverges from standard FAISS wrappers to ensure stability during filtered search. Knowhere employs FAISS for graph construction but executes all search operations through a heavily modified fork of hnswlib [18]. Contrary to our initial hypothesis, the system's high recall is not primarily driven by data segmentation or 'Scatter-Gather' mechanics. Our ablation studies demonstrate that Milvus maintains near perfect recall regardless of whether the data is partitioned into many 1GB segments or stored in a single 16GB monolith (Figure 13). Instead, this robustness stems from a layered algorithmic strategy within the search engine itself.",
+      "content_hash": "cc15dc848fb3ab3fff72f5b483e1154fd5b4a81c1bf289fa5a63d5203c501879",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 23.",
+      "page": 23,
+      "chunk_index": 82,
+      "token_count": 106,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p23-c83",
+      "content": "Dual-Pool Graph Traversal. The most critical differentiator is Knowhere's handling of the candidate queue during graph traversal. Standard FAISS HNSW implementations use a single priority queue where filtered (invalid) nodes compete for slots with valid nodes. At high filter rates (e.g., 90% fi ltered out), the search beam becomes saturated with invalid navigation nodes, causing recall to plummet. Knowhere addresses this by implementing a DualPool strategy ( NeighborSetDoublePopList ). It maintains two separate priority queues during traversal: one for valid results and another for invalid nodes used strictly for navigation. This ensures that the search budget ( ef ) is not cannibalized by filtered vectors, allowing Milvus to maintain near-perfect recall even at moderate selectivities (e.g., 10% --5% ) where standard HNSW implementations degrade.",
+      "content_hash": "c52ee871b6a00950730e0dc2b88ef39061855445953039a837a73322f88268ee",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 23.",
+      "page": 23,
+      "chunk_index": 83,
+      "token_count": 124,
+      "metadata": {}
+    },
+    {
+      "locator": "filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602-11443-p23-c84",
+      "content": "Adaptive Fallback Mechanisms. To handle highly restrictive filters, Milvus employs a deterministic fallback strategy rather than a cost-based optimizer. The engine checks filter selectivity prior to search; if the ratio of filtered vectors exceeds a specific threshold (set to 93% in the codebase), it bypasses the HNSW index entirely and performs a brute-force scan (Pre-filtering + kNNS). Given the reduced search space, this operation remains computationally inexpensive (1-5ms for typical segments) while guaranteeing 100% recall. Furthermore, a 'safety net' fallback is triggered post-search if the graph traversal fails to return the requested k neighbors, ensuring consistency even in sparse vector regions.",
+      "content_hash": "db883b6d46a7b844683e82e927b1e43ae0f99ec78f9442e3d890b4e8f7ab29cf",
+      "context_header": "Passage from filtered-approximate-nearest-neighbor-search-in-vector-databases-system-design-and-performance-analysis-arxiv-2602.11443, page 23.",
+      "page": 23,
+      "chunk_index": 84,
+      "token_count": 101,
+      "metadata": {}
+    }
+  ]
+}

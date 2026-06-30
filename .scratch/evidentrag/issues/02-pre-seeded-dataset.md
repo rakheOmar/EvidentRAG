@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
@@ -6,12 +6,12 @@ A seed script (or FastAPI startup hook) that populates the database with a curat
 
 ## Acceptance criteria
 
-- [ ] PostgreSQL `documents` and `evidence` tables are created via migration/startup script
-- [ ] Qdrant `evidentrag_evidence` collection exists with correct vector dimension (768)
-- [ ] At least 3 Documents are seeded with varied content that exercises Simple, Multi-hop, Comparison, and Aggregation query types
-- [ ] Evidence chunks are embedded via Gemini Embedding 2 and stored in Qdrant
-- [ ] Evidence metadata (content, context header, document reference, page) is stored in PostgreSQL
-- [ ] Running `docker compose up` on a fresh system populates seed data automatically
+- [x] PostgreSQL `documents` and `evidence` tables are created via migration/startup script
+- [x] Qdrant `evidentrag_evidence` collection exists with correct vector dimension (768)
+- [x] At least 3 Documents are seeded with varied content that exercises Simple, Multi-hop, Comparison, and Aggregation query types
+- [x] Evidence chunks are embedded via Gemini Embedding 2 and stored in Qdrant
+- [x] Evidence metadata (content, context header, document reference, page) is stored in PostgreSQL
+- [x] Running `docker compose up` on a fresh system populates seed data automatically
 
 ## Blocked by
 
