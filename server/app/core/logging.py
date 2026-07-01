@@ -99,7 +99,7 @@ class PrettyFormatter(logging.Formatter):
         self._use_color = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
 
     def format(self, record: logging.LogRecord) -> str:
-        timestamp = datetime.fromtimestamp(record.created).strftime(self.datefmt)
+        timestamp = datetime.fromtimestamp(record.created).strftime(self.datefmt or "")
         level = record.levelname.ljust(8)
         logger_name = record.name
         message = record.getMessage()

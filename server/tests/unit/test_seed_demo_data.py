@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -91,7 +92,7 @@ class _BadChunkEmbeddingClient:
 
 class _FakeQdrantStore:
     def __init__(self) -> None:
-        self.points = None
+        self.points: list[Any] | None = None
         self.reset_called = False
 
     async def reset_collection(self) -> None:
@@ -151,9 +152,9 @@ async def test_seed_demo_data_loads_demo_document(tmp_path: Path) -> None:
     qdrant_store = _FakeQdrantStore()
 
     seeded_count = await seed_demo_data(
-        session_factory=session_factory,
-        qdrant_store=qdrant_store,
-        embedding_client=embedding_client,
+        session_factory=session_factory,  # type: ignore[reportArgumentType]
+        qdrant_store=qdrant_store,  # type: ignore[reportArgumentType]
+        embedding_client=embedding_client,  # type: ignore[reportArgumentType]
         seed_dir=seed_dir,
     )
 
@@ -163,6 +164,8 @@ async def test_seed_demo_data_loads_demo_document(tmp_path: Path) -> None:
     assert session.rolled_back is False
     assert len(session.documents) == 1
     assert len(session.evidence) == 2
+    assert qdrant_store.points is not None
+    assert len(qdrant_store.points) == 2
     assert embedding_client.calls == [
         [
             "Transformers rely on attention.",
@@ -235,9 +238,9 @@ async def test_seed_demo_data_clears_sql_rows_before_reseeding(tmp_path: Path) -
     qdrant_store = _FakeQdrantStore()
 
     seeded_count = await seed_demo_data(
-        session_factory=session_factory,
-        qdrant_store=qdrant_store,
-        embedding_client=embedding_client,
+        session_factory=session_factory,  # type: ignore[reportArgumentType]
+        qdrant_store=qdrant_store,  # type: ignore[reportArgumentType]
+        embedding_client=embedding_client,  # type: ignore[reportArgumentType]
         seed_dir=seed_dir,
     )
 
@@ -290,9 +293,9 @@ async def test_seed_demo_data_rolls_back_when_embedding_fails(tmp_path: Path) ->
 
     with pytest.raises(RuntimeError, match="embedding failed"):
         await seed_demo_data(
-            session_factory=session_factory,
-            qdrant_store=qdrant_store,
-            embedding_client=_FailingEmbeddingClient(),
+            session_factory=session_factory,  # type: ignore[reportArgumentType]
+            qdrant_store=qdrant_store,  # type: ignore[reportArgumentType]
+            embedding_client=_FailingEmbeddingClient(),  # type: ignore[reportArgumentType]
             seed_dir=seed_dir,
         )
 
@@ -364,14 +367,15 @@ async def test_seed_demo_data_batches_embedding_requests(tmp_path: Path, monkeyp
     qdrant_store = _FakeQdrantStore()
 
     seeded_count = await seed_demo_data(
-        session_factory=session_factory,
-        qdrant_store=qdrant_store,
-        embedding_client=embedding_client,
+        session_factory=session_factory,  # type: ignore[reportArgumentType]
+        qdrant_store=qdrant_store,  # type: ignore[reportArgumentType]
+        embedding_client=embedding_client,  # type: ignore[reportArgumentType]
         seed_dir=seed_dir,
     )
 
     assert seeded_count == 1
     assert embedding_client.calls == [["first", "second"], ["third"]]
+    assert qdrant_store.points is not None
     assert [point.vector for point in qdrant_store.points] == [
         [1.0, 1.1],
         [2.0, 2.1],
@@ -440,9 +444,9 @@ async def test_seed_demo_data_skips_bad_evidence_chunk_on_400(tmp_path: Path, mo
     qdrant_store = _FakeQdrantStore()
 
     seeded_count = await seed_demo_data(
-        session_factory=session_factory,
-        qdrant_store=qdrant_store,
-        embedding_client=embedding_client,
+        session_factory=session_factory,  # type: ignore[reportArgumentType]
+        qdrant_store=qdrant_store,  # type: ignore[reportArgumentType]
+        embedding_client=embedding_client,  # type: ignore[reportArgumentType]
         seed_dir=seed_dir,
     )
 
@@ -452,4 +456,5 @@ async def test_seed_demo_data_skips_bad_evidence_chunk_on_400(tmp_path: Path, mo
         "attention-is-all-you-need-p1-c0",
         "attention-is-all-you-need-p1-c2",
     ]
+    assert qdrant_store.points is not None
     assert len(qdrant_store.points) == 2

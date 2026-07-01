@@ -3,12 +3,14 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from typing import Any
+
 from app.core.config import EmbeddingSettings
 from app.infrastructure.embeddings.embedding import EmbeddingClient
 
 
 def test_embed_texts_returns_vectors_in_input_order(monkeypatch) -> None:
-    captured: dict[str, object] = {}
+    captured: dict[str, Any] = {}
 
     class FakeResponse:
         def raise_for_status(self) -> None:
@@ -46,7 +48,7 @@ def test_embed_texts_returns_vectors_in_input_order(monkeypatch) -> None:
 
 
 def test_embed_texts_uses_correct_request_shape(monkeypatch) -> None:
-    captured: dict[str, object] = {}
+    captured: dict[str, Any] = {}
 
     class FakeResponse:
         def raise_for_status(self) -> None:

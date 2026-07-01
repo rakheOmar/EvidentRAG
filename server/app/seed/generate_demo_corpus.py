@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Sequence
 
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
+from docling.datamodel.base_models import InputFormat 
+from docling.datamodel.pipeline_options import PdfPipelineOptions  
+from docling.document_converter import DocumentConverter, PdfFormatOption 
+from docling_core.transforms.chunker.hybrid_chunker import HybridChunker  
 
 
 def _slugify(value: str) -> str:

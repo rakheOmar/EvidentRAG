@@ -70,10 +70,10 @@ _DEFAULT_SETTINGS = LLMSettings(
 )
 
 
-def _make_client(mock_client: _MockAsyncClient | None = None) -> LLMClient:
+def _make_client(mock_client: Any = None) -> LLMClient:
     return LLMClient(
         settings=_DEFAULT_SETTINGS,
-        client=mock_client or _MockAsyncClient(),
+        client=mock_client or _MockAsyncClient(),  # type: ignore[reportArgumentType]
     )
 
 

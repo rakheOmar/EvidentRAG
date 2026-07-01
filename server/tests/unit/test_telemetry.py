@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from typing import Any
+
 from app.core.config import (
     DatabaseSettings,
     EmbeddingSettings,
@@ -13,7 +15,7 @@ from app.core.config import (
 
 
 def test_configure_telemetry_instruments_app_when_enabled(monkeypatch) -> None:
-    captured: dict[str, object] = {}
+    captured: dict[str, Any] = {}
 
     class FakeProvider:
         def __init__(self, *, resource) -> None:

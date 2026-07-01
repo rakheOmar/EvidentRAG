@@ -10,6 +10,8 @@ from app.core.config import (
     RedisSettings,
     Settings,
 )
+from typing import Any
+
 import app.main as main_module
 
 
@@ -17,7 +19,7 @@ app = main_module.app
 
 
 def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
-    captured: dict[str, object] = {}
+    captured: dict[str, Any] = {}
 
     class FakeConnection:
         async def run_sync(self, callback) -> None:
@@ -134,7 +136,7 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
 
 
 def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
-    captured: dict[str, object] = {}
+    captured: dict[str, Any] = {}
 
     class FakeConnection:
         async def run_sync(self, callback) -> None:

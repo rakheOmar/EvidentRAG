@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from typing import Any
+
 from app.seed.generate_demo_corpus import generate_demo_corpus
 
 
@@ -77,7 +79,7 @@ def test_generate_demo_corpus_disables_pdf_ocr(monkeypatch, tmp_path) -> None:
         b"fake-pdf-bytes"
     )
 
-    captured: dict[str, object] = {}
+    captured: dict[str, Any] = {}
 
     class CapturingConverter(_FakeConverter):
         def __init__(self, **kwargs) -> None:
