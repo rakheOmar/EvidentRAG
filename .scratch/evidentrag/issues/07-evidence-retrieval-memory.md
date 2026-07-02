@@ -6,13 +6,13 @@ Evidence Retrieval Memory — the system that learns from past retrieval outcome
 
 ## Acceptance criteria
 
-- [ ] `POST /api/feedback` accepts `{trace_id, rating: "up"|"down"}` and stores the rating
+- [ ] `PUT /api/v1/sentence-traces/{trace_id}/feedback` idempotently sets the rating payload `{rating: "up"|"down"}` for one sentence trace and returns `200 OK`; missing traces return `404` and invalid ratings return `422`
 - [ ] PostgreSQL `erm_scores` table stores `(query_embedding_hash, evidence_id, boost_score, penalty_score)`
 - [ ] ERM computes cosine similarity between the current Query embedding and past Query embeddings to determine which ERM scores apply
 - [ ] After Cohere reranking, ERM applies boost (multiplier >1.0) or penalty (multiplier <1.0) to each Evidence's score based on matching ERM records
 - [ ] First-time queries (no matching ERM records) pass through with no modification
 - [ ] Thumbs up/down buttons appear next to each sentence in the Answer
-- [ ] After rating, buttons show selected state; user can change rating
+- [ ] After rating, buttons show selected state; user can change rating and the API overwrites the prior feedback state for that trace
 - [ ] Evidence panel shows "ERM boost" or "ERM penalty" badge when the score was modified
 - [ ] Subsequent similar Queries show improved Evidence rankings (verifiable in tests via mocked similarity + score assertions)
 
