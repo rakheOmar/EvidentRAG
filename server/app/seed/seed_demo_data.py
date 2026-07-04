@@ -48,7 +48,9 @@ async def _embed_batch(
             texts[midpoint:],
             locators[midpoint:],
         )
-        return left_vectors + right_vectors, left_skipped + [midpoint + index for index in right_skipped]
+        return left_vectors + right_vectors, left_skipped + [
+            midpoint + index for index in right_skipped
+        ]
 
 
 async def _embed_evidence_rows(
@@ -142,7 +144,12 @@ async def seed_demo_data(
                 points = [
                     PointStruct(
                         id=str(evidence.id),
-                        vector=vector,
+                        vector={
+                            "dense": vector,
+                            "sparse": QdrantStore._text_to_sparse_vector(
+                                evidence.content
+                            ),
+                        },
                         payload={
                             "evidence_id": str(evidence.id),
                             "document_id": str(document.id),

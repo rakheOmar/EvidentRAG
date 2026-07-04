@@ -5,9 +5,13 @@ from fastapi import FastAPI
 from typing import Any
 
 from app.core.config import (
+    AppSettings,
+    CohereSettings,
     DatabaseSettings,
     EmbeddingSettings,
     LLMSettings,
+    LogSettings,
+    OtelSettings,
     QdrantSettings,
     RedisSettings,
     Settings,
@@ -53,16 +57,20 @@ def test_configure_telemetry_instruments_app_when_enabled(monkeypatch) -> None:
 
     app = FastAPI()
     settings = Settings(
-        app_name="EvidentRAG",
-        environment="development",
-        log_level="INFO",
-        log_format="json",
-        otel_enabled=True,
-        otel_service_name="evidentrag-server",
-        otel_exporter_otlp_endpoint="http://collector:4317",
-        otel_exporter_otlp_headers="authorization=token",
-        otel_exporter_otlp_protocol="grpc",
-        otel_excluded_urls="/health",
+        app=AppSettings(
+            app_name="EvidentRAG",
+            environment="development",
+            client_dist_path="../client/dist",
+        ),
+        log=LogSettings(level="INFO", format="json"),
+        otel=OtelSettings(
+            enabled=True,
+            service_name="evidentrag-server",
+            exporter_otlp_endpoint="http://collector:4317",
+            exporter_otlp_headers="authorization=token",
+            exporter_otlp_protocol="grpc",
+            excluded_urls="/health",
+        ),
         embeddings=EmbeddingSettings(
             api_base="http://optiplex-3020:8081/v1",
             api_key=None,
@@ -75,6 +83,10 @@ def test_configure_telemetry_instruments_app_when_enabled(monkeypatch) -> None:
             api_key=None,
             generation_model="gemini-2.5-pro",
             utility_model="gemini-2.5-flash",
+        ),
+        cohere=CohereSettings(
+            api_key=None,
+            rerank_model="rerank-english-v3.0",
         ),
         db=DatabaseSettings(
             host="localhost",

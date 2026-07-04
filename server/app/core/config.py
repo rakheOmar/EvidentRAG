@@ -20,6 +20,37 @@ def _normalize_embedding_model(model: str) -> str:
 
 
 @dataclass(frozen=True)
+class AppSettings:
+    app_name: str
+    environment: str
+    client_dist_path: str
+
+
+@dataclass(frozen=True)
+class LogSettings:
+    level: str
+    format: str
+
+
+@dataclass(frozen=True)
+class OtelSettings:
+    enabled: bool
+    service_name: str
+    exporter_otlp_endpoint: str | None
+    exporter_otlp_headers: str | None
+    exporter_otlp_protocol: str
+    excluded_urls: str
+
+
+@dataclass(frozen=True)
+class LLMSettings:
+    api_base: str
+    api_key: str | None
+    generation_model: str
+    utility_model: str
+
+
+@dataclass(frozen=True)
 class EmbeddingSettings:
     api_base: str
     api_key: str | None
@@ -29,11 +60,9 @@ class EmbeddingSettings:
 
 
 @dataclass(frozen=True)
-class LLMSettings:
-    api_base: str
+class CohereSettings:
     api_key: str | None
-    generation_model: str
-    utility_model: str
+    rerank_model: str
 
 
 @dataclass(frozen=True)
@@ -58,18 +87,12 @@ class RedisSettings:
 
 @dataclass(frozen=True)
 class Settings:
-    app_name: str
-    environment: str
-    log_level: str
-    log_format: str
-    otel_enabled: bool
-    otel_service_name: str
-    otel_exporter_otlp_endpoint: str | None
-    otel_exporter_otlp_headers: str | None
-    otel_exporter_otlp_protocol: str
-    otel_excluded_urls: str
-    embeddings: EmbeddingSettings
+    app: AppSettings
+    log: LogSettings
+    otel: OtelSettings
     llm: LLMSettings
+    embeddings: EmbeddingSettings
+    cohere: CohereSettings
     db: DatabaseSettings
     qdrant: QdrantSettings
     redis: RedisSettings
@@ -77,18 +100,31 @@ class Settings:
 
 def get_settings() -> Settings:
     return Settings(
-        app_name=os.getenv("APP_NAME", "Server Scaffold"),
-        environment=os.getenv("APP_ENV", "development"),
-        log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
-        log_format=os.getenv("LOG_FORMAT", "json").lower(),
-        otel_enabled=_get_bool("OTEL_ENABLED", False),
-        otel_service_name=os.getenv("OTEL_SERVICE_NAME", "server-scaffold"),
-        otel_exporter_otlp_endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
-        otel_exporter_otlp_headers=os.getenv("OTEL_EXPORTER_OTLP_HEADERS"),
-        otel_exporter_otlp_protocol=os.getenv(
-            "OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"
-        ).lower(),
-        otel_excluded_urls=os.getenv("OTEL_EXCLUDED_URLS", "/health"),
+        app=AppSettings(
+            app_name=os.getenv("APP_NAME", "Server Scaffold"),
+            environment=os.getenv("APP_ENV", "development"),
+            client_dist_path=os.getenv("CLIENT_DIST_PATH", "../client/dist"),
+        ),
+        log=LogSettings(
+            level=os.getenv("LOG_LEVEL", "INFO").upper(),
+            format=os.getenv("LOG_FORMAT", "json").lower(),
+        ),
+        otel=OtelSettings(
+            enabled=_get_bool("OTEL_ENABLED", False),
+            service_name=os.getenv("OTEL_SERVICE_NAME", "server-scaffold"),
+            exporter_otlp_endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+            exporter_otlp_headers=os.getenv("OTEL_EXPORTER_OTLP_HEADERS"),
+            exporter_otlp_protocol=os.getenv(
+                "OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"
+            ).lower(),
+            excluded_urls=os.getenv("OTEL_EXCLUDED_URLS", "/health"),
+        ),
+        llm=LLMSettings(
+            api_base=os.getenv("LLM_API_BASE", "http://optiplex-3020:8081/v1"),
+            api_key=os.getenv("LLM_API_KEY"),
+            generation_model=os.getenv("GENERATION_MODEL", "gemini-2.5-pro"),
+            utility_model=os.getenv("UTILITY_MODEL", "gemini-2.5-flash"),
+        ),
         embeddings=EmbeddingSettings(
             api_base=os.getenv("LLM_API_BASE", "http://optiplex-3020:8081/v1"),
             api_key=os.getenv("LLM_API_KEY"),
@@ -98,17 +134,15 @@ def get_settings() -> Settings:
             ),
             dimensions=int(os.getenv("GEMINI_EMBEDDING_DIMENSIONS", "768")),
         ),
-        llm=LLMSettings(
-            api_base=os.getenv("LLM_API_BASE", "http://optiplex-3020:8081/v1"),
-            api_key=os.getenv("LLM_API_KEY"),
-            generation_model=os.getenv("GENERATION_MODEL", "gemini-2.5-pro"),
-            utility_model=os.getenv("UTILITY_MODEL", "gemini-2.5-flash"),
+        cohere=CohereSettings(
+            api_key=os.getenv("COHERE_API_KEY"),
+            rerank_model=os.getenv("COHERE_RERANK_MODEL", "rerank-english-v3.0"),
         ),
         db=DatabaseSettings(
             host=os.getenv("POSTGRES_HOST", "localhost"),
             port=int(os.getenv("POSTGRES_PORT", "5432")),
             user=os.getenv("POSTGRES_USER", "evidentrag"),
-            password=os.getenv("POSTGRES_PASSWORD"),
+            password=os.getenv("POSTGRES_PASSWORD", "evidentrag"),
             db=os.getenv("POSTGRES_DB", "evidentrag"),
         ),
         qdrant=QdrantSettings(

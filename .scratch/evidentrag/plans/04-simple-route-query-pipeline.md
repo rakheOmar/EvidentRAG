@@ -4,6 +4,61 @@
 
 Build the core query pipeline: user submits a Query → ARAG Router classifies it (hardcoded to Simple) → hybrid retrieval (dense + BM25 via Qdrant server-side) → RRF fusion → Cohere rerank → Gemini 2.5 Pro generates structured JSON answer with inline citations → streamed to client via SSE. Results persisted in PostgreSQL. React chat UI displays streaming answers with route badge and clickable citation markers.
 
+## Current Status
+
+### Done
+
+- Database schema foundation is implemented in `server/app/infrastructure/db/models.py`:
+  - `Query`
+  - `Answer`
+  - `SentenceTrace`
+  - `SentenceTraceEvidence`
+  - `QueryEvidenceCandidate`
+- DB constraints for `queries.status` and `query_evidence_candidates.stage` are implemented.
+- Qdrant collection schema is updated for named vectors:
+  - dense vector `dense`
+  - sparse vector `sparse`
+- `QdrantStore.hybrid_search(...)` is implemented.
+- Demo seeding writes named dense vectors in Qdrant.
+- `CohereSettings` is implemented in config.
+- `RerankClient` is implemented in `server/app/infrastructure/reranker/reranker.py`.
+- `session_factory`, `embedding_client`, `llm_client`, and `rerank_client` are attached to `app.state` during app startup.
+- `QueryPipeline` is implemented in `server/app/application/query_pipeline/query_pipeline.py`.
+- `JsonStreamParser` is implemented in `server/app/application/query_pipeline/json_stream_parser.py`.
+- `QueryPipeline` currently covers:
+  - lifecycle (`pending` -> `running` -> `completed`)
+  - failure path (`failed`, `error_message`, `error` event)
+  - retrieval trace staging (`dense`, `sparse`, `fused`)
+  - rerank/selected staging (`reranked`, `selected`)
+  - sentence-based `generating` events
+  - final `Answer` / `SentenceTrace` / `SentenceTraceEvidence` persistence
+- Worker orchestration is implemented in `server/app/worker.py`:
+  - worker startup builds runtime dependencies
+  - worker shutdown closes Redis and disposes the engine
+  - `run_query_pipeline(ctx, query_id)` delegates into `QueryPipeline`
+- Queries API surface is substantially implemented:
+  - `POST /api/v1/queries`
+  - `GET /api/v1/queries`
+  - `GET /api/v1/queries/{query_id}`
+  - `GET /api/v1/queries/{query_id}/answer`
+  - `GET /api/v1/queries/{query_id}/events`
+- `POST /api/v1/queries` now enqueues `run_query_pipeline` when `app.state.job_queue` is configured.
+- Query API schemas are substantially implemented in `server/app/api/schemas/queries.py`.
+- SSE helpers are implemented in `server/app/api/sse/sse.py`.
+- Full server test suite is green at this stage.
+- Vite dev proxy configuration for `/api` and `/events` (with WebSocket support) added to `client/vite.config.ts`.
+- `app.frontend()` integration in `server/app/frontend.py` with environment-gated production mode.
+- Root `Dockerfile` with multi-stage build (client builder + server base + production/dev targets).
+- `server/Dockerfile` kept as Python-only for the worker service.
+- `docker-compose.yml` updated: backend builds from root `Dockerfile` with `target: production`; frontend service gated behind `profiles: [dev]`.
+- Dev scripts added: `scripts/dev-frontend.ps1`, `scripts/dev-all.ps1`.
+- Pre-commit checks documented in `AGENTS.md`.
+
+### Not Done Yet
+
+- end-to-end ARQ runtime validation against a live worker process
+- frontend chat UI and SSE client flow (`app.tsx`, `api.ts`, `use-query.ts`, `chat.tsx`, `evidence-panel.tsx`)
+
 ## Decisions from Grilling Session
 
 | Decision | Choice | Rationale |
@@ -31,10 +86,12 @@ Build the core query pipeline: user submits a Query → ARAG Router classifies i
 
 #### [MODIFY] [pyproject.toml](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/server/pyproject.toml)
 - Add `arq` dependency for the task queue worker.
+- Status: done.
 
 #### [MODIFY] [config.py](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/server/app/core/config.py)
 - Add `CohereSettings` dataclass: `api_key`, `model` (default `rerank-english-v3.0`).
 - Add `cohere: CohereSettings` field to `Settings`, populated from `COHERE_API_KEY` and `COHERE_RERANK_MODEL` env vars.
+- Status: done.
 
 ---
 
@@ -53,6 +110,8 @@ Add five new SQLAlchemy models:
 
 Relationships: `Query` → `Answer` (one-to-one), `Answer` → `SentenceTrace` (one-to-many), `SentenceTrace` → `Evidence` (many-to-many via join table), `Query` → `Evidence` (many-to-many via retrieval-trace join table).
 
+- Status: done.
+
 ---
 
 ### 3. Qdrant Named Vectors + BM25
@@ -69,6 +128,9 @@ Add a `hybrid_search` method:
 - Top-20 prefetch per sub-query, top-20 after fusion.
 - Returns list of scored points with payloads.
 
+- Status: done.
+- Note: `hybrid_search(...)` now exposes the pipeline-friendly contract `query_text + dense_vector`, and the sparse leg is delegated to Qdrant using the named sparse query path (`using="sparse"`).
+
 #### [MODIFY] [seed_demo_data.py](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/server/app/seed/seed_demo_data.py)
 
 Update point construction to use named vector format:
@@ -77,19 +139,20 @@ vector={"dense": dense_embedding_vector}
 # Sparse vector text stored in payload — Qdrant generates BM25 vectors server-side
 ```
 
-> [!NOTE]
-> With Qdrant's native BM25, the text content stored in the payload is tokenized server-side. We need to verify the exact Qdrant API for server-side sparse vector inference during implementation. If the native BM25 embedder requires explicit document inference calls, we'll use those. If it only works at query-time on pre-stored sparse vectors, we'll fall back to `fastembed` for indexing.
+- Status: partially done. Named dense vector seeding is implemented, and runtime retrieval now uses the query-text sparse leg; remaining work here is full end-to-end runtime validation under the live worker flow.
 
 ---
 
 ### 4. Cohere Rerank Client
 
-#### [NEW] [reranker.py](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/server/app/infrastructure/rerank/reranker.py)
+#### [NEW] [reranker.py](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/server/app/infrastructure/reranker/reranker.py)
 
 `RerankClient` class:
 - Constructor takes `CohereSettings` and an optional `httpx.AsyncClient`.
 - `rerank(query: str, documents: list[str], top_n: int = 5) -> list[RerankResult]` — calls `POST https://api.cohere.com/v2/rerank` with Bearer auth.
 - Returns list of `RerankResult(index: int, relevance_score: float)` sorted by score descending.
+
+- Status: done.
 
 ---
 
@@ -106,6 +169,9 @@ vector={"dense": dense_embedding_vector}
 5. **Persist** — parse the completed JSON, create `Answer`, `SentenceTrace`, and `SentenceTraceEvidence` rows in PostgreSQL, update `Query.status` to `completed`, set `completed_at`, and publish `done` with the full structured payload.
 6. **Fail** — on terminal errors, update `Query.status` to `failed`, store `error_message`, publish `error`, and do not persist a partial `Answer`.
 
+- Status: done.
+- Note: the current implementation publishes `route_selected`, `retrieving`, `generating`, `done`, and `error`, stages retrieval/rerank candidates, persists the final answer graph, and now publishes the full structured answer payload in `done`.
+
 #### [NEW] [json_stream_parser.py](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/server/app/application/query_pipeline/json_stream_parser.py)
 
 Incremental JSON parser:
@@ -113,6 +179,8 @@ Incremental JSON parser:
 - Detects when a `"sentence"` string value completes and yields the text.
 - Does not expose raw token fragments to the client.
 - After the stream ends, parses the full accumulated JSON to extract the complete `[{sentence, evidence_ids}]` structure.
+
+- Status: done.
 
 ---
 
@@ -125,12 +193,15 @@ ARQ worker settings module:
 - Initialises shared resources on worker startup (DB engine, session factory, Qdrant client, LLM client, embedding client, rerank client, Redis).
 - The task function receives a `query_id`, marks the query `running`, creates a `QueryPipeline`, runs it, and publishes SSE events to a Redis Pub/Sub channel `query:{query_id}:events`.
 
+- Status: done for in-process worker orchestration.
+- Still missing from this section:
+  - end-to-end runtime validation with a live ARQ worker process
+
 #### [MODIFY] [docker-compose.yml](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/docker-compose.yml)
 
-Add a `worker` service:
-- Same build context as `backend` (`./server`).
-- Different CMD: `uv run arq app.worker.WorkerSettings`.
-- Same `env_file`, same `depends_on` (postgres, qdrant, redis).
+Worker service using `server/Dockerfile` (Python-only). Backend service moved to root `Dockerfile` with multi-stage build. Frontend service gated behind `profiles: [dev]`.
+
+- Status: done.
 
 ---
 
@@ -146,6 +217,8 @@ Pydantic request/response schemas:
 - `EvidenceResponse`: `id`, `content`, `context_header`, `document_title`, `document_slug`, `page`
 - `QueryEvidenceCandidateResponse` (optional/debug endpoint or future use): `query_id`, `evidence_id`, `stage`, `rank`, `score`
 
+- Status: mostly done. Core request/response schemas are implemented; debug/retrieval-trace response models are still optional and not exposed.
+
 #### [NEW] [queries.py](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/server/app/api/routes/queries.py)
 
 Endpoints:
@@ -156,6 +229,17 @@ Endpoints:
 - `GET /api/v1/queries` — list past Queries with pagination.
 - Retrieval trace endpoints are optional for Issue 4 API surface; traces are persisted even if not yet exposed directly.
 
+- Status: partially done.
+- Implemented now:
+  - `POST /api/v1/queries`
+  - `GET /api/v1/queries/{query_id}`
+  - `GET /api/v1/queries`
+  - `GET /api/v1/queries/{query_id}/answer`
+  - `GET /api/v1/queries/{query_id}/events`
+  - enqueue hook from `POST /api/v1/queries` when `app.state.job_queue` is configured
+- Still missing from this section:
+  - retrieval-trace endpoints, if we decide to expose them
+
 #### [NEW] [sse.py](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/server/app/api/sse/sse.py)
 
 SSE helper:
@@ -163,19 +247,58 @@ SSE helper:
 - `redis_pubsub_stream(redis, channel: str) -> AsyncIterator[str]` — subscribes to a Redis Pub/Sub channel and yields formatted SSE event strings until a `done` or `error` event is received.
 - `done` should carry the full final answer payload so the client can complete without an immediate follow-up fetch.
 
+- Status: done.
+
 #### [MODIFY] [main.py](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/server/app/main.py)
 
 - Import and include the queries router with prefix `/api/v1`.
 - Instantiate `LLMClient`, `EmbeddingClient`, `RerankClient` during lifespan and attach to `app.state`.
 - Create ARQ `ArqRedis` connection pool and attach to `app.state`.
 - Create `session_factory` and attach to `app.state` (currently only used locally in lifespan).
+- Call `mount_frontend(app, settings)` after routes are registered (production only).
+
+- Status: partially done.
+- Items implemented:
+  - queries router included
+  - `session_factory` attached to `app.state`
+  - `EmbeddingClient` attached to `app.state`
+  - `LLMClient` attached to `app.state`
+  - `RerankClient` attached to `app.state`
+  - `mount_frontend()` integration
+- Still missing:
+  - end-to-end runtime validation of the live ARQ job queue in app startup
+
+#### [NEW] [frontend.py](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/server/app/frontend.py)
+
+- `mount_frontend(app, settings)` — only mounts when `APP_ENV=production`, resolves the `client_dist_path`, and calls `app.frontend("/", directory=..., fallback="index.html")` for SPA client-side routing.
+
+- Status: done.
+
+#### [NEW] [Dockerfile](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/Dockerfile)
+
+Multi-stage root Dockerfile:
+- `client-builder` stage: builds the React app with `npm run build`.
+- `server-base` stage: Python + uv sync (shared with dev target).
+- `production` target: copies `client/dist` into the server image, sets `APP_ENV=production`.
+- `dev` target: API-only, no client build.
+
+- Status: done.
+
+#### [MODIFY] [docker-compose.yml](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/docker-compose.yml)
+
+- Backend builds from root `Dockerfile` with `target: production`.
+- Worker builds from `server/Dockerfile` (Python-only).
+- Frontend service gated behind `profiles: [dev]` (excluded from `docker compose up` by default).
+
+- Status: done.
 
 ---
 
-### 8. React Frontend
+### 8. Frontend
 
 #### [MODIFY] [vite.config.ts](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/client/vite.config.ts)
-- Add `server.proxy` to forward `/api` requests to the backend at `http://localhost:8000` during local dev.
+- Add `server.proxy` to forward `/api` and `/events` (WebSocket) requests to the backend at `http://localhost:8000` during local dev.
+- Status: done.
 
 #### [MODIFY] [app.tsx](file:///c:/Users/rakhe/Desktop/Code/Projects/RAG/client/src/app.tsx)
 - Replace placeholder with the chat interface layout.
@@ -218,6 +341,40 @@ cd server && uv run pytest tests/test_queries.py -v
 - Retrieval trace persistence → assert all five stages (`dense`, `sparse`, `fused`, `reranked`, `selected`) are recorded when available.
 - Retrieval trace persistence failure → assert query can still complete successfully if candidate trace writes fail.
 - Generation failure → assert query becomes `failed`, `error_message` is set, no partial `Answer` row exists, and any already-persisted retrieval traces remain.
+
+### Current Automated Coverage
+
+- Implemented and green:
+  - DB model tests for all new Issue 4 tables
+  - Qdrant store tests for named vectors and hybrid search request shape
+  - seed tests for named-vector Qdrant upserts
+  - startup tests for `session_factory`, `embedding_client`, `llm_client`, and `rerank_client` wiring
+  - integration tests for:
+    - `POST /api/v1/queries`
+    - `GET /api/v1/queries`
+    - `GET /api/v1/queries/{id}`
+    - `GET /api/v1/queries/{id}/answer` pending/completed/missing cases
+  - route-unit test for enqueueing `run_query_pipeline` from `POST /api/v1/queries`
+  - SSE helper unit tests
+  - reranker unit tests
+  - `JsonStreamParser` unit tests
+  - `QueryPipeline` unit tests covering:
+    - success lifecycle
+    - failure path
+    - retrieval staging
+    - rerank staging
+    - generation events
+    - full `done` payload contract
+    - final answer persistence
+  - worker unit tests covering:
+    - `run_query_pipeline(ctx, query_id)` delegation
+    - worker startup dependency construction
+    - worker shutdown cleanup
+    - `WorkerSettings` hook exposure
+- Still missing:
+  - end-to-end ARQ integration tests
+  - SSE event-order tests driven by real running worker + pipeline
+  - live-worker smoke coverage for the refactored Qdrant sparse-query contract
 
 ### Manual Verification
 

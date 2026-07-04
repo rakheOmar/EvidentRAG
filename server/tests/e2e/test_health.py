@@ -38,7 +38,9 @@ def test_health_returns_service_info(client) -> None:
 
 def test_health_degraded_when_redis_down(client) -> None:
     client.app.state.redis = mock.AsyncMock()
-    client.app.state.redis.ping.side_effect = ConnectionError("redis refused connection")
+    client.app.state.redis.ping.side_effect = ConnectionError(
+        "redis refused connection"
+    )
 
     response = client.get("/health")
 
@@ -56,8 +58,8 @@ def test_health_degraded_when_redis_down(client) -> None:
 def test_health_degraded_when_qdrant_down(client) -> None:
     client.app.state.qdrant_store = mock.AsyncMock()
     client.app.state.qdrant_store._client = mock.AsyncMock()
-    client.app.state.qdrant_store._client.get_collections.side_effect = (
-        ConnectionError("qdrant refused connection")
+    client.app.state.qdrant_store._client.get_collections.side_effect = ConnectionError(
+        "qdrant refused connection"
     )
 
     response = client.get("/health")

@@ -33,8 +33,8 @@ def clear_request_id() -> None:
 class ContextFilter(logging.Filter):
     def __init__(self, settings: Settings) -> None:
         super().__init__()
-        self._service_name = settings.otel_service_name
-        self._environment = settings.environment
+        self._service_name = settings.otel.service_name
+        self._environment = settings.app.environment
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.service_name = getattr(record, "service_name", self._service_name)
@@ -116,7 +116,7 @@ class PrettyFormatter(logging.Formatter):
 
 
 def configure_logging(settings: Settings) -> None:
-    formatter_name = "json" if settings.log_format == "json" else "pretty"
+    formatter_name = "json" if settings.log.format == "json" else "pretty"
     dictConfig(
         {
             "version": 1,
@@ -135,6 +135,6 @@ def configure_logging(settings: Settings) -> None:
                     "filters": ["context"],
                 }
             },
-            "root": {"level": settings.log_level, "handlers": ["default"]},
+            "root": {"level": settings.log.level, "handlers": ["default"]},
         }
     )

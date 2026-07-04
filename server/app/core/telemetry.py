@@ -16,22 +16,22 @@ logger = logging.getLogger(__name__)
 
 
 def configure_telemetry(app: FastAPI, settings: Settings) -> None:
-    if not settings.otel_enabled:
+    if not settings.otel.enabled:
         logger.info("telemetry_disabled")
         return
 
     provider = TracerProvider(
         resource=Resource.create(
             {
-                "service.name": settings.otel_service_name,
-                "deployment.environment": settings.environment,
+                "service.name": settings.otel.service_name,
+                "deployment.environment": settings.app.environment,
             }
         )
     )
     exporter = OTLPSpanExporter(
-        endpoint=settings.otel_exporter_otlp_endpoint,
-        headers=_parse_headers(settings.otel_exporter_otlp_headers),
-        insecure=(settings.otel_exporter_otlp_protocol == "grpc"),
+        endpoint=settings.otel.exporter_otlp_endpoint,
+        headers=_parse_headers(settings.otel.exporter_otlp_headers),
+        insecure=(settings.otel.exporter_otlp_protocol == "grpc"),
     )
     processor = BatchSpanProcessor(exporter)
     provider.add_span_processor(processor)
@@ -40,7 +40,7 @@ def configure_telemetry(app: FastAPI, settings: Settings) -> None:
     FastAPIInstrumentor.instrument_app(
         app,
         tracer_provider=provider,
-        excluded_urls=settings.otel_excluded_urls,
+        excluded_urls=settings.otel.excluded_urls,
     )
     logger.info("telemetry_configured")
 

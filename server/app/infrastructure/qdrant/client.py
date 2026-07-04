@@ -1,9 +1,30 @@
 from __future__ import annotations
 
+import re
+
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.models import Distance, VectorParams
+from qdrant_client.http.models import (
+    Distance,
+    Fusion,
+    FusionQuery,
+    Modifier,
+    Prefetch,
+    SparseVector,
+    SparseVectorParams,
+    VectorParams,
+)
 
 from app.core.config import QdrantSettings
+
+_FNV_OFFSET_BASIS_32 = 0x811C9DC5
+_FNV_PRIME_32 = 0x01000193
+
+
+def _fnv1a_32(text: str) -> int:
+    h = _FNV_OFFSET_BASIS_32
+    for byte in text.encode("utf-8"):
+        h = ((h ^ byte) * _FNV_PRIME_32) & 0xFFFFFFFF
+    return h
 
 
 class QdrantStore:
@@ -15,15 +36,39 @@ class QdrantStore:
         self._collection = settings.evidence_collection
         self._client = client or AsyncQdrantClient(url=settings.url)
 
+    @staticmethod
+    def _vectors_config() -> dict[str, VectorParams]:
+        return {
+            "dense": VectorParams(
+                size=768,
+                distance=Distance.COSINE,
+            )
+        }
+
+    @staticmethod
+    def _sparse_vectors_config() -> dict[str, SparseVectorParams]:
+        return {"sparse": SparseVectorParams(modifier=Modifier.IDF)}
+
+    @staticmethod
+    def _text_to_sparse_vector(text: str) -> SparseVector:
+        tokens = re.findall(r"[a-z]+", text.lower())
+        tokens = [t for t in tokens if len(t) > 1]
+        freq: dict[int, float] = {}
+        for token in tokens:
+            idx = _fnv1a_32(token)
+            freq[idx] = freq.get(idx, 0.0) + 1.0
+        return SparseVector(
+            indices=list(freq.keys()),
+            values=list(freq.values()),
+        )
+
     async def ensure_collection(self) -> None:
         exists = await self._client.collection_exists(self._collection)
         if not exists:
             await self._client.create_collection(
                 self._collection,
-                vectors_config=VectorParams(
-                    size=768,
-                    distance=Distance.COSINE,
-                ),
+                vectors_config=self._vectors_config(),
+                sparse_vectors_config=self._sparse_vectors_config(),
             )
 
     async def reset_collection(self) -> None:
@@ -32,10 +77,8 @@ class QdrantStore:
             await self._client.delete_collection(self._collection)
         await self._client.create_collection(
             self._collection,
-            vectors_config=VectorParams(
-                size=768,
-                distance=Distance.COSINE,
-            ),
+            vectors_config=self._vectors_config(),
+            sparse_vectors_config=self._sparse_vectors_config(),
         )
 
     async def upsert_points(self, points: list) -> None:
@@ -44,3 +87,28 @@ class QdrantStore:
             points=points,
             wait=True,
         )
+
+    async def hybrid_search(
+        self,
+        *,
+        query_text: str,
+        dense_vector: list[float],
+        dense_limit: int = 20,
+        sparse_limit: int = 20,
+        fused_limit: int = 20,
+    ) -> list:
+        response = await self._client.query_points(
+            self._collection,
+            prefetch=[
+                Prefetch(query=dense_vector, using="dense", limit=dense_limit),
+                Prefetch(
+                    query=self._text_to_sparse_vector(query_text),
+                    using="sparse",
+                    limit=sparse_limit,
+                ),
+            ],
+            query=FusionQuery(fusion=Fusion.RRF),
+            limit=fused_limit,
+            with_payload=True,
+        )
+        return response.points

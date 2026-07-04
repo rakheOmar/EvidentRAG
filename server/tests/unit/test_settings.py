@@ -13,12 +13,12 @@ def test_settings_read_otel_env(monkeypatch) -> None:
 
     settings = get_settings()
 
-    assert settings.app_name == "EvidentRAG"
-    assert settings.otel_enabled is True
-    assert settings.otel_service_name == "evidentrag-server"
-    assert settings.otel_exporter_otlp_endpoint == "http://collector:4317"
-    assert settings.otel_exporter_otlp_headers == "authorization=token"
-    assert settings.otel_excluded_urls == "/health,/ping"
+    assert settings.app.app_name == "EvidentRAG"
+    assert settings.otel.enabled is True
+    assert settings.otel.service_name == "evidentrag-server"
+    assert settings.otel.exporter_otlp_endpoint == "http://collector:4317"
+    assert settings.otel.exporter_otlp_headers == "authorization=token"
+    assert settings.otel.excluded_urls == "/health,/ping"
 
 
 def test_settings_read_llm_env(monkeypatch) -> None:
@@ -67,3 +67,13 @@ def test_settings_read_qdrant_env(monkeypatch) -> None:
 
     assert settings.qdrant.url == "http://qdrant:6333"
     assert settings.qdrant.evidence_collection == "my_evidence"
+
+
+def test_settings_read_cohere_env(monkeypatch) -> None:
+    monkeypatch.setenv("COHERE_API_KEY", "cohere-secret")
+    monkeypatch.setenv("COHERE_RERANK_MODEL", "rerank-english-v3.0")
+
+    settings = get_settings()
+
+    assert settings.cohere.api_key == "cohere-secret"
+    assert settings.cohere.rerank_model == "rerank-english-v3.0"

@@ -3,9 +3,13 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.core.config import (
+    AppSettings,
+    CohereSettings,
     DatabaseSettings,
     EmbeddingSettings,
     LLMSettings,
+    LogSettings,
+    OtelSettings,
     QdrantSettings,
     RedisSettings,
     Settings,
@@ -51,20 +55,37 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
         def __init__(self, settings) -> None:
             captured["embedding_settings"] = settings
 
+    class FakeLLMClient:
+        def __init__(self, settings) -> None:
+            captured["llm_settings"] = settings
+
+    class FakeRerankClient:
+        def __init__(self, settings) -> None:
+            captured["cohere_settings"] = settings
+
+    class FakeJobQueue:
+        async def aclose(self) -> None:
+            captured["job_queue_closed"] = True
+
     fake_engine = FakeEngine()
     fake_session_factory = object()
+    fake_job_queue = FakeJobQueue()
 
     settings = Settings(
-        app_name="EvidentRAG",
-        environment="development",
-        log_level="INFO",
-        log_format="json",
-        otel_enabled=False,
-        otel_service_name="evidentrag-server",
-        otel_exporter_otlp_endpoint=None,
-        otel_exporter_otlp_headers=None,
-        otel_exporter_otlp_protocol="grpc",
-        otel_excluded_urls="/health",
+        app=AppSettings(
+            app_name="EvidentRAG",
+            environment="development",
+            client_dist_path="../client/dist",
+        ),
+        log=LogSettings(level="INFO", format="json"),
+        otel=OtelSettings(
+            enabled=False,
+            service_name="evidentrag-server",
+            exporter_otlp_endpoint=None,
+            exporter_otlp_headers=None,
+            exporter_otlp_protocol="grpc",
+            excluded_urls="/health",
+        ),
         embeddings=EmbeddingSettings(
             api_base="http://optiplex-3020:8081/v1",
             api_key=None,
@@ -77,6 +98,10 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
             api_key=None,
             generation_model="gemini-2.5-pro",
             utility_model="gemini-2.5-flash",
+        ),
+        cohere=CohereSettings(
+            api_key=None,
+            rerank_model="rerank-english-v3.0",
         ),
         db=DatabaseSettings(
             host="localhost",
@@ -112,12 +137,23 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
         captured["telemetry_app"] = fastapi_app
         captured["telemetry_settings"] = actual_settings
 
+    class FakeArqRedis:
+        @staticmethod
+        def from_url(url: str) -> FakeJobQueue:
+            captured["job_queue_url"] = url
+            return fake_job_queue
+
     monkeypatch.setattr(main_module, "settings", settings)
     monkeypatch.setattr(main_module, "configure_telemetry", fake_configure_telemetry)
     monkeypatch.setattr(main_module, "create_engine", fake_create_engine)
-    monkeypatch.setattr(main_module, "create_session_factory", fake_create_session_factory)
+    monkeypatch.setattr(
+        main_module, "create_session_factory", fake_create_session_factory
+    )
     monkeypatch.setattr(main_module, "QdrantStore", FakeQdrantStore)
     monkeypatch.setattr(main_module, "EmbeddingClient", FakeEmbeddingClient)
+    monkeypatch.setattr(main_module, "LLMClient", FakeLLMClient)
+    monkeypatch.setattr(main_module, "RerankClient", FakeRerankClient)
+    monkeypatch.setattr(main_module, "ArqRedis", FakeArqRedis)
     monkeypatch.setattr(main_module, "seed_demo_data", fake_seed_demo_data)
 
     with TestClient(app):
@@ -131,8 +167,16 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
     assert captured["session_engine"] is fake_engine
     assert captured["qdrant_settings"] is settings.qdrant
     assert captured["ensure_collection_called"] is True
+    assert captured["cohere_settings"] is settings.cohere
+    assert captured["job_queue_url"] == settings.redis.url
     assert captured["embedding_settings"] is settings.embeddings
+    assert captured["llm_settings"] is settings.llm
     assert captured["seed_args"]["session_factory"] is fake_session_factory
+    assert app.state.session_factory is fake_session_factory
+    assert app.state.job_queue is fake_job_queue
+    assert isinstance(app.state.embedding_client, FakeEmbeddingClient)
+    assert isinstance(app.state.llm_client, FakeLLMClient)
+    assert isinstance(app.state.rerank_client, FakeRerankClient)
 
 
 def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
@@ -164,17 +208,37 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
         async def ensure_collection(self) -> None:
             captured["ensure_collection_called"] = True
 
+    class FakeRerankClient:
+        def __init__(self, settings) -> None:
+            captured["cohere_settings"] = settings
+
+    class FakeJobQueue:
+        async def aclose(self) -> None:
+            captured["job_queue_closed"] = True
+
+    class FakeEmbeddingClient:
+        def __init__(self, settings) -> None:
+            captured["embedding_settings"] = settings
+
+    class FakeLLMClient:
+        def __init__(self, settings) -> None:
+            captured["llm_settings"] = settings
+
     settings = Settings(
-        app_name="EvidentRAG",
-        environment="development",
-        log_level="INFO",
-        log_format="json",
-        otel_enabled=False,
-        otel_service_name="evidentrag-server",
-        otel_exporter_otlp_endpoint=None,
-        otel_exporter_otlp_headers=None,
-        otel_exporter_otlp_protocol="grpc",
-        otel_excluded_urls="/health",
+        app=AppSettings(
+            app_name="EvidentRAG",
+            environment="development",
+            client_dist_path="../client/dist",
+        ),
+        log=LogSettings(level="INFO", format="json"),
+        otel=OtelSettings(
+            enabled=False,
+            service_name="evidentrag-server",
+            exporter_otlp_endpoint=None,
+            exporter_otlp_headers=None,
+            exporter_otlp_protocol="grpc",
+            excluded_urls="/health",
+        ),
         embeddings=EmbeddingSettings(
             api_base="http://optiplex-3020:8081/v1",
             api_key=None,
@@ -187,6 +251,10 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
             api_key=None,
             generation_model="gemini-2.5-pro",
             utility_model="gemini-2.5-flash",
+        ),
+        cohere=CohereSettings(
+            api_key=None,
+            rerank_model="rerank-english-v3.0",
         ),
         db=DatabaseSettings(
             host="localhost",
@@ -201,6 +269,7 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
         ),
         redis=RedisSettings(url="redis://localhost:6379/0"),
     )
+    fake_job_queue = FakeJobQueue()
 
     def fake_create_engine(db_settings):
         captured["db_settings"] = db_settings
@@ -213,11 +282,23 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
     async def fail_if_called(**kwargs):
         raise AssertionError("seed_demo_data should not be called")
 
+    class FakeArqRedis:
+        @staticmethod
+        def from_url(url: str) -> FakeJobQueue:
+            captured["job_queue_url"] = url
+            return fake_job_queue
+
     monkeypatch.setattr(main_module, "settings", settings)
     monkeypatch.setattr(main_module, "configure_telemetry", lambda *args: None)
     monkeypatch.setattr(main_module, "create_engine", fake_create_engine)
-    monkeypatch.setattr(main_module, "create_session_factory", fake_create_session_factory)
+    monkeypatch.setattr(
+        main_module, "create_session_factory", fake_create_session_factory
+    )
     monkeypatch.setattr(main_module, "QdrantStore", FakeQdrantStore)
+    monkeypatch.setattr(main_module, "EmbeddingClient", FakeEmbeddingClient)
+    monkeypatch.setattr(main_module, "LLMClient", FakeLLMClient)
+    monkeypatch.setattr(main_module, "RerankClient", FakeRerankClient)
+    monkeypatch.setattr(main_module, "ArqRedis", FakeArqRedis)
     monkeypatch.setattr(main_module, "seed_demo_data", fail_if_called)
 
     with TestClient(app):
@@ -228,3 +309,11 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
     assert captured["create_all_callback"] == main_module.Base.metadata.create_all
     assert captured["qdrant_settings"] is settings.qdrant
     assert captured["ensure_collection_called"] is True
+    assert captured["cohere_settings"] is settings.cohere
+    assert captured["job_queue_url"] == settings.redis.url
+    assert captured["embedding_settings"] is settings.embeddings
+    assert captured["llm_settings"] is settings.llm
+    assert app.state.job_queue is fake_job_queue
+    assert isinstance(app.state.embedding_client, FakeEmbeddingClient)
+    assert isinstance(app.state.llm_client, FakeLLMClient)
+    assert isinstance(app.state.rerank_client, FakeRerankClient)

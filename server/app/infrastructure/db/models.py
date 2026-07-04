@@ -3,13 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import (
-    ForeignKey,
-    Integer,
-    Text,
-    UniqueConstraint,
-)
-from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -87,7 +82,180 @@ class Evidence(Base):
     )
 
     document: Mapped[Document] = relationship(back_populates="evidence")
+    sentence_trace_links: Mapped[list[SentenceTraceEvidence]] = relationship(
+        back_populates="evidence", cascade="all, delete-orphan"
+    )
+    query_candidate_links: Mapped[list[QueryEvidenceCandidate]] = relationship(
+        back_populates="evidence", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         UniqueConstraint("document_id", "chunk_index", name="uq_evidence_doc_chunk"),
+    )
+
+
+class Query(Base):
+    __tablename__ = "queries"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    query_text: Mapped[str] = mapped_column(Text, nullable=False)
+    selected_route: Mapped[str] = mapped_column(
+        Text, nullable=False, default="simple", server_default="simple"
+    )
+    status: Mapped[str] = mapped_column(
+        Text, nullable=False, default="pending", server_default="pending"
+    )
+    extra: Mapped[dict] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=_now, server_default="now()"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        default=_now,
+        server_default="now()",
+        onupdate=_now,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'running', 'completed', 'failed')",
+            name="ck_queries_status",
+        ),
+    )
+
+    answer: Mapped[Answer | None] = relationship(
+        back_populates="query", cascade="all, delete-orphan", uselist=False
+    )
+    evidence_candidates: Mapped[list[QueryEvidenceCandidate]] = relationship(
+        back_populates="query", cascade="all, delete-orphan"
+    )
+
+
+class Answer(Base):
+    __tablename__ = "answers"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    query_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("queries.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    full_text: Mapped[str] = mapped_column(Text, nullable=False)
+    model_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extra: Mapped[dict] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=_now, server_default="now()"
+    )
+
+    query: Mapped[Query] = relationship(back_populates="answer")
+    sentence_traces: Mapped[list[SentenceTrace]] = relationship(
+        back_populates="answer", cascade="all, delete-orphan"
+    )
+
+
+class SentenceTrace(Base):
+    __tablename__ = "sentence_traces"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    answer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("answers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    sentence_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    sentence_text: Mapped[str] = mapped_column(Text, nullable=False)
+
+    answer: Mapped[Answer] = relationship(back_populates="sentence_traces")
+    evidence_links: Mapped[list[SentenceTraceEvidence]] = relationship(
+        back_populates="trace", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "answer_id", "sentence_index", name="uq_sentence_traces_answer_index"
+        ),
+    )
+
+
+class SentenceTraceEvidence(Base):
+    __tablename__ = "sentence_trace_evidence"
+
+    trace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sentence_traces.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    evidence_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("evidence.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    citation_index: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    trace: Mapped[SentenceTrace] = relationship(back_populates="evidence_links")
+    evidence: Mapped[Evidence] = relationship(back_populates="sentence_trace_links")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "trace_id",
+            "citation_index",
+            name="uq_sentence_trace_evidence_trace_citation",
+        ),
+    )
+
+
+class QueryEvidenceCandidate(Base):
+    __tablename__ = "query_evidence_candidates"
+
+    query_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("queries.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    stage: Mapped[str] = mapped_column(Text, primary_key=True)
+    evidence_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("evidence.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    score: Mapped[float | None] = mapped_column(DOUBLE_PRECISION, nullable=True)
+    extra: Mapped[dict] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=_now, server_default="now()"
+    )
+
+    query: Mapped[Query] = relationship(back_populates="evidence_candidates")
+    evidence: Mapped[Evidence] = relationship(back_populates="query_candidate_links")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "query_id",
+            "stage",
+            "rank",
+            name="uq_query_evidence_candidates_query_stage_rank",
+        ),
+        CheckConstraint(
+            "stage IN ('dense', 'sparse', 'fused', 'reranked', 'selected')",
+            name="ck_query_evidence_candidates_stage",
+        ),
     )

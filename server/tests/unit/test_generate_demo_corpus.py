@@ -101,7 +101,9 @@ def test_generate_demo_corpus_disables_pdf_ocr(monkeypatch, tmp_path) -> None:
     assert pdf_option.pipeline_options.do_table_structure is False
 
 
-def test_generate_demo_corpus_uses_doc_item_provenance_for_page(monkeypatch, tmp_path) -> None:
+def test_generate_demo_corpus_uses_doc_item_provenance_for_page(
+    monkeypatch, tmp_path
+) -> None:
     source_dir = tmp_path / "corpus"
     output_dir = tmp_path / "demo-corpus"
     source_dir.mkdir()
@@ -139,9 +141,7 @@ def test_generate_demo_corpus_writes_normalized_json(monkeypatch, tmp_path) -> N
 
     written_files = generate_demo_corpus(source_dir, output_dir)
     document_hash = hashlib.sha256(b"fake-pdf-bytes").hexdigest()
-    first_chunk_hash = hashlib.sha256(
-        b"Transformers rely on attention."
-    ).hexdigest()
+    first_chunk_hash = hashlib.sha256(b"Transformers rely on attention.").hexdigest()
     second_chunk_hash = hashlib.sha256(
         b"The decoder attends to encoder outputs."
     ).hexdigest()

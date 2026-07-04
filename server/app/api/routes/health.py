@@ -23,9 +23,7 @@ async def _check_postgres(request: Request) -> dict:
             )
             tables = []
             for row in result:
-                count = await conn.scalar(
-                    text(f"SELECT COUNT(*) FROM {row[0]}")
-                )
+                count = await conn.scalar(text(f"SELECT COUNT(*) FROM {row[0]}"))
                 tables.append({"name": row[0], "rows": count})
     except Exception as exc:
         return {

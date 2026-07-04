@@ -18,7 +18,9 @@ class LLMClient:
         self._api_key = settings.api_key
         self._generation_model = settings.generation_model
         self._utility_model = settings.utility_model
-        self._client = client or httpx.AsyncClient()
+        self._client = client or httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0),
+        )
 
     async def generate_stream(
         self,
@@ -37,6 +39,8 @@ class LLMClient:
             "stream": True,
         }
 
+        raw_text = ""
+
         async with self._client.stream(
             "POST",
             f"{self._api_base}/chat/completions",
@@ -44,11 +48,18 @@ class LLMClient:
             headers=headers,
         ) as response:
             response.raise_for_status()
-            async for line in response.aiter_lines():
+            async for chunk in response.aiter_text():
+                raw_text += chunk
+
+        lines = raw_text.split("\n")
+        had_sse = any(line.startswith("data: ") for line in lines)
+
+        if had_sse:
+            for line in lines:
                 if line.startswith("data: "):
                     data = line[6:]
                     if data == "[DONE]":
-                        return
+                        continue
                     chunk = json.loads(data)
                     if (
                         content := chunk.get("choices", [{}])[0]
@@ -56,3 +67,13 @@ class LLMClient:
                         .get("content")
                     ):
                         yield content
+        else:
+            try:
+                data = json.loads(raw_text)
+                content = (
+                    data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                )
+                if content:
+                    yield content
+            except json.JSONDecodeError:
+                pass

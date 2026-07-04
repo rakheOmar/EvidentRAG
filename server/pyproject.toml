@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.138.2",
+    "python-dotenv>=1.0.0",
     "httpx>=0.28.1",
     "opentelemetry-exporter-otlp-proto-grpc>=1.36.0",
     "opentelemetry-instrumentation-fastapi>=0.57b0",
@@ -15,6 +16,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.36",
     "qdrant-client>=1.13.0",
     "redis>=5.2.0",
+    "arq>=0.26.3",
     "docling>=2.107.0",
 ]
 

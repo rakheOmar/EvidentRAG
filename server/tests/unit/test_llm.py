@@ -33,6 +33,9 @@ class _MockResponse:
         for line in self._lines:
             yield line
 
+    async def aiter_text(self) -> AsyncIterator[str]:
+        yield "\n".join(self._lines)
+
 
 class _MockStreamContext:
     def __init__(self, lines: list[str], status_code: int = 200) -> None:

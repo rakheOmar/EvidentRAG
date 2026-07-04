@@ -67,7 +67,9 @@ class _FakeEmbeddingClient:
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         self.calls.append(texts)
-        return [[float(index), float(index) + 0.1] for index, _ in enumerate(texts, start=1)]
+        return [
+            [float(index), float(index) + 0.1] for index, _ in enumerate(texts, start=1)
+        ]
 
 
 class _FailingEmbeddingClient:
@@ -84,10 +86,14 @@ class _BadChunkEmbeddingClient:
         if any(text == "bad" for text in texts):
             raise httpx.HTTPStatusError(
                 "400 Client Error",
-                request=httpx.Request("POST", "http://optiplex-3020:8081/v1/embeddings"),
+                request=httpx.Request(
+                    "POST", "http://optiplex-3020:8081/v1/embeddings"
+                ),
                 response=httpx.Response(400),
             )
-        return [[float(index), float(index) + 0.1] for index, _ in enumerate(texts, start=1)]
+        return [
+            [float(index), float(index) + 0.1] for index, _ in enumerate(texts, start=1)
+        ]
 
 
 class _FakeQdrantStore:
@@ -186,7 +192,10 @@ async def test_seed_demo_data_loads_demo_document(tmp_path: Path) -> None:
     assert len(qdrant_store.points) == 2
     first_point = qdrant_store.points[0]
     assert uuid.UUID(str(first_point.id)) == first_evidence.id
-    assert first_point.vector == [1.0, 1.1]
+    assert "sparse" in first_point.vector
+    assert first_point.vector["dense"] == [1.0, 1.1]
+    assert hasattr(first_point.vector["sparse"], "indices")
+    assert hasattr(first_point.vector["sparse"], "values")
     assert first_point.payload == {
         "evidence_id": str(first_evidence.id),
         "document_id": str(document.id),
@@ -246,7 +255,10 @@ async def test_seed_demo_data_clears_sql_rows_before_reseeding(tmp_path: Path) -
 
     assert seeded_count == 1
     assert session.executed_statements
-    assert str(session.executed_statements[0]) == "TRUNCATE TABLE evidence, documents RESTART IDENTITY CASCADE"
+    assert (
+        str(session.executed_statements[0])
+        == "TRUNCATE TABLE evidence, documents RESTART IDENTITY CASCADE"
+    )
     assert qdrant_store.reset_called is True
     assert len(session.documents) == 1
     assert len(session.evidence) == 1
@@ -307,7 +319,9 @@ async def test_seed_demo_data_rolls_back_when_embedding_fails(tmp_path: Path) ->
 
 
 @pytest.mark.asyncio
-async def test_seed_demo_data_batches_embedding_requests(tmp_path: Path, monkeypatch) -> None:
+async def test_seed_demo_data_batches_embedding_requests(
+    tmp_path: Path, monkeypatch
+) -> None:
     seed_dir = tmp_path / "demo-corpus"
     seed_dir.mkdir()
     (seed_dir / "attention-is-all-you-need.json").write_text(
@@ -376,7 +390,13 @@ async def test_seed_demo_data_batches_embedding_requests(tmp_path: Path, monkeyp
     assert seeded_count == 1
     assert embedding_client.calls == [["first", "second"], ["third"]]
     assert qdrant_store.points is not None
-    assert [point.vector for point in qdrant_store.points] == [
+    assert len(qdrant_store.points) == 3
+    for point in qdrant_store.points:
+        assert "dense" in point.vector
+        assert "sparse" in point.vector
+        assert hasattr(point.vector["sparse"], "indices")
+        assert hasattr(point.vector["sparse"], "values")
+    assert [point.vector["dense"] for point in qdrant_store.points] == [
         [1.0, 1.1],
         [2.0, 2.1],
         [1.0, 1.1],
@@ -384,7 +404,9 @@ async def test_seed_demo_data_batches_embedding_requests(tmp_path: Path, monkeyp
 
 
 @pytest.mark.asyncio
-async def test_seed_demo_data_skips_bad_evidence_chunk_on_400(tmp_path: Path, monkeypatch) -> None:
+async def test_seed_demo_data_skips_bad_evidence_chunk_on_400(
+    tmp_path: Path, monkeypatch
+) -> None:
     seed_dir = tmp_path / "demo-corpus"
     seed_dir.mkdir()
     (seed_dir / "attention-is-all-you-need.json").write_text(
@@ -451,7 +473,13 @@ async def test_seed_demo_data_skips_bad_evidence_chunk_on_400(tmp_path: Path, mo
     )
 
     assert seeded_count == 1
-    assert embedding_client.calls == [["good-1", "bad", "good-2"], ["good-1"], ["bad", "good-2"], ["bad"], ["good-2"]]
+    assert embedding_client.calls == [
+        ["good-1", "bad", "good-2"],
+        ["good-1"],
+        ["bad", "good-2"],
+        ["bad"],
+        ["good-2"],
+    ]
     assert [row.locator for row in session.evidence] == [
         "attention-is-all-you-need-p1-c0",
         "attention-is-all-you-need-p1-c2",
