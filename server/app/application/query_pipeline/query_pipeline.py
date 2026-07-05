@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections.abc import Mapping
 from datetime import datetime, timezone
+from time import perf_counter
 
 from app.application.query_pipeline.json_stream_parser import JsonStreamParser
 from app.infrastructure.db.models import (
@@ -14,6 +16,8 @@ from app.infrastructure.db.models import (
     SentenceTrace,
     SentenceTraceEvidence,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class QueryPipeline:
@@ -35,6 +39,13 @@ class QueryPipeline:
         self._llm_client = llm_client
 
     async def run(self, query_id) -> None:
+        started_at = perf_counter()
+        wide_event: dict[str, object] = {
+            "event": "query_pipeline_run",
+            "query_id": str(query_id),
+            "route": "simple",
+        }
+
         async with self._session_factory() as session:
             query = await session.get(Query, query_id)
             if query is None:
@@ -45,14 +56,23 @@ class QueryPipeline:
             await self._publish(query.id, "route_selected", {"route": "simple"})
 
             try:
-                done_payload = await self._run_simple_route(session, query)
+                done_payload = await self._run_simple_route(session, query, wide_event)
+                wide_event["outcome"] = "success"
             except Exception as exc:
                 query.status = "failed"
                 query.error_message = str(exc)
                 query.updated_at = datetime.now(timezone.utc)
                 await session.commit()
                 await self._publish(query.id, "error", {"message": str(exc)})
+                wide_event["outcome"] = "error"
+                wide_event["error_type"] = type(exc).__name__
+                wide_event["error_message"] = str(exc)
                 raise
+            finally:
+                wide_event["duration_ms"] = round(
+                    (perf_counter() - started_at) * 1000, 2
+                )
+                logger.info("pipeline_run", extra={"wide_event": wide_event})
 
             query.status = "completed"
             query.completed_at = query.updated_at = datetime.now(timezone.utc)
@@ -64,7 +84,7 @@ class QueryPipeline:
             )
 
     async def _run_simple_route(
-        self, session, query: Query
+        self, session, query: Query, wide_event: dict[str, object] | None = None
     ) -> dict[str, object] | None:
         if self._embedding_client is None or self._qdrant_store is None:
             return None
@@ -85,6 +105,9 @@ class QueryPipeline:
             if isinstance(search_results, dict)
             else search_results
         )
+        if wide_event is not None:
+            wide_event["retrieval_count"] = len(fused_points)
+
         selected_evidence_ids = [
             uuid.UUID(point.payload["evidence_id"]) for point in fused_points
         ]
@@ -92,6 +115,9 @@ class QueryPipeline:
             selected_evidence_ids = await self._rerank_fused_candidates(
                 session, query, fused_points
             )
+
+        if wide_event is not None:
+            wide_event["rerank_count"] = len(selected_evidence_ids)
 
         if self._llm_client is not None and selected_evidence_ids:
             return await self._generate_and_persist_answer(

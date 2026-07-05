@@ -126,6 +126,11 @@ async def create_query(payload: QueryCreate, request: Request) -> Query:
         await session.commit()
         await session.refresh(query)
 
+    wide_event = getattr(getattr(request, "state", None), "wide_event", None)
+    if wide_event is not None:
+        wide_event["query_id"] = str(query.id)
+        wide_event["query_text"] = query.query_text
+
     job_queue = getattr(request.app.state, "job_queue", None)
     if job_queue is not None:
         await job_queue.enqueue_job("run_query_pipeline", str(query.id))

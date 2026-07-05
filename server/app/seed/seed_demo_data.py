@@ -34,7 +34,16 @@ async def _embed_batch(
         if exc.response.status_code != 400:
             raise
         if len(texts) == 1:
-            logger.warning("seed_embedding_skipped locator=%s", locators[0])
+            logger.info(
+                "seed_embedding_skipped",
+                extra={
+                    "wide_event": {
+                        "event": "seed_embedding_skipped",
+                        "locator": locators[0],
+                        "outcome": "skipped",
+                    }
+                },
+            )
             return [], [0]
 
         midpoint = len(texts) // 2
@@ -132,9 +141,16 @@ async def seed_demo_data(
                     embedding_client, evidence_rows
                 )
                 if not embedded_rows:
-                    logger.warning(
-                        "seed_document_skipped slug=%s reason=no_embeddable_evidence",
-                        document.slug,
+                    logger.info(
+                        "seed_document_skipped",
+                        extra={
+                            "wide_event": {
+                                "event": "seed_document_skipped",
+                                "slug": document.slug,
+                                "reason": "no_embeddable_evidence",
+                                "outcome": "skipped",
+                            }
+                        },
                     )
                     await session.rollback()
                     continue

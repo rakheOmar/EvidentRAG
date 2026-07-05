@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import AsyncIterator
+from time import perf_counter
 
 import httpx
 
 from app.core.config import LLMSettings
+
+logger = logging.getLogger(__name__)
 
 
 class LLMClient:
@@ -27,7 +31,14 @@ class LLMClient:
         messages: list[dict],
         model: str | None = None,
     ) -> AsyncIterator[str]:
+        started_at = perf_counter()
         model = model or self._generation_model
+
+        wide_event: dict[str, object] = {
+            "event": "llm_generate_stream",
+            "model": model,
+            "prompt_messages": len(messages),
+        }
 
         headers = {"Content-Type": "application/json"}
         if self._api_key:
@@ -41,39 +52,53 @@ class LLMClient:
 
         raw_text = ""
 
-        async with self._client.stream(
-            "POST",
-            f"{self._api_base}/chat/completions",
-            json=payload,
-            headers=headers,
-        ) as response:
-            response.raise_for_status()
-            async for chunk in response.aiter_text():
-                raw_text += chunk
+        try:
+            async with self._client.stream(
+                "POST",
+                f"{self._api_base}/chat/completions",
+                json=payload,
+                headers=headers,
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_text():
+                    raw_text += chunk
 
-        lines = raw_text.split("\n")
-        had_sse = any(line.startswith("data: ") for line in lines)
+            lines = raw_text.split("\n")
+            had_sse = any(line.startswith("data: ") for line in lines)
 
-        if had_sse:
-            for line in lines:
-                if line.startswith("data: "):
-                    data = line[6:]
-                    if data == "[DONE]":
-                        continue
-                    chunk = json.loads(data)
-                    if (
-                        content := chunk.get("choices", [{}])[0]
-                        .get("delta", {})
-                        .get("content")
-                    ):
+            if had_sse:
+                for line in lines:
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        if data == "[DONE]":
+                            continue
+                        chunk = json.loads(data)
+                        if (
+                            content := chunk.get("choices", [{}])[0]
+                            .get("delta", {})
+                            .get("content")
+                        ):
+                            yield content
+            else:
+                try:
+                    data = json.loads(raw_text)
+                    content = (
+                        data.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "")
+                    )
+                    if content:
                         yield content
-        else:
-            try:
-                data = json.loads(raw_text)
-                content = (
-                    data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                )
-                if content:
-                    yield content
-            except json.JSONDecodeError:
-                pass
+                except json.JSONDecodeError:
+                    pass
+
+            wide_event["response_length"] = len(raw_text)
+            wide_event["outcome"] = "success"
+        except Exception as exc:
+            wide_event["outcome"] = "error"
+            wide_event["error_type"] = type(exc).__name__
+            wide_event["error_message"] = str(exc)
+            raise
+        finally:
+            wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
+            logger.info("llm_generate_stream", extra={"wide_event": wide_event})

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from time import perf_counter
 
 import httpx
 
-from app.core.config import CohereSettings
+from app.core.config import RerankerSettings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -16,11 +20,12 @@ class RerankResult:
 class RerankClient:
     def __init__(
         self,
-        settings: CohereSettings,
+        settings: RerankerSettings,
         client: httpx.AsyncClient | None = None,
     ) -> None:
+        self._api_base = settings.api_base.rstrip("/")
         self._api_key = settings.api_key
-        self._rerank_model = settings.rerank_model
+        self._rerank_model = settings.model
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0),
         )
@@ -31,27 +36,49 @@ class RerankClient:
         documents: list[str],
         top_n: int = 5,
     ) -> list[RerankResult]:
-        headers = {"Content-Type": "application/json"}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
+        started_at = perf_counter()
 
-        response = await self._client.post(
-            "https://api.cohere.com/v2/rerank",
-            json={
-                "model": self._rerank_model,
-                "query": query,
-                "documents": documents,
-                "top_n": top_n,
-            },
-            headers=headers,
-        )
-        response.raise_for_status()
+        wide_event: dict[str, object] = {
+            "event": "rerank",
+            "model": self._rerank_model,
+            "candidate_count": len(documents),
+            "top_n": top_n,
+        }
 
-        results = [
-            RerankResult(
-                index=result["index"],
-                relevance_score=result["relevance_score"],
+        try:
+            headers = {"Content-Type": "application/json"}
+            if self._api_key:
+                headers["Authorization"] = f"Bearer {self._api_key}"
+
+            response = await self._client.post(
+                f"{self._api_base}/rerank",
+                json={
+                    "model": self._rerank_model,
+                    "query": query,
+                    "documents": documents,
+                    "top_n": top_n,
+                },
+                headers=headers,
             )
-            for result in response.json().get("results", [])
-        ]
-        return sorted(results, key=lambda result: result.relevance_score, reverse=True)
+            response.raise_for_status()
+
+            results = [
+                RerankResult(
+                    index=result["index"],
+                    relevance_score=result["relevance_score"],
+                )
+                for result in response.json().get("results", [])
+            ]
+            wide_event["result_count"] = len(results)
+            wide_event["outcome"] = "success"
+            return sorted(
+                results, key=lambda result: result.relevance_score, reverse=True
+            )
+        except Exception as exc:
+            wide_event["outcome"] = "error"
+            wide_event["error_type"] = type(exc).__name__
+            wide_event["error_message"] = str(exc)
+            raise
+        finally:
+            wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
+            logger.info("rerank", extra={"wide_event": wide_event})

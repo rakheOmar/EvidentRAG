@@ -6,7 +6,7 @@ from typing import Any
 
 from app.core.config import (
     AppSettings,
-    CohereSettings,
+    RerankerSettings,
     DatabaseSettings,
     EmbeddingSettings,
     LLMSettings,
@@ -84,9 +84,10 @@ def test_configure_telemetry_instruments_app_when_enabled(monkeypatch) -> None:
             generation_model="gemini-2.5-pro",
             utility_model="gemini-2.5-flash",
         ),
-        cohere=CohereSettings(
+        reranker=RerankerSettings(
+            api_base="https://api.cohere.com/v2",
             api_key=None,
-            rerank_model="rerank-english-v3.0",
+            model="rerank-english-v3.0",
         ),
         db=DatabaseSettings(
             host="localhost",

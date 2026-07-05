@@ -69,11 +69,13 @@ def test_settings_read_qdrant_env(monkeypatch) -> None:
     assert settings.qdrant.evidence_collection == "my_evidence"
 
 
-def test_settings_read_cohere_env(monkeypatch) -> None:
-    monkeypatch.setenv("COHERE_API_KEY", "cohere-secret")
-    monkeypatch.setenv("COHERE_RERANK_MODEL", "rerank-english-v3.0")
+def test_settings_read_reranker_env(monkeypatch) -> None:
+    monkeypatch.setenv("RERANKER_API_BASE", "https://custom-reranker.example.com")
+    monkeypatch.setenv("RERANKER_API_KEY", "reranker-secret")
+    monkeypatch.setenv("RERANKER_MODEL", "custom-reranker-v2")
 
     settings = get_settings()
 
-    assert settings.cohere.api_key == "cohere-secret"
-    assert settings.cohere.rerank_model == "rerank-english-v3.0"
+    assert settings.reranker.api_base == "https://custom-reranker.example.com"
+    assert settings.reranker.api_key == "reranker-secret"
+    assert settings.reranker.model == "custom-reranker-v2"

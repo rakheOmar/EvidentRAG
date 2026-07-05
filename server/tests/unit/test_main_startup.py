@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import (
     AppSettings,
-    CohereSettings,
+    RerankerSettings,
     DatabaseSettings,
     EmbeddingSettings,
     LLMSettings,
@@ -61,7 +61,7 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
 
     class FakeRerankClient:
         def __init__(self, settings) -> None:
-            captured["cohere_settings"] = settings
+            captured["reranker_settings"] = settings
 
     class FakeJobQueue:
         async def aclose(self) -> None:
@@ -99,9 +99,10 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
             generation_model="gemini-2.5-pro",
             utility_model="gemini-2.5-flash",
         ),
-        cohere=CohereSettings(
+        reranker=RerankerSettings(
+            api_base="https://api.cohere.com/v2",
             api_key=None,
-            rerank_model="rerank-english-v3.0",
+            model="rerank-english-v3.0",
         ),
         db=DatabaseSettings(
             host="localhost",
@@ -167,7 +168,7 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
     assert captured["session_engine"] is fake_engine
     assert captured["qdrant_settings"] is settings.qdrant
     assert captured["ensure_collection_called"] is True
-    assert captured["cohere_settings"] is settings.cohere
+    assert captured["reranker_settings"] is settings.reranker
     assert captured["job_queue_url"] == settings.redis.url
     assert captured["embedding_settings"] is settings.embeddings
     assert captured["llm_settings"] is settings.llm
@@ -210,7 +211,7 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
 
     class FakeRerankClient:
         def __init__(self, settings) -> None:
-            captured["cohere_settings"] = settings
+            captured["reranker_settings"] = settings
 
     class FakeJobQueue:
         async def aclose(self) -> None:
@@ -252,9 +253,10 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
             generation_model="gemini-2.5-pro",
             utility_model="gemini-2.5-flash",
         ),
-        cohere=CohereSettings(
+        reranker=RerankerSettings(
+            api_base="https://api.cohere.com/v2",
             api_key=None,
-            rerank_model="rerank-english-v3.0",
+            model="rerank-english-v3.0",
         ),
         db=DatabaseSettings(
             host="localhost",
@@ -309,7 +311,7 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
     assert captured["create_all_callback"] == main_module.Base.metadata.create_all
     assert captured["qdrant_settings"] is settings.qdrant
     assert captured["ensure_collection_called"] is True
-    assert captured["cohere_settings"] is settings.cohere
+    assert captured["reranker_settings"] is settings.reranker
     assert captured["job_queue_url"] == settings.redis.url
     assert captured["embedding_settings"] is settings.embeddings
     assert captured["llm_settings"] is settings.llm

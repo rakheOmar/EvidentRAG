@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 import json
 import logging
 from logging.config import dictConfig
+import os
+import subprocess
 import sys
 
 from app.core.config import Settings
@@ -15,19 +17,43 @@ except Exception:  # pragma: no cover - handled when deps are absent
     trace = None
 
 
-_request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
+def _resolve_commit_hash() -> str:
+    env_hash = os.getenv("COMMIT_HASH")
+    if env_hash:
+        return env_hash
+    try:
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL,
+                timeout=2,
+            )
+            .decode("utf-8")
+            .strip()
+        )
+    except Exception:
+        return "unknown"
+
+
+def _resolve_version() -> str:
+    return os.getenv("SERVICE_VERSION", "0.0.0")
+
+
+_REQUEST_ID: ContextVar[str | None] = ContextVar("request_id", default=None)
+_COMMIT_HASH = _resolve_commit_hash()
+_SERVICE_VERSION = _resolve_version()
 
 
 def set_request_id(request_id: str | None) -> None:
-    _request_id.set(request_id)
+    _REQUEST_ID.set(request_id)
 
 
 def get_request_id() -> str | None:
-    return _request_id.get()
+    return _REQUEST_ID.get()
 
 
 def clear_request_id() -> None:
-    _request_id.set(None)
+    _REQUEST_ID.set(None)
 
 
 class ContextFilter(logging.Filter):
@@ -40,6 +66,8 @@ class ContextFilter(logging.Filter):
         record.service_name = getattr(record, "service_name", self._service_name)
         record.environment = getattr(record, "environment", self._environment)
         record.request_id = getattr(record, "request_id", None) or get_request_id()
+        record.commit_hash = _COMMIT_HASH
+        record.version = _SERVICE_VERSION
 
         trace_id: str | None = getattr(record, "trace_id", None)
         span_id: str | None = getattr(record, "span_id", None)
@@ -56,20 +84,28 @@ class ContextFilter(logging.Filter):
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        payload = {
+        payload: dict[str, object] = {
             "timestamp": datetime.fromtimestamp(
                 record.created, tz=timezone.utc
             ).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
-            "service_name": getattr(record, "service_name", None),
-            "environment": getattr(record, "environment", None),
-            "request_id": getattr(record, "request_id", None),
-            "trace_id": getattr(record, "trace_id", None),
-            "span_id": getattr(record, "span_id", None),
         }
+
+        wide_event = getattr(record, "wide_event", None)
+        if isinstance(wide_event, dict):
+            payload.update(wide_event)
+        else:
+            payload["message"] = record.getMessage()
+
         for key in (
+            "service_name",
+            "environment",
+            "request_id",
+            "trace_id",
+            "span_id",
+            "commit_hash",
+            "version",
             "http_method",
             "http_path",
             "http_status_code",
@@ -78,6 +114,7 @@ class JsonFormatter(logging.Formatter):
             value = getattr(record, key, None)
             if value is not None:
                 payload[key] = value
+
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, default=str)
@@ -102,7 +139,16 @@ class PrettyFormatter(logging.Formatter):
         timestamp = datetime.fromtimestamp(record.created).strftime(self.datefmt or "")
         level = record.levelname.ljust(8)
         logger_name = record.name
-        message = record.getMessage()
+
+        wide_event = getattr(record, "wide_event", None)
+        if isinstance(wide_event, dict):
+            event_name = wide_event.get("event", record.getMessage())
+            event_parts = [f"{k}={v}" for k, v in wide_event.items() if k != "event"]
+            message = (
+                f"{event_name} {', '.join(event_parts)}" if event_parts else event_name
+            )
+        else:
+            message = record.getMessage()
 
         if self._use_color:
             level = f"{self._COLORS.get(record.levelname, '')}{level}{self._RESET}"

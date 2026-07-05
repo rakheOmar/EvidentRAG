@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 import pytest
 
-from app.core.config import CohereSettings
+from app.core.config import RerankerSettings
 from app.infrastructure.reranker.reranker import RerankClient
 
 
@@ -18,7 +18,7 @@ class _MockResponse:
         if self._status_code >= 400:
             raise httpx.HTTPStatusError(
                 f"{self._status_code} Client Error",
-                request=httpx.Request("POST", "https://api.cohere.com/v2/rerank"),
+                request=httpx.Request("POST", "https://api.cohere.com/v2/rerank"),  # noqa: E501
                 response=httpx.Response(self._status_code),
             )
 
@@ -41,9 +41,10 @@ class _MockAsyncClient:
         return _MockResponse(self._json_data, status_code=self._status_code)
 
 
-_DEFAULT_SETTINGS = CohereSettings(
+_DEFAULT_SETTINGS = RerankerSettings(
+    api_base="https://api.cohere.com/v2",
     api_key="cohere-test-key",
-    rerank_model="rerank-english-v3.0",
+    model="rerank-english-v3.0",
 )
 
 

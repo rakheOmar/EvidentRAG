@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import re
+from time import perf_counter
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.models import (
@@ -15,6 +17,8 @@ from qdrant_client.http.models import (
 )
 
 from app.core.config import QdrantSettings
+
+logger = logging.getLogger(__name__)
 
 _FNV_OFFSET_BASIS_32 = 0x811C9DC5
 _FNV_PRIME_32 = 0x01000193
@@ -97,18 +101,39 @@ class QdrantStore:
         sparse_limit: int = 20,
         fused_limit: int = 20,
     ) -> list:
-        response = await self._client.query_points(
-            self._collection,
-            prefetch=[
-                Prefetch(query=dense_vector, using="dense", limit=dense_limit),
-                Prefetch(
-                    query=self._text_to_sparse_vector(query_text),
-                    using="sparse",
-                    limit=sparse_limit,
-                ),
-            ],
-            query=FusionQuery(fusion=Fusion.RRF),
-            limit=fused_limit,
-            with_payload=True,
-        )
-        return response.points
+        started_at = perf_counter()
+
+        wide_event: dict[str, object] = {
+            "event": "hybrid_search",
+            "collection": self._collection,
+            "dense_limit": dense_limit,
+            "sparse_limit": sparse_limit,
+            "fused_limit": fused_limit,
+        }
+
+        try:
+            response = await self._client.query_points(
+                self._collection,
+                prefetch=[
+                    Prefetch(query=dense_vector, using="dense", limit=dense_limit),
+                    Prefetch(
+                        query=self._text_to_sparse_vector(query_text),
+                        using="sparse",
+                        limit=sparse_limit,
+                    ),
+                ],
+                query=FusionQuery(fusion=Fusion.RRF),
+                limit=fused_limit,
+                with_payload=True,
+            )
+            wide_event["result_count"] = len(response.points)
+            wide_event["outcome"] = "success"
+            return response.points
+        except Exception as exc:
+            wide_event["outcome"] = "error"
+            wide_event["error_type"] = type(exc).__name__
+            wide_event["error_message"] = str(exc)
+            raise
+        finally:
+            wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
+            logger.info("hybrid_search", extra={"wide_event": wide_event})

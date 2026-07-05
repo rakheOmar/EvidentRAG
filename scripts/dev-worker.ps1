@@ -12,7 +12,7 @@ $envPath = Join-Path $PSScriptRoot "..\.env"
 Get-Content -LiteralPath $envPath | ForEach-Object {
     if ($_ -match "^\s*([^#=\s]+)=(.+)$") {
         $name = $matches[1].Trim()
-        $value = $matches[2].Trim()
+        $value = $matches[2].Trim().Trim('"').Trim("'")
         Set-Item -Path "Env:$name" -Value $value
     }
 }

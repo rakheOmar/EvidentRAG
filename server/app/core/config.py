@@ -60,9 +60,10 @@ class EmbeddingSettings:
 
 
 @dataclass(frozen=True)
-class CohereSettings:
+class RerankerSettings:
+    api_base: str
     api_key: str | None
-    rerank_model: str
+    model: str
 
 
 @dataclass(frozen=True)
@@ -92,7 +93,7 @@ class Settings:
     otel: OtelSettings
     llm: LLMSettings
     embeddings: EmbeddingSettings
-    cohere: CohereSettings
+    reranker: RerankerSettings
     db: DatabaseSettings
     qdrant: QdrantSettings
     redis: RedisSettings
@@ -134,9 +135,10 @@ def get_settings() -> Settings:
             ),
             dimensions=int(os.getenv("GEMINI_EMBEDDING_DIMENSIONS", "768")),
         ),
-        cohere=CohereSettings(
-            api_key=os.getenv("COHERE_API_KEY"),
-            rerank_model=os.getenv("COHERE_RERANK_MODEL", "rerank-english-v3.0"),
+        reranker=RerankerSettings(
+            api_base=os.getenv("RERANKER_API_BASE", "https://api.cohere.com/v2"),
+            api_key=os.getenv("RERANKER_API_KEY"),
+            model=os.getenv("RERANKER_MODEL", "rerank-english-v3.0"),
         ),
         db=DatabaseSettings(
             host=os.getenv("POSTGRES_HOST", "localhost"),

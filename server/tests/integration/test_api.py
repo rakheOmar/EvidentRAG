@@ -88,12 +88,13 @@ def test_access_log_includes_request_metadata(client, caplog) -> None:
     assert len(records) == 1
 
     record = records[0]
-    assert record.msg == "request_completed"
-    assert record.http_method == "GET"
-    assert record.http_path == "/health"
-    assert record.http_status_code == 200
-    assert record.request_id == "log-test-id"
-    assert isinstance(record.duration_ms, float)
+    wide_event = record.wide_event
+    assert wide_event["event"] == "request_completed"
+    assert wide_event["http_method"] == "GET"
+    assert wide_event["http_path"] == "/health"
+    assert wide_event["http_status_code"] == 200
+    assert isinstance(wide_event["duration_ms"], float)
+    assert wide_event["request_id"] == "log-test-id"
 
 
 def test_create_query_returns_pending_simple_query(client) -> None:

@@ -309,7 +309,7 @@ async def test_query_pipeline_run_marks_failed_and_publishes_error_on_exception(
         redis=redis,
     )
 
-    async def fail_after_route_selected(session, query: Query) -> None:
+    async def fail_after_route_selected(session, query: Query, wide_event=None) -> None:
         raise RuntimeError("generation failed")
 
     pipeline._run_simple_route = fail_after_route_selected  # type: ignore[attr-defined]

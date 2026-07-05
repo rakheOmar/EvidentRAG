@@ -6,7 +6,7 @@ import pytest
 
 from app.core.config import (
     AppSettings,
-    CohereSettings,
+    RerankerSettings,
     DatabaseSettings,
     EmbeddingSettings,
     LLMSettings,
@@ -104,7 +104,11 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
             generation_model="llm-generation-test",
             utility_model="llm-utility-test",
         ),
-        cohere=CohereSettings(api_key=None, rerank_model="rerank-english-v3.0"),
+        reranker=RerankerSettings(
+            api_base="https://api.cohere.com/v2",
+            api_key=None,
+            model="rerank-english-v3.0",
+        ),
         db=DatabaseSettings(
             host="localhost",
             port=5432,
@@ -139,7 +143,7 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
 
     class FakeRerankClient:
         def __init__(self, actual_settings) -> None:
-            captured["cohere_settings"] = actual_settings
+            captured["reranker_settings"] = actual_settings
             captured["rerank_client_instance"] = self
 
     class FakeRedis:
@@ -180,7 +184,7 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
     assert captured["qdrant_settings"] is settings.qdrant
     assert captured["embedding_settings"] is settings.embeddings
     assert captured["llm_settings"] is settings.llm
-    assert captured["cohere_settings"] is settings.cohere
+    assert captured["reranker_settings"] is settings.reranker
     assert captured["redis_url"] == settings.redis.url
     assert captured["ensure_collection_called"] is True
 
