@@ -96,7 +96,7 @@ describe("useQueryStream", () => {
         full_text: "Sentence one. Sentence two.",
         id: "a-001",
         query_id: "q-001",
-        sentences: [],
+        segments: [],
       });
     });
 
@@ -107,7 +107,7 @@ describe("useQueryStream", () => {
           full_text: "Sentence one. Sentence two.",
           id: "a-001",
           query_id: "q-001",
-          sentences: [],
+          segments: [],
         },
         errorMessage: null,
         phase: "done",

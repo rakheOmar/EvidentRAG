@@ -1,16 +1,19 @@
-import type { AppendMessage, ExternalStoreAdapter } from "@assistant-ui/react";
+import type {
+  AppendMessage,
+  ExternalStoreAdapter,
+  ThreadAssistantMessagePart,
+} from "@assistant-ui/react";
 import { useExternalStoreRuntime } from "@assistant-ui/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { fetchAnswer, postQuery, queryKeys, useQueryHistory } from "@/lib/api";
 import { convertEvidentMessage } from "@/lib/message-utils";
+import { setMessageSegments } from "@/lib/segments-store";
 import type {
-  DoneEvent,
-  ErrorEvent,
+  ContentPartsEvent,
+  DoneEventWithContentParts,
   EvidentChatMessage,
-  GeneratingEvent,
-  RouteSelectedEvent,
 } from "@/lib/types";
 import { isAnswerDetail } from "@/lib/types";
 
@@ -29,7 +32,8 @@ export function useEvidentRuntime() {
   const queryClient = useQueryClient();
   const historyQuery = useQueryHistory();
 
-  const onCancel = useCallback(() => {
+  // biome-ignore lint/suspicious/useAwait: type contract requires Promise<void>
+  const onCancel = useCallback(async () => {
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
     setIsRunning(false);
@@ -58,12 +62,19 @@ export function useEvidentRuntime() {
 
       const answerResponse = await fetchAnswer(threadId);
       const answer = isAnswerDetail(answerResponse) ? answerResponse : null;
+      const contentParts: ThreadAssistantMessagePart[] = answer
+        ? [{ type: "text", text: answer.full_text }]
+        : [];
+
+      if (answer?.segments) {
+        setMessageSegments(`${threadId}-assistant`, answer.segments);
+      }
 
       setCurrentThreadId(threadId);
       setIsRunning(false);
       setMessages([
         {
-          content: query.query_text,
+          contentParts: [{ type: "text", text: query.query_text }],
           createdAt: new Date(query.created_at),
           id: `${threadId}-user`,
           queryId: threadId,
@@ -71,14 +82,11 @@ export function useEvidentRuntime() {
           status: "complete",
         },
         {
-          answer,
-          content: answer?.full_text ?? "",
+          contentParts,
           createdAt: new Date(),
           id: `${threadId}-assistant`,
-          phase: "done",
           queryId: threadId,
           role: "assistant",
-          route: query.selected_route,
           status: "complete",
         },
       ]);
@@ -99,20 +107,18 @@ export function useEvidentRuntime() {
       setMessages((current) => [
         ...current,
         {
-          content: queryText,
+          contentParts: [{ type: "text", text: queryText }],
           createdAt: new Date(),
           id: userMessageId,
           role: "user",
           status: "complete",
         },
         {
-          content: "",
+          contentParts: [],
           createdAt: new Date(),
           id: assistantMessageId,
-          phase: "routing",
           role: "assistant",
           status: "running",
-          streamedSentences: [],
         },
       ]);
 
@@ -132,88 +138,56 @@ export function useEvidentRuntime() {
         );
       };
 
-      updateAssistantMessage((entry) => ({ ...entry, queryId: query.id }));
+      updateAssistantMessage((entry) => ({
+        ...entry,
+        queryId: query.id,
+        contentParts: [{ type: "reasoning", text: "Starting..." }],
+      }));
 
       eventSource.addEventListener(
-        "route_selected",
+        "content_parts",
         (event: MessageEvent<string>) => {
-          const payload = JSON.parse(event.data) as RouteSelectedEvent;
+          const payload = JSON.parse(event.data) as ContentPartsEvent;
 
           updateAssistantMessage((entry) => ({
             ...entry,
-            phase: "routing",
-            route: payload.route,
+            contentParts: payload.parts,
+            status: "running",
           }));
         }
       );
 
-      eventSource.addEventListener("retrieving", () => {
-        updateAssistantMessage((entry) => ({ ...entry, phase: "retrieving" }));
-      });
+      eventSource.addEventListener("done", (event: MessageEvent<string>) => {
+        const payload = JSON.parse(event.data) as DoneEventWithContentParts;
 
-      eventSource.addEventListener(
-        "generating",
-        (event: MessageEvent<string>) => {
-          const payload = JSON.parse(event.data) as GeneratingEvent;
-
-          updateAssistantMessage((entry) => {
-            const streamedSentences = [
-              ...(entry.streamedSentences ?? []),
-              payload.sentence,
-            ];
-
-            return {
-              ...entry,
-              content: streamedSentences.join(" "),
-              phase: "generating",
-              streamedSentences,
-            };
-          });
-        }
-      );
-
-      eventSource.addEventListener(
-        "done",
-        async (event: MessageEvent<string>) => {
-          const payload = JSON.parse(event.data) as DoneEvent;
-          const answerResponse = await fetchAnswer(query.id);
-          const answer = isAnswerDetail(answerResponse) ? answerResponse : null;
-
+        if (payload.error) {
           updateAssistantMessage((entry) => ({
             ...entry,
-            answer,
-            content: answer?.full_text ?? payload.full_text ?? entry.content,
-            phase: "done",
+            status: "error",
+          }));
+        } else {
+          if (payload.segments) {
+            setMessageSegments(assistantMessageId, payload.segments);
+          }
+          const displayParts = payload.content_parts.filter(
+            (p) => p.type !== "source"
+          );
+          updateAssistantMessage((entry) => ({
+            ...entry,
+            contentParts: displayParts,
             status: "complete",
           }));
-
-          eventSource.close();
-          eventSourceRef.current = null;
-          setIsRunning(false);
-          await queryClient.invalidateQueries({ queryKey: queryKeys.queries });
-        }
-      );
-
-      eventSource.addEventListener("error", (event: Event) => {
-        let errorMessage = "Stream disconnected.";
-
-        if (
-          event instanceof MessageEvent &&
-          typeof event.data === "string" &&
-          event.data.length > 0
-        ) {
-          try {
-            const payload = JSON.parse(event.data) as ErrorEvent;
-            errorMessage = payload.message;
-          } catch {
-            errorMessage = "Stream disconnected.";
-          }
         }
 
+        eventSource.close();
+        eventSourceRef.current = null;
+        setIsRunning(false);
+        queryClient.invalidateQueries({ queryKey: queryKeys.queries });
+      });
+
+      eventSource.addEventListener("error", () => {
         updateAssistantMessage((entry) => ({
           ...entry,
-          errorMessage,
-          phase: "error",
           status: "error",
         }));
 

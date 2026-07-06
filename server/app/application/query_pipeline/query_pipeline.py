@@ -6,15 +6,20 @@ import uuid
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from time import perf_counter
+from typing import cast
 
+from app.application.query_pipeline.content_parts import (
+    answer_content_parts,
+    reasoning_part,
+    text_part,
+)
 from app.application.query_pipeline.json_stream_parser import JsonStreamParser
 from app.infrastructure.db.models import (
     Answer,
     Evidence,
     Query,
     QueryEvidenceCandidate,
-    SentenceTrace,
-    SentenceTraceEvidence,
+    Segment,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,7 +58,6 @@ class QueryPipeline:
 
             query.status = "running"
             await session.commit()
-            await self._publish(query.id, "route_selected", {"route": "simple"})
 
             try:
                 done_payload = await self._run_simple_route(session, query, wide_event)
@@ -63,7 +67,16 @@ class QueryPipeline:
                 query.error_message = str(exc)
                 query.updated_at = datetime.now(timezone.utc)
                 await session.commit()
-                await self._publish(query.id, "error", {"message": str(exc)})
+                await self._publish(
+                    query.id,
+                    "done",
+                    {
+                        "query_id": str(query.id),
+                        "content_parts": [],
+                        "error": True,
+                        "error_message": str(exc),
+                    },
+                )
                 wide_event["outcome"] = "error"
                 wide_event["error_type"] = type(exc).__name__
                 wide_event["error_message"] = str(exc)
@@ -77,15 +90,42 @@ class QueryPipeline:
             query.status = "completed"
             query.completed_at = query.updated_at = datetime.now(timezone.utc)
             await session.commit()
-            await self._publish(
-                query.id,
-                "done",
-                done_payload or {"status": "completed"},
-            )
+
+            if done_payload:
+                cp = answer_content_parts(
+                    cast(str, done_payload["full_text"]),
+                    cast(list[dict[str, object]], done_payload["evidence"]),
+                )
+                await self._publish(
+                    query.id,
+                    "done",
+                    {
+                        "query_id": str(query.id),
+                        "content_parts": cp,
+                        "segments": done_payload["segments"],
+                        "error": False,
+                    },
+                )
+            else:
+                await self._publish(
+                    query.id,
+                    "done",
+                    {
+                        "query_id": str(query.id),
+                        "content_parts": [],
+                        "error": False,
+                    },
+                )
 
     async def _run_simple_route(
         self, session, query: Query, wide_event: dict[str, object] | None = None
     ) -> dict[str, object] | None:
+        await self._publish(
+            query.id,
+            "content_parts",
+            {"parts": [reasoning_part("Routing Query via Simple Route...")]},
+        )
+
         if self._embedding_client is None or self._qdrant_store is None:
             return None
 
@@ -97,7 +137,11 @@ class QueryPipeline:
             sparse_limit=20,
             fused_limit=20,
         )
-        await self._publish(query.id, "retrieving", {"status": "retrieving"})
+        await self._publish(
+            query.id,
+            "content_parts",
+            {"parts": [reasoning_part("Retrieving Evidence from Qdrant...")]},
+        )
         await self._stage_candidates(session, query, search_results)
 
         fused_points = (
@@ -108,10 +152,25 @@ class QueryPipeline:
         if wide_event is not None:
             wide_event["retrieval_count"] = len(fused_points)
 
+        await self._publish(
+            query.id,
+            "content_parts",
+            {"parts": [reasoning_part("Fusing dense + sparse candidates via RRF...")]},
+        )
+
         selected_evidence_ids = [
             uuid.UUID(point.payload["evidence_id"]) for point in fused_points
         ]
         if self._rerank_client is not None and fused_points:
+            await self._publish(
+                query.id,
+                "content_parts",
+                {
+                    "parts": [
+                        reasoning_part("Reranking top-20 candidates via Cohere...")
+                    ]
+                },
+            )
             selected_evidence_ids = await self._rerank_fused_candidates(
                 session, query, fused_points
             )
@@ -211,11 +270,16 @@ class QueryPipeline:
                 "role": "system",
                 "content": (
                     "Answer the question using ONLY the provided evidence. "
-                    "If the evidence does not contain the answer, say you don't know. "
+                    "If the evidence does not contain the answer, respond with [] (empty array). "
                     "Respond in JSON format as an array of objects. "
-                    'Each object must have a "sentence" key with the answer text and an "evidence_ids" '
-                    "key with a list of evidence IDs that support that sentence. "
-                    'Example: [{"sentence": "The answer is based on this source.", "evidence_ids": ["uuid"]}]'
+                    'Each object must have a "text" key with a phrase-level text segment '
+                    'and an "evidence_ids" key with a list of evidence IDs that support that segment. '
+                    "Segment at the phrase level: break the answer into meaningful sub-phrases "
+                    "where each sub-phrase draws on specific evidence. "
+                    'If a segment uses no evidence (e.g. connective text), use an empty array []. '
+                    'Example: '
+                    '[{"text": "This first claim", "evidence_ids": ["uuid1"]}, '
+                    '{"text": " is supported by different evidence.", "evidence_ids": ["uuid2"]}]'
                 ),
             },
             {
@@ -231,19 +295,29 @@ class QueryPipeline:
         ]
 
         async for chunk in self._llm_client.generate_stream(messages):
-            for sentence in parser.feed(chunk):
-                await self._publish(query.id, "generating", {"sentence": sentence})
+            parser.feed(chunk)
+            accumulated = parser.get_accumulated_text()
+            await self._publish(
+                query.id,
+                "content_parts",
+                {
+                    "parts": [
+                        reasoning_part("Generating Answer..."),
+                        text_part(accumulated),
+                    ]
+                },
+            )
 
         parsed = parser.parse_final()
         if not parsed:
             return None
-        return self._persist_answer_graph(session, query, parsed, evidence_payloads)
+        return self._persist_segments(session, query, parsed, evidence_payloads)
 
-    def _persist_answer_graph(
+    def _persist_segments(
         self,
         session,
         query: Query,
-        parsed_sentences: list[dict[str, object]],
+        parsed_segments: list[dict[str, object]],
         evidence_payloads: list[dict[str, object]],
     ) -> dict[str, object]:
         valid_ids = {ev["id"] for ev in evidence_payloads}
@@ -262,7 +336,7 @@ class QueryPipeline:
                 pass
             return None
 
-        full_text_parts = [str(item["sentence"]) for item in parsed_sentences]
+        full_text_parts = [str(item["text"]) for item in parsed_segments]
         answer = Answer(
             id=uuid.uuid4(),
             query_id=query.id,
@@ -270,10 +344,10 @@ class QueryPipeline:
         )
         session.add(answer)
 
-        sentence_payloads: list[dict[str, object]] = []
+        segment_payloads: list[dict[str, object]] = []
 
-        for sentence_index, item in enumerate(parsed_sentences):
-            sentence_text = str(item["sentence"])
+        for segment_index, item in enumerate(parsed_segments):
+            text = str(item["text"])
             raw_evidence_ids = item.get("evidence_ids", [])
             if not isinstance(raw_evidence_ids, list):
                 raise ValueError("evidence_ids must be a list")
@@ -284,26 +358,20 @@ class QueryPipeline:
                 if citation:
                     resolved.append(citation)
 
-            trace = SentenceTrace(
-                id=uuid.uuid4(),
-                answer_id=answer.id,
-                sentence_index=sentence_index,
-                sentence_text=sentence_text,
-            )
-            session.add(trace)
-            for citation_index, evidence_id in enumerate(resolved):
-                session.add(
-                    SentenceTraceEvidence(
-                        trace_id=trace.id,
-                        evidence_id=uuid.UUID(evidence_id),
-                        citation_index=citation_index,
-                    )
+            session.add(
+                Segment(
+                    id=uuid.uuid4(),
+                    answer_id=answer.id,
+                    segment_index=segment_index,
+                    text=text,
+                    evidence_ids=resolved,
                 )
+            )
 
-            sentence_payloads.append(
+            segment_payloads.append(
                 {
-                    "sentence_index": sentence_index,
-                    "sentence_text": sentence_text,
+                    "segment_index": segment_index,
+                    "text": text,
                     "evidence_ids": resolved,
                 }
             )
@@ -311,7 +379,7 @@ class QueryPipeline:
             "id": str(answer.id),
             "query_id": str(query.id),
             "full_text": answer.full_text,
-            "sentences": sentence_payloads,
+            "segments": segment_payloads,
             "evidence": evidence_payloads,
         }
 

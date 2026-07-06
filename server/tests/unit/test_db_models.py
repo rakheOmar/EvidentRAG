@@ -12,8 +12,7 @@ from app.infrastructure.db.models import (
     Evidence,
     Query,
     QueryEvidenceCandidate,
-    SentenceTrace,
-    SentenceTraceEvidence,
+    Segment,
 )
 from app.infrastructure.db.session import create_engine
 
@@ -172,55 +171,34 @@ def test_answer_table_columns_match_schema() -> None:
     assert len(cols) == 7
 
 
-def test_sentence_trace_table_columns_match_schema() -> None:
-    table = _table(SentenceTrace)
+def test_segment_table_columns_match_schema() -> None:
+    table = _table(Segment)
     cols = {c.name: c for c in table.c}
 
-    assert SentenceTrace.__tablename__ == "sentence_traces"
+    assert Segment.__tablename__ == "segments"
     assert str(cols["id"].type) == "UUID"
     assert cols["id"].primary_key
 
     assert str(cols["answer_id"].type) == "UUID"
     assert not cols["answer_id"].nullable
 
-    assert str(cols["sentence_index"].type) == "INTEGER"
-    assert not cols["sentence_index"].nullable
+    assert str(cols["segment_index"].type) == "INTEGER"
+    assert not cols["segment_index"].nullable
 
-    assert str(cols["sentence_text"].type) == "TEXT"
-    assert not cols["sentence_text"].nullable
+    assert str(cols["text"].type) == "TEXT"
+    assert not cols["text"].nullable
 
-    unique_constraints = _unique_constraints(table)
-    assert any(
-        tuple(column.name for column in constraint.columns)
-        == ("answer_id", "sentence_index")
-        for constraint in unique_constraints
-    )
-
-    assert len(cols) == 4
-
-
-def test_sentence_trace_evidence_table_columns_match_schema() -> None:
-    table = _table(SentenceTraceEvidence)
-    cols = {c.name: c for c in table.c}
-
-    assert SentenceTraceEvidence.__tablename__ == "sentence_trace_evidence"
-    assert str(cols["trace_id"].type) == "UUID"
-    assert cols["trace_id"].primary_key
-
-    assert str(cols["evidence_id"].type) == "UUID"
-    assert cols["evidence_id"].primary_key
-
-    assert str(cols["citation_index"].type) == "INTEGER"
-    assert not cols["citation_index"].nullable
+    assert str(cols["evidence_ids"].type) == "JSONB"
+    assert not cols["evidence_ids"].nullable
 
     unique_constraints = _unique_constraints(table)
     assert any(
         tuple(column.name for column in constraint.columns)
-        == ("trace_id", "citation_index")
+        == ("answer_id", "segment_index")
         for constraint in unique_constraints
     )
 
-    assert len(cols) == 3
+    assert len(cols) == 5
 
 
 def test_query_evidence_candidate_table_columns_match_schema() -> None:

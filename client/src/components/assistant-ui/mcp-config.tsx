@@ -17,7 +17,7 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, type ReactElement, type ReactNode, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -53,18 +53,20 @@ export namespace McpConfigDialog {
  */
 export const McpConfigDialog: FC<McpConfigDialog.Props> = ({ children }) => (
   <Dialog>
-    <DialogTrigger asChild>
-      {children ?? (
-        <Button
-          className="aui-mcp-config-trigger gap-2"
-          size="sm"
-          variant="outline"
-        >
-          <PlugIcon className="size-4" />
-          MCP servers
-        </Button>
-      )}
-    </DialogTrigger>
+    <DialogTrigger
+      render={
+        (children as ReactElement) ?? (
+          <Button
+            className="aui-mcp-config-trigger gap-2"
+            size="sm"
+            variant="outline"
+          >
+            <PlugIcon className="size-4" />
+            MCP servers
+          </Button>
+        )
+      }
+    />
     <DialogContent className="aui-mcp-config-content sm:max-w-lg">
       <DialogHeader>
         <DialogTitle>MCP servers</DialogTitle>

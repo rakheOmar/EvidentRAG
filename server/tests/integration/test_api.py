@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import json
 import logging
+import uuid
 
 from app.infrastructure.db.models import (
     Answer,
     Document,
     Evidence,
-    SentenceTrace,
-    SentenceTraceEvidence,
+    Query,
+    Segment,
 )
 
 
@@ -20,6 +22,55 @@ def _create_answer(client, *, query_id: str, full_text: str) -> None:
             await session.commit()
 
     client.portal.call(_persist)
+
+
+def _sse_done_event(
+    answer_id: str, query_id: str, evidence_id: str
+) -> str:
+    data = {
+        "id": answer_id,
+        "query_id": query_id,
+        "full_text": "This is the completed answer.",
+        "segments": [
+            {
+                "segment_index": 0,
+                "text": "This is the completed answer.",
+                "evidence_ids": [evidence_id],
+            }
+        ],
+        "evidence": [
+            {
+                "id": evidence_id,
+                "content": "Evidence content",
+                "context_header": "Passage from Evidence Doc, page 1.",
+                "document_title": "Evidence Doc",
+                "document_slug": f"evidence-doc-{query_id[-8:]}",
+                "page": 1,
+            }
+        ],
+        "content_parts": [
+            {"type": "text", "text": "This is the completed answer."},
+            {
+                "type": "source",
+                "sourceType": "document",
+                "id": evidence_id,
+                "title": "Evidence Doc",
+                "mediaType": "text/plain",
+                "providerMetadata": {
+                    "evidentrag": {
+                        "id": evidence_id,
+                        "content": "Evidence content",
+                        "document_title": "Evidence Doc",
+                        "document_slug": f"evidence-doc-{query_id[-8:]}",
+                        "page": 1,
+                        "context_header": "Passage from Evidence Doc, page 1.",
+                    }
+                },
+                "filename": f"evidence-doc-{query_id[-8:]}.txt",
+            },
+        ],
+    }
+    return f"event: done\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
 
 
 def _create_answer_graph(client, *, query_id: str) -> dict[str, str]:
@@ -36,6 +87,7 @@ def _create_answer_graph(client, *, query_id: str) -> dict[str, str]:
                 page_count=1,
             )
             evidence = Evidence(
+                id=uuid.uuid4(),
                 document=document,
                 locator=f"evidence-doc-{slug_suffix}#page=1&chunk=0",
                 content="Evidence content",
@@ -48,19 +100,16 @@ def _create_answer_graph(client, *, query_id: str) -> dict[str, str]:
             answer = Answer(
                 query_id=query_id, full_text="This is the completed answer."
             )
-            sentence_trace = SentenceTrace(
+            segment = Segment(
                 answer=answer,
-                sentence_index=0,
-                sentence_text="This is the completed answer.",
+                segment_index=0,
+                text="This is the completed answer.",
+                evidence_ids=[str(evidence.id)],
             )
-            sentence_trace_evidence = SentenceTraceEvidence(
-                trace=sentence_trace,
-                evidence=evidence,
-                citation_index=0,
-            )
-            session.add_all(
-                [document, evidence, answer, sentence_trace, sentence_trace_evidence]
-            )
+            query = await session.get(Query, uuid.UUID(query_id))
+            if query is not None:
+                query.status = "completed"
+            session.add_all([document, evidence, answer, segment, query])
             await session.commit()
             return {
                 "answer_id": str(answer.id),
@@ -223,10 +272,10 @@ def test_get_query_answer_returns_completed_answer_when_present(client) -> None:
         "id": graph["answer_id"],
         "query_id": query_id,
         "full_text": "This is the completed answer.",
-        "sentences": [
+        "segments": [
             {
-                "sentence_index": 0,
-                "sentence_text": "This is the completed answer.",
+                "segment_index": 0,
+                "text": "This is the completed answer.",
                 "evidence_ids": [graph["evidence_id"]],
             }
         ],
@@ -239,6 +288,30 @@ def test_get_query_answer_returns_completed_answer_when_present(client) -> None:
                 "document_slug": f"evidence-doc-{query_id[-8:]}",
                 "page": 1,
             }
+        ],
+        "content_parts": [
+            {
+                "type": "text",
+                "text": "This is the completed answer.",
+            },
+            {
+                "type": "source",
+                "sourceType": "document",
+                "id": graph["evidence_id"],
+                "title": "Evidence Doc",
+                "mediaType": "text/plain",
+                "providerMetadata": {
+                    "evidentrag": {
+                        "id": graph["evidence_id"],
+                        "content": "Evidence content",
+                        "document_title": "Evidence Doc",
+                        "document_slug": f"evidence-doc-{query_id[-8:]}",
+                        "page": 1,
+                        "context_header": "Passage from Evidence Doc, page 1.",
+                    }
+                },
+                "filename": f"evidence-doc-{query_id[-8:]}.txt",
+            },
         ],
     }
 
@@ -255,21 +328,10 @@ def test_get_query_events_replays_done_for_completed_query(client) -> None:
         body = b"".join(response.iter_bytes())
 
     assert response.status_code == 200
-    assert body.decode("utf-8") == (
-        "event: done\n"
-        f'data: {{"id":"{graph["answer_id"]}","query_id":"{query_id}",'
-        '"full_text":"This is the completed answer.",'
-        '"sentences":[{"sentence_index":0,"sentence_text":"This is the completed answer.",'
-        f'"evidence_ids":["{graph["evidence_id"]}"]}}],'
-        '"evidence":[{'
-        f'"id":"{graph["evidence_id"]}",'
-        '"content":"Evidence content",'
-        '"context_header":"Passage from Evidence Doc, page 1.",'
-        '"document_title":"Evidence Doc",'
-        f'"document_slug":"evidence-doc-{query_id[-8:]}",'
-        '"page":1}]}'
-        "\n\n"
+    expected_event = _sse_done_event(
+        graph["answer_id"], query_id, graph["evidence_id"]
     )
+    assert body.decode("utf-8") == expected_event
 
 
 def test_get_query_answer_returns_not_found_for_missing_query(client) -> None:

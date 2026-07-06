@@ -3,7 +3,6 @@
 import { useAui } from "@assistant-ui/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
-import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import {
   type ComponentPropsWithoutRef,
   createContext,
@@ -30,6 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 
 export type ModelSelectorEffortOption = {
@@ -557,7 +557,7 @@ function ModelSelectorItem({
   );
 }
 
-export type ModelSelectorEffortProps = ComponentPropsWithoutRef<"div"> & {
+export type ModelSelectorEffortProps = ComponentPropsWithoutRef<"fieldset"> & {
   label?: ReactNode;
 };
 
@@ -574,7 +574,7 @@ function ModelSelectorEffort({
   }
 
   return (
-    <div
+    <fieldset
       className={cn(
         "flex items-center justify-between gap-3 border-t px-3 py-2",
         className
@@ -604,27 +604,26 @@ function ModelSelectorEffort({
       {...props}
     >
       <span className="text-muted-foreground text-xs">{label}</span>
-      <RadioGroupPrimitive.Root
+      <RadioGroup
         aria-label={typeof label === "string" ? label : "Reasoning effort"}
         className="flex items-center gap-0.5"
         onValueChange={setEffort}
-        orientation="horizontal"
         value={effort ?? ""}
       >
         {efforts.map((option) => (
-          <RadioGroupPrimitive.Item
+          <RadioGroupItem
             className={cn(
               "rounded-md px-2 py-1 text-muted-foreground text-xs outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
-              "data-[state=checked]:bg-accent data-[state=checked]:font-medium data-[state=checked]:text-accent-foreground"
+              "data-checked:bg-accent data-checked:font-medium data-checked:text-accent-foreground"
             )}
             key={option.id}
             value={option.id}
           >
             {option.name}
-          </RadioGroupPrimitive.Item>
+          </RadioGroupItem>
         ))}
-      </RadioGroupPrimitive.Root>
-    </div>
+      </RadioGroup>
+    </fieldset>
   );
 }
 

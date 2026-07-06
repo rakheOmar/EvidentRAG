@@ -181,7 +181,7 @@ const ThreadListSkeleton: FC = () => (
         aria-label="Loading threads"
         className="flex h-8 items-center px-2.5"
         data-slot="aui_thread-list-skeleton-wrapper"
-        key={i}
+        key={`skeleton-${i}`}
         role="status"
       >
         <Skeleton
@@ -214,7 +214,7 @@ export const ThreadListItem: FC = () => (
 );
 
 const ThreadListItemMore: FC = () => (
-  <ThreadListItemMorePrimitive.Root sharedFocusGroup>
+  <ThreadListItemMorePrimitive.Root>
     <ThreadListItemMorePrimitive.Trigger asChild>
       <Button
         className="absolute end-1.5 top-1/2 size-6 -translate-y-1/2 p-0 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100 group-data-active:opacity-100"

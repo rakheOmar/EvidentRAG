@@ -18,8 +18,14 @@ import {
 import { cn } from "@/lib/utils";
 
 const Logo: FC = () => (
-  <div className="flex items-center gap-2 px-2 font-medium text-sm">
-    <span className="text-foreground/90">EvidentRAG</span>
+  <div className="flex items-center justify-center font-medium text-sm">
+    <img
+      alt="EvidentRAG"
+      className="h-7 w-auto"
+      height={28}
+      src="/brand/logo-transparent.png"
+      width={112}
+    />
   </div>
 );
 
@@ -32,18 +38,27 @@ const Sidebar: FC<{ collapsed?: boolean }> = ({ collapsed }) => (
   >
     <div
       className={cn(
-        "mt-2 flex h-12 shrink-0 items-center transition-[padding] duration-200",
-        collapsed ? "px-3.5" : "px-6"
+        "mt-2 flex h-12 shrink-0 items-center justify-center transition-all duration-200",
+        collapsed ? "px-0" : "px-6"
       )}
     >
-      <span
-        className={cn(
-          "ml-2 whitespace-nowrap font-medium text-foreground/90 text-sm transition-opacity duration-200",
-          collapsed && "opacity-0"
-        )}
-      >
-        EvidentRAG
-      </span>
+      {collapsed ? (
+        <img
+          alt=""
+          className="size-6 object-contain"
+          height={24}
+          src="/brand/icon-transparent.png"
+          width={24}
+        />
+      ) : (
+        <img
+          alt="EvidentRAG"
+          className="h-7 w-auto"
+          height={28}
+          src="/brand/logo-transparent.png"
+          width={112}
+        />
+      )}
     </div>
     <ThreadListRoot
       className={cn(
@@ -99,7 +114,7 @@ const MobileSidebar: FC = () => (
       }
     />
     <SheetContent className="flex w-70 flex-col p-0" side="left">
-      <div className="flex h-12 shrink-0 items-center px-4">
+      <div className="flex h-12 shrink-0 items-center justify-center px-4">
         <Logo />
       </div>
       <div className="relative flex-1 overflow-y-auto p-3">

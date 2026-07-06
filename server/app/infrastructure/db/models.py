@@ -82,9 +82,6 @@ class Evidence(Base):
     )
 
     document: Mapped[Document] = relationship(back_populates="evidence")
-    sentence_trace_links: Mapped[list[SentenceTraceEvidence]] = relationship(
-        back_populates="evidence", cascade="all, delete-orphan"
-    )
     query_candidate_links: Mapped[list[QueryEvidenceCandidate]] = relationship(
         back_populates="evidence", cascade="all, delete-orphan"
     )
@@ -163,13 +160,13 @@ class Answer(Base):
     )
 
     query: Mapped[Query] = relationship(back_populates="answer")
-    sentence_traces: Mapped[list[SentenceTrace]] = relationship(
+    segments: Mapped[list[Segment]] = relationship(
         back_populates="answer", cascade="all, delete-orphan"
     )
 
 
-class SentenceTrace(Base):
-    __tablename__ = "sentence_traces"
+class Segment(Base):
+    __tablename__ = "segments"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -179,44 +176,17 @@ class SentenceTrace(Base):
         ForeignKey("answers.id", ondelete="CASCADE"),
         nullable=False,
     )
-    sentence_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    sentence_text: Mapped[str] = mapped_column(Text, nullable=False)
-
-    answer: Mapped[Answer] = relationship(back_populates="sentence_traces")
-    evidence_links: Mapped[list[SentenceTraceEvidence]] = relationship(
-        back_populates="trace", cascade="all, delete-orphan"
+    segment_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_ids: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list
     )
+
+    answer: Mapped[Answer] = relationship(back_populates="segments")
 
     __table_args__ = (
         UniqueConstraint(
-            "answer_id", "sentence_index", name="uq_sentence_traces_answer_index"
-        ),
-    )
-
-
-class SentenceTraceEvidence(Base):
-    __tablename__ = "sentence_trace_evidence"
-
-    trace_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("sentence_traces.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    evidence_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("evidence.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    citation_index: Mapped[int] = mapped_column(Integer, nullable=False)
-
-    trace: Mapped[SentenceTrace] = relationship(back_populates="evidence_links")
-    evidence: Mapped[Evidence] = relationship(back_populates="sentence_trace_links")
-
-    __table_args__ = (
-        UniqueConstraint(
-            "trace_id",
-            "citation_index",
-            name="uq_sentence_trace_evidence_trace_citation",
+            "answer_id", "segment_index", name="uq_segments_answer_index"
         ),
     )
 

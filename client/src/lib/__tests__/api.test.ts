@@ -104,20 +104,20 @@ describe("fetchAnswer", () => {
     vi.unstubAllGlobals();
   });
 
-  it("GETs /api/v1/queries/{id}/answer and parses deeply nested sentences + evidence", async () => {
+  it("GETs /api/v1/queries/{id}/answer and parses deeply nested segments + evidence", async () => {
     const expected: AnswerDetail = {
       id: "a-001",
       query_id: "q-001",
       full_text: "Cats purr. Dogs bark.",
-      sentences: [
+      segments: [
         {
-          sentence_index: 0,
-          sentence_text: "Cats purr.",
+          segment_index: 0,
+          text: "Cats purr.",
           evidence_ids: ["e-1", "e-2"],
         },
         {
-          sentence_index: 1,
-          sentence_text: "Dogs bark.",
+          segment_index: 1,
+          text: "Dogs bark.",
           evidence_ids: ["e-3"],
         },
       ],

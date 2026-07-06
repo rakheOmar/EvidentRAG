@@ -129,21 +129,23 @@ export function FlowExpand({ className, children, ...props }: FlowExpandProps) {
         {...props}
       >
         {children}
-        <DialogTrigger asChild>
-          <Button
-            aria-label="Expand diagram"
-            className={cn(
-              flowControlButtonClass,
-              "aui-flow-expand-trigger absolute end-2 top-2 opacity-0 focus-visible:opacity-100 group-hover/flow:opacity-100"
-            )}
-            size="icon-sm"
-            title="Expand diagram"
-            type="button"
-            variant="ghost"
-          >
-            <Maximize2 className="size-3.5" />
-          </Button>
-        </DialogTrigger>
+        <DialogTrigger
+          render={
+            <Button
+              aria-label="Expand diagram"
+              className={cn(
+                flowControlButtonClass,
+                "aui-flow-expand-trigger absolute end-2 top-2 opacity-0 focus-visible:opacity-100 group-hover/flow:opacity-100"
+              )}
+              size="icon-sm"
+              title="Expand diagram"
+              type="button"
+              variant="ghost"
+            >
+              <Maximize2 className="size-3.5" />
+            </Button>
+          }
+        />
         <DialogContent
           className="aui-flow-dialog-content fixed inset-0 start-0 top-0 z-50 max-w-none translate-x-0 translate-y-0 rounded-none border-0 bg-background p-0 shadow-none sm:max-w-none"
           showCloseButton={false}
@@ -210,18 +212,20 @@ export function FlowExpand({ className, children, ...props }: FlowExpandProps) {
             >
               <RotateCcw className="size-4" />
             </Button>
-            <DialogClose asChild>
-              <Button
-                aria-label="Close diagram"
-                className={flowControlButtonClass}
-                size="icon-sm"
-                title="Close diagram"
-                type="button"
-                variant="ghost"
-              >
-                <X className="size-4" />
-              </Button>
-            </DialogClose>
+            <DialogClose
+              render={
+                <Button
+                  aria-label="Close diagram"
+                  className={flowControlButtonClass}
+                  size="icon-sm"
+                  title="Close diagram"
+                  type="button"
+                  variant="ghost"
+                >
+                  <X className="size-4" />
+                </Button>
+              }
+            />
           </div>
         </DialogContent>
       </div>

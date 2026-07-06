@@ -1,3 +1,5 @@
+import type { ThreadAssistantMessagePart } from "@assistant-ui/react";
+
 export type QueryStatus = "pending" | "running" | "completed" | "failed";
 
 export type QueryRoute = "simple";
@@ -13,10 +15,10 @@ export interface QuerySummary {
   updated_at: string;
 }
 
-export interface SentenceTrace {
+export interface Segment {
   evidence_ids: string[];
-  sentence_index: number;
-  sentence_text: string;
+  segment_index: number;
+  text: string;
 }
 
 export interface Evidence {
@@ -33,7 +35,7 @@ export interface AnswerDetail {
   full_text: string;
   id: string;
   query_id: string;
-  sentences: SentenceTrace[];
+  segments: Segment[];
 }
 
 export interface RouteSelectedEvent {
@@ -62,7 +64,7 @@ export function isAnswerDetail(value: unknown): value is AnswerDetail {
   return (
     typeof obj.full_text === "string" &&
     Array.isArray(obj.evidence) &&
-    Array.isArray(obj.sentences)
+    Array.isArray(obj.segments)
   );
 }
 
@@ -72,16 +74,23 @@ export interface ErrorEvent {
   message: string;
 }
 
+export interface ContentPartsEvent {
+  parts: ThreadAssistantMessagePart[];
+}
+
+export interface DoneEventWithContentParts {
+  content_parts: ThreadAssistantMessagePart[];
+  error: boolean;
+  error_message?: string;
+  query_id: string;
+  segments?: Segment[];
+}
+
 export interface EvidentChatMessage {
-  answer?: AnswerDetail | null;
-  content: string;
+  contentParts: ThreadAssistantMessagePart[];
   createdAt: Date;
-  errorMessage?: string | null;
   id: string;
-  phase?: "routing" | "retrieving" | "generating" | "done" | "error";
   queryId?: string | null;
   role: "assistant" | "user";
-  route?: QueryRoute | null;
   status: "running" | "complete" | "error";
-  streamedSentences?: string[];
 }

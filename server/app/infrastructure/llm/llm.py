@@ -51,6 +51,8 @@ class LLMClient:
         }
 
         raw_text = ""
+        buffer = ""
+        had_sse = False
 
         try:
             async with self._client.stream(
@@ -62,24 +64,38 @@ class LLMClient:
                 response.raise_for_status()
                 async for chunk in response.aiter_text():
                     raw_text += chunk
+                    buffer += chunk
+                    while "\n" in buffer:
+                        line, buffer = buffer.split("\n", 1)
+                        if line.startswith("data: "):
+                            had_sse = True
+                            data = line[6:]
+                            if data == "[DONE]":
+                                continue
+                            chunk_data = json.loads(data)
+                            if (
+                                content := chunk_data.get("choices", [{}])[0]
+                                .get("delta", {})
+                                .get("content")
+                            ):
+                                yield content
 
-            lines = raw_text.split("\n")
-            had_sse = any(line.startswith("data: ") for line in lines)
+                if buffer.startswith("data: "):
+                    had_sse = True
+                    data = buffer[6:]
+                    if data != "[DONE]":
+                        try:
+                            chunk_data = json.loads(data)
+                            if (
+                                content := chunk_data.get("choices", [{}])[0]
+                                .get("delta", {})
+                                .get("content")
+                            ):
+                                yield content
+                        except json.JSONDecodeError:
+                            pass
 
-            if had_sse:
-                for line in lines:
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        if data == "[DONE]":
-                            continue
-                        chunk = json.loads(data)
-                        if (
-                            content := chunk.get("choices", [{}])[0]
-                            .get("delta", {})
-                            .get("content")
-                        ):
-                            yield content
-            else:
+            if not had_sse and raw_text:
                 try:
                     data = json.loads(raw_text)
                     content = (

@@ -24,7 +24,7 @@ interface ThemeProviderState {
 }
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
-const THEME_VALUES: Theme[] = new Set(["dark", "light", "system"]);
+const THEME_VALUES = new Set(["dark", "light", "system"]);
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
   undefined

@@ -5,22 +5,90 @@ import re
 
 
 class JsonStreamParser:
-    _SENTENCE_PATTERN = re.compile(r'"sentence":"((?:[^"\\]|\\.)*)"')
+    _TEXT_PATTERN = re.compile(r'"text":\s*"((?:[^"\\]|\\.)*)"')
 
     def __init__(self) -> None:
         self._buffer = ""
+        self._emitted_texts: list[str] = []
         self._emitted_count = 0
 
     def feed(self, chunk: str) -> list[str]:
         self._buffer += chunk
-        matches = list(self._SENTENCE_PATTERN.finditer(self._buffer))
+        matches = list(self._TEXT_PATTERN.finditer(self._buffer))
 
         emitted: list[str] = []
         for match in matches[self._emitted_count :]:
-            emitted.append(json.loads(f'"{match.group(1)}"'))
+            decoded = json.loads(f'"{match.group(1)}"')
+            emitted.append(decoded)
+            self._emitted_texts.append(decoded)
 
         self._emitted_count = len(matches)
         return emitted
+
+    def _extract_evidence_ids(
+        self, text_match: re.Match[str]
+    ) -> list[object]:
+        after_text = self._buffer[text_match.end() :]
+        ids_idx = after_text.find('"evidence_ids":')
+        if ids_idx == -1:
+            return []
+        after_ids_key = after_text[ids_idx + len('"evidence_ids":'):]
+        stripped = after_ids_key.lstrip()
+        if not stripped.startswith("["):
+            return []
+        try:
+            decoded = json.JSONDecoder()
+            arr, _ = decoded.raw_decode(stripped)
+            return list(arr)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return []
+
+    def get_accumulated_text(self) -> str:
+        parts = list(self._emitted_texts)
+
+        remaining = self._buffer
+        if self._emitted_count > 0:
+            matches = list(self._TEXT_PATTERN.finditer(self._buffer))
+            remaining = self._buffer[matches[-1].end() :]
+
+        idx = remaining.rfind('"text":')
+        if idx != -1:
+            after_colon = remaining[idx + len('"text":') :]
+            content_start = after_colon.lstrip()
+            if content_start.startswith('"'):
+                start_in_remaining = (
+                    len(remaining)
+                    - len(after_colon)
+                    + (len(after_colon) - len(content_start))
+                    + 1
+                )
+                raw_chars: list[str] = []
+                i = start_in_remaining
+                while i < len(remaining):
+                    if remaining[i] == "\\":
+                        if i + 1 < len(remaining):
+                            raw_chars.append(remaining[i])
+                            raw_chars.append(remaining[i + 1])
+                        i += 2
+                    elif remaining[i] == '"':
+                        break
+                    else:
+                        raw_chars.append(remaining[i])
+                        i += 1
+                raw = "".join(raw_chars)
+                if raw:
+                    parts.append(json.loads(f'"{raw}"'))
+
+        return " ".join(parts)
+
+    def get_segments(self) -> list[dict[str, object]]:
+        matches = list(self._TEXT_PATTERN.finditer(self._buffer))
+        segments: list[dict[str, object]] = []
+        for match in matches:
+            text = json.loads(f'"{match.group(1)}"')
+            evidence_ids = self._extract_evidence_ids(match)
+            segments.append({"text": text, "evidence_ids": evidence_ids})
+        return segments
 
     def parse_final(self) -> list[dict[str, object]]:
         if not self._buffer.strip():

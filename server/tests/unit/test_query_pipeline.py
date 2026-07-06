@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from collections.abc import Mapping
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -115,6 +116,10 @@ def _make_query() -> Query:
     return query
 
 
+def _read_event(redis: _FakeRedis, index: int) -> dict[str, object]:
+    return json.loads(redis.published[index][1])
+
+
 @pytest.mark.asyncio
 async def test_query_pipeline_run_marks_running_then_completed_and_publishes_events() -> (
     None
@@ -142,11 +147,20 @@ async def test_query_pipeline_run_marks_running_then_completed_and_publishes_eve
         channel,
     ]
 
-    first_event = json.loads(redis.published[0][1])
-    second_event = json.loads(redis.published[1][1])
+    first = _read_event(redis, 0)
+    assert first["event"] == "content_parts"
+    data = cast(dict[str, object], first["data"])
+    assert data["parts"] == [
+        {"type": "reasoning", "text": "Routing Query via Simple Route..."}
+    ]
 
-    assert first_event == {"event": "route_selected", "data": {"route": "simple"}}
-    assert second_event == {"event": "done", "data": {"status": "completed"}}
+    second = _read_event(redis, 1)
+    assert second["event"] == "done"
+    assert second["data"] == {
+        "query_id": str(query.id),
+        "content_parts": [],
+        "error": False,
+    }
 
 
 @pytest.mark.asyncio
@@ -211,9 +225,41 @@ async def test_query_pipeline_run_embeds_retrieves_and_stages_candidate_traces()
 
     events = [json.loads(message) for _, message in redis.published]
     assert events == [
-        {"event": "route_selected", "data": {"route": "simple"}},
-        {"event": "retrieving", "data": {"status": "retrieving"}},
-        {"event": "done", "data": {"status": "completed"}},
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {"type": "reasoning", "text": "Routing Query via Simple Route..."}
+                ]
+            },
+        },
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {"type": "reasoning", "text": "Retrieving Evidence from Qdrant..."}
+                ]
+            },
+        },
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {
+                        "type": "reasoning",
+                        "text": "Fusing dense + sparse candidates via RRF...",
+                    }
+                ]
+            },
+        },
+        {
+            "event": "done",
+            "data": {
+                "query_id": str(query.id),
+                "content_parts": [],
+                "error": False,
+            },
+        },
     ]
 
 
@@ -293,9 +339,59 @@ async def test_query_pipeline_run_reranks_fused_hits_and_stages_selected_candida
         (first_id, 1, 0.72),
     ]
 
+    events = [json.loads(message) for _, message in redis.published]
+    assert events == [
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {"type": "reasoning", "text": "Routing Query via Simple Route..."}
+                ]
+            },
+        },
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {"type": "reasoning", "text": "Retrieving Evidence from Qdrant..."}
+                ]
+            },
+        },
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {
+                        "type": "reasoning",
+                        "text": "Fusing dense + sparse candidates via RRF...",
+                    }
+                ]
+            },
+        },
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {
+                        "type": "reasoning",
+                        "text": "Reranking top-20 candidates via Cohere...",
+                    }
+                ]
+            },
+        },
+        {
+            "event": "done",
+            "data": {
+                "query_id": str(query.id),
+                "content_parts": [],
+                "error": False,
+            },
+        },
+    ]
+
 
 @pytest.mark.asyncio
-async def test_query_pipeline_run_marks_failed_and_publishes_error_on_exception() -> (
+async def test_query_pipeline_run_marks_failed_and_publishes_done_with_error_flag() -> (
     None
 ):
     from app.application.query_pipeline.query_pipeline import QueryPipeline
@@ -324,28 +420,26 @@ async def test_query_pipeline_run_marks_failed_and_publishes_error_on_exception(
     channel = f"query:{query.id}:events"
     assert [published_channel for published_channel, _ in redis.published] == [
         channel,
-        channel,
     ]
 
-    first_event = json.loads(redis.published[0][1])
-    second_event = json.loads(redis.published[1][1])
-
-    assert first_event == {"event": "route_selected", "data": {"route": "simple"}}
-    assert second_event == {
-        "event": "error",
-        "data": {"message": "generation failed"},
+    first = _read_event(redis, 0)
+    assert first["event"] == "done"
+    assert first["data"] == {
+        "query_id": str(query.id),
+        "content_parts": [],
+        "error": True,
+        "error_message": "generation failed",
     }
 
 
 @pytest.mark.asyncio
-async def test_query_pipeline_run_generates_sentence_events_and_persists_answer_graph() -> (
+async def test_query_pipeline_run_generates_content_parts_and_persists_answer_graph() -> (
     None
 ):
     from app.application.query_pipeline.query_pipeline import QueryPipeline
     from app.infrastructure.db.models import (
         Answer,
-        SentenceTrace,
-        SentenceTraceEvidence,
+        Segment,
     )
 
     first_id = uuid.uuid4()
@@ -379,8 +473,8 @@ async def test_query_pipeline_run_generates_sentence_events_and_persists_answer_
     )
     llm_client = _FakeLLMClient(
         [
-            '[{"sentence":"First sentence.","evidence_ids":["',
-            '{sid}"]}},{{"sentence":"Second sentence.","evidence_ids":["{fid}","{sid}"]}}]'.format(
+            '[{"text":"First sentence.","evidence_ids":["',
+            '{sid}"]}},{{"text":"Second sentence.","evidence_ids":["{fid}","{sid}"]}}]'.format(
                 sid=second_id,
                 fid=first_id,
             ),
@@ -401,59 +495,128 @@ async def test_query_pipeline_run_generates_sentence_events_and_persists_answer_
     assert len(llm_client.calls) == 1
 
     answers = [obj for obj in session.added_objects if isinstance(obj, Answer)]
-    traces = [obj for obj in session.added_objects if isinstance(obj, SentenceTrace)]
-    links = [
-        obj for obj in session.added_objects if isinstance(obj, SentenceTraceEvidence)
-    ]
+    segments = [obj for obj in session.added_objects if isinstance(obj, Segment)]
 
     assert len(answers) == 1
     assert answers[0].query_id == query.id
     assert answers[0].full_text == "First sentence. Second sentence."
 
-    assert [(trace.sentence_index, trace.sentence_text) for trace in traces] == [
+    assert [(seg.segment_index, seg.text) for seg in segments] == [
         (0, "First sentence."),
         (1, "Second sentence."),
     ]
-    assert [(link.evidence_id, link.citation_index) for link in links] == [
-        (second_id, 0),
-        (first_id, 0),
-        (second_id, 1),
+    assert [seg.evidence_ids for seg in segments] == [
+        [str(second_id)],
+        [str(first_id), str(second_id)],
     ]
 
     events = [json.loads(message) for _, message in redis.published]
     assert events == [
-        {"event": "route_selected", "data": {"route": "simple"}},
-        {"event": "retrieving", "data": {"status": "retrieving"}},
-        {"event": "generating", "data": {"sentence": "First sentence."}},
-        {"event": "generating", "data": {"sentence": "Second sentence."}},
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {"type": "reasoning", "text": "Routing Query via Simple Route..."}
+                ]
+            },
+        },
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {"type": "reasoning", "text": "Retrieving Evidence from Qdrant..."}
+                ]
+            },
+        },
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {
+                        "type": "reasoning",
+                        "text": "Fusing dense + sparse candidates via RRF...",
+                    }
+                ]
+            },
+        },
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {
+                        "type": "reasoning",
+                        "text": "Reranking top-20 candidates via Cohere...",
+                    }
+                ]
+            },
+        },
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {"type": "reasoning", "text": "Generating Answer..."},
+                    {"type": "text", "text": "First sentence."},
+                ]
+            },
+        },
+        {
+            "event": "content_parts",
+            "data": {
+                "parts": [
+                    {"type": "reasoning", "text": "Generating Answer..."},
+                    {
+                        "type": "text",
+                        "text": "First sentence. Second sentence.",
+                    },
+                ]
+            },
+        },
         {
             "event": "done",
             "data": {
-                "id": str(answers[0].id),
                 "query_id": str(query.id),
-                "full_text": "First sentence. Second sentence.",
-                "sentences": [
+                "content_parts": [
+                    {"type": "text", "text": "First sentence. Second sentence."},
                     {
-                        "sentence_index": 0,
-                        "sentence_text": "First sentence.",
+                        "type": "source",
+                        "sourceType": "document",
+                        "id": str(second_id),
+                        "title": f"Evidence {str(second_id)[:8]}...",
+                        "mediaType": "text/plain",
+                        "providerMetadata": {
+                            "evidentrag": {
+                                "id": str(second_id),
+                                "content": "second evidence chunk",
+                            }
+                        },
+                    },
+                    {
+                        "type": "source",
+                        "sourceType": "document",
+                        "id": str(first_id),
+                        "title": f"Evidence {str(first_id)[:8]}...",
+                        "mediaType": "text/plain",
+                        "providerMetadata": {
+                            "evidentrag": {
+                                "id": str(first_id),
+                                "content": "first evidence chunk",
+                            }
+                        },
+                    },
+                ],
+                "segments": [
+                    {
+                        "segment_index": 0,
+                        "text": "First sentence.",
                         "evidence_ids": [str(second_id)],
                     },
                     {
-                        "sentence_index": 1,
-                        "sentence_text": "Second sentence.",
+                        "segment_index": 1,
+                        "text": "Second sentence.",
                         "evidence_ids": [str(first_id), str(second_id)],
                     },
                 ],
-                "evidence": [
-                    {
-                        "id": str(second_id),
-                        "content": "second evidence chunk",
-                    },
-                    {
-                        "id": str(first_id),
-                        "content": "first evidence chunk",
-                    },
-                ],
+                "error": False,
             },
         },
     ]

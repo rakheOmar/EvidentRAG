@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type PropsWithChildren } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { EvidentChatMessage } from "@/lib/types";
+import type { EvidentChatMessage, QuerySummary } from "@/lib/types";
 
 import { useEvidentRuntime } from "../use-evident-runtime";
 
@@ -13,7 +13,12 @@ const postQueryMock = vi.fn();
 const useExternalStoreRuntimeMock = vi.fn(
   (adapter: ExternalStoreAdapter<EvidentChatMessage>) => adapter
 );
-const useQueryHistoryMock = vi.fn(() => ({ data: [], isLoading: false }));
+const useQueryHistoryMock = vi.fn<
+  () => { data: QuerySummary[]; isLoading: boolean }
+>(() => ({
+  data: [],
+  isLoading: false,
+}));
 
 vi.mock("@assistant-ui/react", () => ({
   useExternalStoreRuntime: (
@@ -123,14 +128,14 @@ describe("useEvidentRuntime", () => {
     vi.unstubAllGlobals();
   });
 
-  it("streams a Query through done and attaches the fetched Answer", async () => {
+  it("streams content_parts events through completion", async () => {
     postQueryMock.mockResolvedValue({ id: "query-1" });
     fetchAnswerMock.mockResolvedValue({
       evidence: [],
       full_text: "Evidence Retrieval Memory improves future retrieval.",
       id: "answer-1",
       query_id: "query-1",
-      sentences: [],
+      segments: [],
     });
 
     const { result } = renderHook(() => useEvidentRuntime(), {
@@ -151,17 +156,37 @@ describe("useEvidentRuntime", () => {
     expect(eventSource.url).toBe("/api/v1/queries/query-1/events");
 
     act(() => {
-      eventSource.emit("route_selected", { route: "simple" });
-      eventSource.emit("retrieving", { status: "retrieving" });
-      eventSource.emit("generating", {
-        sentence: "Evidence Retrieval Memory improves future retrieval.",
+      eventSource.emit("content_parts", {
+        parts: [{ type: "reasoning", text: "Routing Query..." }],
       });
+    });
+
+    act(() => {
+      eventSource.emit("content_parts", {
+        parts: [
+          { type: "reasoning", text: "Routing Query..." },
+          { type: "text", text: "ERM" },
+        ],
+      });
+    });
+
+    act(() => {
       eventSource.emit("done", {
-        evidence: [],
-        full_text: "Evidence Retrieval Memory improves future retrieval.",
-        id: "answer-1",
         query_id: "query-1",
-        sentences: [],
+        content_parts: [
+          {
+            type: "text",
+            text: "Evidence Retrieval Memory improves future retrieval.",
+          },
+          {
+            type: "source",
+            sourceType: "document",
+            id: "ev-1",
+            title: "ERM Paper",
+            mediaType: "text/plain",
+          },
+        ],
+        error: false,
       });
     });
 
@@ -169,31 +194,28 @@ describe("useEvidentRuntime", () => {
       expect(result.current.isRunning).toBe(false);
       expect(result.current.messages).toHaveLength(2);
       expect(result.current.messages[0]).toMatchObject({
-        content: "How does Evidence Retrieval Memory work?",
+        contentParts: [
+          { type: "text", text: "How does Evidence Retrieval Memory work?" },
+        ],
         role: "user",
       });
       expect(result.current.messages[1]).toMatchObject({
-        answer: {
-          evidence: [],
-          full_text: "Evidence Retrieval Memory improves future retrieval.",
-          id: "answer-1",
-          query_id: "query-1",
-          sentences: [],
-        },
-        content: "Evidence Retrieval Memory improves future retrieval.",
-        phase: "done",
+        contentParts: [
+          {
+            type: "text",
+            text: "Evidence Retrieval Memory improves future retrieval.",
+          },
+        ],
         queryId: "query-1",
         role: "assistant",
-        route: "simple",
         status: "complete",
       });
     });
 
-    expect(fetchAnswerMock).toHaveBeenCalledWith("query-1");
     expect(eventSource.close).toHaveBeenCalledTimes(1);
   });
 
-  it("marks the assistant Answer as failed when the SSE stream errors", async () => {
+  it("marks the assistant as error when done event has error flag", async () => {
     postQueryMock.mockResolvedValue({ id: "query-2" });
 
     const { result } = renderHook(() => useEvidentRuntime(), {
@@ -207,25 +229,27 @@ describe("useEvidentRuntime", () => {
     const eventSource = getFirstEventSource();
 
     act(() => {
-      eventSource.emit("error", { message: "Worker exploded" });
+      eventSource.emit("done", {
+        query_id: "query-2",
+        content_parts: [],
+        error: true,
+        error_message: "Worker exploded",
+      });
     });
 
     await waitFor(() => {
       expect(result.current.isRunning).toBe(false);
       expect(result.current.messages[1]).toMatchObject({
-        errorMessage: "Worker exploded",
-        phase: "error",
         queryId: "query-2",
         role: "assistant",
         status: "error",
       });
     });
 
-    expect(fetchAnswerMock).not.toHaveBeenCalled();
     expect(eventSource.close).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to a transport error message when the SSE stream closes without payload data", async () => {
+  it("marks the assistant as error when SSE stream transport fails", async () => {
     postQueryMock.mockResolvedValue({ id: "query-transport" });
 
     const { result } = renderHook(() => useEvidentRuntime(), {
@@ -247,15 +271,12 @@ describe("useEvidentRuntime", () => {
     await waitFor(() => {
       expect(result.current.isRunning).toBe(false);
       expect(result.current.messages[1]).toMatchObject({
-        errorMessage: "Stream disconnected.",
-        phase: "error",
         queryId: "query-transport",
         role: "assistant",
         status: "error",
       });
     });
 
-    expect(fetchAnswerMock).not.toHaveBeenCalled();
     expect(eventSource.close).toHaveBeenCalledTimes(1);
   });
 
@@ -303,7 +324,7 @@ describe("useEvidentRuntime", () => {
       full_text: "The Simple Route uses one retrieval pass.",
       id: "answer-4",
       query_id: "query-4",
-      sentences: [],
+      segments: [],
     });
     postQueryMock.mockResolvedValue({ id: "query-5" });
 
@@ -329,16 +350,16 @@ describe("useEvidentRuntime", () => {
     expect(fetchAnswerMock).toHaveBeenCalledWith("query-4");
     expect(result.current.messages).toMatchObject([
       {
-        content: "Explain the Simple Route",
+        contentParts: [{ type: "text", text: "Explain the Simple Route" }],
         queryId: "query-4",
         role: "user",
       },
       {
-        content: "The Simple Route uses one retrieval pass.",
-        phase: "done",
+        contentParts: [
+          { type: "text", text: "The Simple Route uses one retrieval pass." },
+        ],
         queryId: "query-4",
         role: "assistant",
-        route: "simple",
         status: "complete",
       },
     ]);

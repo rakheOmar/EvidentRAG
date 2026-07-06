@@ -203,19 +203,21 @@ function ContextDisplayTrigger({
   ...props
 }: React.ComponentProps<"button">) {
   return (
-    <TooltipTrigger asChild>
-      <button
-        className={cn(
-          "inline-flex items-center rounded-md transition-colors",
-          className
-        )}
-        data-slot="context-display-trigger"
-        type="button"
-        {...props}
-      >
-        {children}
-      </button>
-    </TooltipTrigger>
+    <TooltipTrigger
+      render={
+        <button
+          className={cn(
+            "inline-flex items-center rounded-md transition-colors",
+            className
+          )}
+          data-slot="context-display-trigger"
+          type="button"
+          {...props}
+        >
+          {children}
+        </button>
+      }
+    />
   );
 }
 

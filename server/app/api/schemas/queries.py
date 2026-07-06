@@ -23,9 +23,9 @@ class QueryResponse(BaseModel):
     completed_at: datetime | None
 
 
-class SentenceTraceResponse(BaseModel):
-    sentence_index: int
-    sentence_text: str
+class SegmentResponse(BaseModel):
+    segment_index: int
+    text: str
     evidence_ids: list[UUID]
 
 
@@ -42,8 +42,9 @@ class AnswerResponse(BaseModel):
     id: UUID
     query_id: UUID
     full_text: str
-    sentences: list[SentenceTraceResponse]
+    segments: list[SegmentResponse]
     evidence: list[EvidenceResponse]
+    content_parts: list[dict[str, object]] | None = None
 
 
 class PendingAnswerResponse(BaseModel):

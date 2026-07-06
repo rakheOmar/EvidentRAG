@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from uuid import UUID
 
 from collections.abc import AsyncIterator
@@ -15,74 +16,88 @@ from app.api.schemas.queries import (
     PendingAnswerResponse,
     QueryCreate,
     QueryResponse,
-    SentenceTraceResponse,
+    SegmentResponse,
 )
 from app.api.sse.sse import redis_pubsub_stream, sse_event
+from app.application.query_pipeline.content_parts import answer_content_parts
 from app.infrastructure.db.models import (
     Answer,
     Evidence,
     Query,
-    SentenceTrace,
-    SentenceTraceEvidence,
 )
 
 router = APIRouter(prefix="/api/v1/queries", tags=["queries"])
+
+logger = logging.getLogger(__name__)
 
 
 async def _build_answer_response(session, query_id: UUID) -> AnswerResponse | None:
     answer = await session.scalar(
         select(Answer)
-        .options(
-            selectinload(Answer.sentence_traces)
-            .selectinload(SentenceTrace.evidence_links)
-            .selectinload(SentenceTraceEvidence.evidence),
-            selectinload(Answer.sentence_traces)
-            .selectinload(SentenceTrace.evidence_links)
-            .selectinload(SentenceTraceEvidence.evidence)
-            .selectinload(Evidence.document),
-        )
+        .options(selectinload(Answer.segments))
         .where(Answer.query_id == query_id)
     )
     if answer is None:
         return None
 
     evidence_by_id: dict[UUID, EvidenceResponse] = {}
-    sentences: list[SentenceTraceResponse] = []
+    segments: list[SegmentResponse] = []
 
-    for trace in sorted(answer.sentence_traces, key=lambda item: item.sentence_index):
-        ordered_links = sorted(
-            trace.evidence_links, key=lambda item: item.citation_index
-        )
-        evidence_ids: list[UUID] = []
-        for link in ordered_links:
-            evidence_ids.append(link.evidence_id)
-            evidence = link.evidence
-            evidence_by_id.setdefault(
-                evidence.id,
-                EvidenceResponse(
-                    id=evidence.id,
-                    content=evidence.content,
-                    context_header=evidence.context_header,
-                    document_title=evidence.document.title,
-                    document_slug=evidence.document.slug,
-                    page=evidence.page,
-                ),
-            )
+    for seg in sorted(answer.segments, key=lambda item: item.segment_index):
+        resolved_evidence: list[UUID] = []
+        for eid in seg.evidence_ids:
+            try:
+                parsed_eid = UUID(eid) if not isinstance(eid, UUID) else eid
+            except (ValueError, AttributeError) as exc:
+                logger.warning(
+                    "Skipping non-UUID evidence_id %r in segment %s: %s",
+                    eid, seg.id, exc,
+                )
+                continue
+            resolved_evidence.append(parsed_eid)
+            if parsed_eid not in evidence_by_id:
+                evidence = await session.scalar(
+                    select(Evidence)
+                    .options(selectinload(Evidence.document))
+                    .where(Evidence.id == parsed_eid)
+                )
+                if evidence is not None:
+                    evidence_by_id[parsed_eid] = EvidenceResponse(
+                        id=evidence.id,
+                        content=evidence.content,
+                        context_header=evidence.context_header,
+                        document_title=evidence.document.title,
+                        document_slug=evidence.document.slug,
+                        page=evidence.page,
+                    )
 
-        sentences.append(
-            SentenceTraceResponse(
-                sentence_index=trace.sentence_index,
-                sentence_text=trace.sentence_text,
-                evidence_ids=evidence_ids,
+        segments.append(
+            SegmentResponse(
+                segment_index=seg.segment_index,
+                text=seg.text,
+                evidence_ids=resolved_evidence,
             )
         )
+
+    evidence_dicts = [
+        {
+            "id": str(ev.id),
+            "content": ev.content,
+            "document_title": ev.document_title,
+            "document_slug": ev.document_slug,
+            "page": ev.page,
+            "context_header": ev.context_header,
+        }
+        for ev in evidence_by_id.values()
+    ]
 
     return AnswerResponse(
         id=answer.id,
         query_id=answer.query_id,
         full_text=answer.full_text,
-        sentences=sentences,
+        segments=segments,
         evidence=list(evidence_by_id.values()),
+        content_parts=answer_content_parts(answer.full_text, evidence_dicts),
     )
 
 

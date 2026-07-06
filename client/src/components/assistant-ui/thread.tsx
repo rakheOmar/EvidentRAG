@@ -41,6 +41,7 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
+import { InlineCitations } from "@/components/assistant-ui/inline-citations";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import {
   Reasoning,
@@ -49,6 +50,7 @@ import {
   ReasoningText,
   ReasoningTrigger,
 } from "@/components/assistant-ui/reasoning";
+import { Sources } from "@/components/assistant-ui/sources";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import {
   ToolGroupContent,
@@ -57,6 +59,7 @@ import {
 } from "@/components/assistant-ui/tool-group";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Button } from "@/components/ui/button";
+import { getMessageSegments } from "@/lib/segments-store";
 import { cn } from "@/lib/utils";
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
@@ -316,6 +319,17 @@ const MessageError: FC = () => (
   </MessagePrimitive.Error>
 );
 
+const TextWithCitations: FC = () => {
+  const messageId = useAuiState((s) => s.message.id);
+  const segments = getMessageSegments(messageId);
+
+  if (segments && segments.length > 0) {
+    return <InlineCitations segments={segments} />;
+  }
+
+  return <MarkdownText />;
+};
+
 const AssistantMessage: FC = () => {
   const {
     ToolFallback: ToolFallbackComponent = ToolFallback,
@@ -381,19 +395,22 @@ const AssistantMessage: FC = () => {
                 );
               }
               case "text":
-                return <MarkdownText />;
+                return <TextWithCitations />;
               case "reasoning":
                 return <Reasoning {...part} />;
               case "tool-call":
                 return part.toolUI ?? <ToolFallbackComponent {...part} />;
               case "data":
                 return part.dataRendererUI;
+              case "source":
+                return <Sources {...part} />;
               case "indicator":
                 return (
                   <span
                     aria-label="Assistant is working"
                     className="animate-pulse font-sans"
                     data-slot="aui_assistant-message-indicator"
+                    role="status"
                   >
                     {"●"}
                   </span>
@@ -449,7 +466,7 @@ const AssistantActionBar: FC = () => (
       </ActionBarMorePrimitive.Trigger>
       <ActionBarMorePrimitive.Content
         align="start"
-        className="aui-action-bar-more-content data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-xl border bg-popover/95 p-1.5 text-popover-foreground shadow-lg backdrop-blur-sm data-[state=closed]:animate-out data-[state=open]:animate-in"
+        className="aui-action-bar-more-content data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 overflow-hidden rounded-xl border bg-popover/95 p-1.5 text-popover-foreground shadow-lg backdrop-blur-sm data-[state=closed]:animate-out data-[state=open]:animate-in"
         side="bottom"
         sideOffset={6}
       >
@@ -476,7 +493,7 @@ const UserMessage: FC = () => (
       <div className="aui-user-message-content peer wrap-break-word rounded-xl bg-muted px-4 py-2 text-foreground empty:hidden">
         <MessagePrimitive.Parts />
       </div>
-      <div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
+      <div className="aui-user-action-bar-wrapper absolute inset-s-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
         <UserActionBar />
       </div>
     </div>
