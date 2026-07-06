@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { fetchAnswer, postQuery, queryKeys, useQueryHistory } from "@/lib/api";
+import { setMessageEvidence } from "@/lib/evidence-store";
 import { convertEvidentMessage } from "@/lib/message-utils";
 import { setMessageSegments } from "@/lib/segments-store";
 import type {
@@ -31,6 +32,8 @@ export function useEvidentRuntime() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const queryClient = useQueryClient();
   const historyQuery = useQueryHistory();
+  const historyDataRef = useRef(historyQuery.data);
+  historyDataRef.current = historyQuery.data;
 
   // biome-ignore lint/suspicious/useAwait: type contract requires Promise<void>
   const onCancel = useCallback(async () => {
@@ -54,11 +57,7 @@ export function useEvidentRuntime() {
 
   const onSwitchToThread = useCallback(
     async (threadId: string) => {
-      const query = historyQuery.data?.find((entry) => entry.id === threadId);
-
-      if (query === undefined) {
-        return;
-      }
+      const query = historyDataRef.current?.find((entry) => entry.id === threadId);
 
       const answerResponse = await fetchAnswer(threadId);
       const answer = isAnswerDetail(answerResponse) ? answerResponse : null;
@@ -69,29 +68,35 @@ export function useEvidentRuntime() {
       if (answer?.segments) {
         setMessageSegments(`${threadId}-assistant`, answer.segments);
       }
+      if (answer?.evidence) {
+        setMessageEvidence(`${threadId}-assistant`, answer.evidence);
+      }
 
       setCurrentThreadId(threadId);
       setIsRunning(false);
-      setMessages([
-        {
-          contentParts: [{ type: "text", text: query.query_text }],
-          createdAt: new Date(query.created_at),
-          id: `${threadId}-user`,
-          queryId: threadId,
-          role: "user",
-          status: "complete",
-        },
-        {
-          contentParts,
-          createdAt: new Date(),
-          id: `${threadId}-assistant`,
-          queryId: threadId,
-          role: "assistant",
-          status: "complete",
-        },
-      ]);
+
+      if (query) {
+        setMessages([
+          {
+            contentParts: [{ type: "text", text: query.query_text }],
+            createdAt: new Date(query.created_at),
+            id: `${threadId}-user`,
+            queryId: threadId,
+            role: "user",
+            status: "complete",
+          },
+          {
+            contentParts,
+            createdAt: new Date(),
+            id: `${threadId}-assistant`,
+            queryId: threadId,
+            role: "assistant",
+            status: "complete",
+          },
+        ]);
+      }
     },
-    [historyQuery.data]
+    []
   );
 
   const onDeleteThread = useCallback(async (_threadId: string) => {
@@ -125,6 +130,7 @@ export function useEvidentRuntime() {
       setIsRunning(true);
 
       const query = await postQuery(queryText);
+      setCurrentThreadId(query.id);
       const eventSource = new EventSource(`/api/v1/queries/${query.id}/events`);
       eventSourceRef.current = eventSource;
 
@@ -177,6 +183,17 @@ export function useEvidentRuntime() {
             contentParts: displayParts,
             status: "complete",
           }));
+
+          fetchAnswer(payload.query_id)
+            .then((answerResponse) => {
+              const answer = isAnswerDetail(answerResponse) ? answerResponse : null;
+              if (answer?.evidence) {
+                setMessageEvidence(`${payload.query_id}-assistant`, answer.evidence);
+              }
+            })
+            .catch(() => {
+              /* evidence fetch is best-effort */
+            });
         }
 
         eventSource.close();
