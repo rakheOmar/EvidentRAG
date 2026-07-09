@@ -1,21 +1,73 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AnswerDetail, QuerySummary } from "@/lib/types";
+import type {
+  ThreadDetail,
+  ThreadSummary,
+  ThreadTurnResponse,
+} from "@/lib/types";
 
-import { fetchAnswer, fetchQueryHistory, postQuery } from "../api";
+import {
+  appendThreadMessage,
+  createThread,
+  fetchThread,
+  fetchThreads,
+} from "../api";
 
-const postQueryErrorMessage = /POST \/api\/v1\/queries failed: 400/;
+const createThreadErrorMessage = /POST \/api\/v1\/threads failed: 400/;
 
-function makeQuerySummary(overrides: Partial<QuerySummary> = {}): QuerySummary {
+function makeThreadSummary(
+  overrides: Partial<ThreadSummary> = {}
+): ThreadSummary {
   return {
-    id: "q-001",
-    query_text: "What is RAG?",
-    selected_route: "simple",
-    status: "pending",
-    error_message: null,
     created_at: "2026-07-04T10:00:00Z",
+    id: "thread-001",
+    summary: "A conversation about RAG.",
+    title: "RAG basics",
     updated_at: "2026-07-04T10:00:00Z",
-    completed_at: null,
+    ...overrides,
+  };
+}
+
+function makeTurnResponse(): ThreadTurnResponse {
+  return {
+    assistant_message: {
+      completed_at: null,
+      content_text: "",
+      created_at: "2026-07-04T10:00:01Z",
+      error_message: null,
+      id: "msg-assistant-1",
+      position: 1,
+      reply_to_message_id: "msg-user-1",
+      role: "assistant",
+      selected_route: null,
+      status: "pending",
+      sub_queries: [],
+      thread_id: "thread-001",
+      updated_at: "2026-07-04T10:00:01Z",
+    },
+    thread: makeThreadSummary(),
+    user_message: {
+      completed_at: "2026-07-04T10:00:00Z",
+      content_text: "What is RAG?",
+      created_at: "2026-07-04T10:00:00Z",
+      error_message: null,
+      id: "msg-user-1",
+      position: 0,
+      reply_to_message_id: null,
+      role: "user",
+      selected_route: null,
+      status: "completed",
+      sub_queries: [],
+      thread_id: "thread-001",
+      updated_at: "2026-07-04T10:00:00Z",
+    },
+  };
+}
+
+function makeThreadDetail(overrides: Partial<ThreadDetail> = {}): ThreadDetail {
+  return {
+    ...makeThreadSummary(),
+    messages: [],
     ...overrides,
   };
 }
@@ -38,13 +90,13 @@ function getFirstCall(fetchMock: ReturnType<typeof vi.fn>) {
   return firstCall;
 }
 
-describe("postQuery", () => {
+describe("createThread", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("POSTs { query_text } to /api/v1/queries and returns the parsed QuerySummary", async () => {
-    const expected = makeQuerySummary();
+  it("POSTs { content } to /api/v1/threads and returns the parsed ThreadTurnResponse", async () => {
+    const expected = makeTurnResponse();
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(expected), {
         status: 201,
@@ -53,15 +105,14 @@ describe("postQuery", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await postQuery("What is RAG?");
+    const result = await createThread("What is RAG?");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/queries");
+    expect(url).toBe("/api/v1/threads");
     expect(init?.method).toBe("POST");
-    expect(init?.headers).toMatchObject({ "Content-Type": "application/json" });
     expect(JSON.parse(init?.body as string)).toEqual({
-      query_text: "What is RAG?",
+      content: "What is RAG?",
     });
     expect(result).toEqual(expected);
   });
@@ -72,90 +123,84 @@ describe("postQuery", () => {
       vi.fn().mockResolvedValue(new Response("Bad Request", { status: 400 }))
     );
 
-    await expect(postQuery("oops")).rejects.toThrowError(postQueryErrorMessage);
+    await expect(createThread("oops")).rejects.toThrowError(
+      createThreadErrorMessage
+    );
   });
 });
 
-describe("fetchQueryHistory", () => {
+describe("appendThreadMessage", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("GETs /api/v1/queries and returns the parsed QuerySummary[]", async () => {
+  it("POSTs to /api/v1/threads/{id}/messages", async () => {
+    const expected = makeTurnResponse();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(stubJson(expected, { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await appendThreadMessage(
+      "thread-001",
+      "And what about HNSW?"
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = getFirstCall(fetchMock);
+    expect(url).toBe("/api/v1/threads/thread-001/messages");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      content: "And what about HNSW?",
+    });
+    expect(result).toEqual(expected);
+  });
+});
+
+describe("fetchThreads", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("GETs /api/v1/threads and returns the parsed ThreadSummary[]", async () => {
     const expected = [
-      makeQuerySummary({ id: "q-1", query_text: "first", status: "completed" }),
-      makeQuerySummary({ id: "q-2", query_text: "second", status: "running" }),
+      makeThreadSummary({ id: "thread-1", title: "first" }),
+      makeThreadSummary({ id: "thread-2", title: "second" }),
     ];
     const fetchMock = vi.fn().mockResolvedValue(stubJson(expected));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchQueryHistory();
+    const result = await fetchThreads();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/queries");
+    expect(url).toBe("/api/v1/threads");
     expect(init?.method).toBe("GET");
     expect(result).toEqual(expected);
   });
 });
 
-describe("fetchAnswer", () => {
+describe("fetchThread", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("GETs /api/v1/queries/{id}/answer and parses deeply nested segments + evidence", async () => {
-    const expected: AnswerDetail = {
-      id: "a-001",
-      query_id: "q-001",
-      full_text: "Cats purr. Dogs bark.",
-      segments: [
-        {
-          segment_index: 0,
-          text: "Cats purr.",
-          evidence_ids: ["e-1", "e-2"],
-        },
-        {
-          segment_index: 1,
-          text: "Dogs bark.",
-          evidence_ids: ["e-3"],
-        },
+  it("GETs /api/v1/threads/{id} and returns the parsed ThreadDetail", async () => {
+    const expected = makeThreadDetail({
+      id: "thread-001",
+      messages: [
+        makeTurnResponse().user_message,
+        makeTurnResponse().assistant_message,
       ],
-      evidence: [
-        {
-          id: "e-1",
-          content: "Cats purr when content.",
-          context_header: "Felis catus",
-          document_title: "Feline Behaviour",
-          document_slug: "feline-behaviour",
-          page: 12,
-        },
-        {
-          id: "e-2",
-          content: "Purring ranges from 25-150 Hz.",
-          context_header: null,
-          document_title: null,
-          document_slug: null,
-          page: null,
-        },
-        {
-          id: "e-3",
-          content: "Dogs bark to communicate.",
-          context_header: "Canis familiaris",
-          document_title: "Canine Behaviour",
-          document_slug: "canine-behaviour",
-          page: 33,
-        },
-      ],
-    };
+    });
     const fetchMock = vi.fn().mockResolvedValue(stubJson(expected));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchAnswer("q-001");
+    const result = await fetchThread("thread-001");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/queries/q-001/answer");
+    expect(url).toBe("/api/v1/threads/thread-001");
     expect(init?.method).toBe("GET");
     expect(result).toEqual(expected);
   });

@@ -9,7 +9,7 @@ from redis.asyncio import Redis
 from app.api.middleware.access_logging import AccessLoggingMiddleware
 from app.api.middleware.request_context import RequestContextMiddleware
 from app.api.routes.health import router as health_router
-from app.api.routes.queries import router as queries_router
+from app.api.routes.threads import router as threads_router
 from app.frontend import mount_frontend
 from dotenv import load_dotenv
 
@@ -125,5 +125,5 @@ app = FastAPI(title=settings.app.app_name, lifespan=lifespan)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(AccessLoggingMiddleware)
 app.include_router(health_router)
-app.include_router(queries_router)
+app.include_router(threads_router)
 mount_frontend(app, settings)

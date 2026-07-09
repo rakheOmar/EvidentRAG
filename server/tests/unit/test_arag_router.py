@@ -35,6 +35,19 @@ async def test_arag_router_classify_returns_valid_route_and_sub_queries() -> Non
 
 
 @pytest.mark.asyncio
+async def test_arag_router_classify_supports_conversation_route() -> None:
+    from app.application.query_pipeline.arag_router import AragRouter
+
+    llm_client = _FakeLLMClient(['{"route": "conversation", "sub_queries": []}'])
+    router = AragRouter(llm_client=llm_client)
+
+    result = await router.classify("What was my last question in this thread?")
+
+    assert result.route == "conversation"
+    assert result.sub_queries == []
+
+
+@pytest.mark.asyncio
 async def test_arag_router_classify_falls_back_to_simple_on_malformed_json() -> None:
     from app.application.query_pipeline.arag_router import AragRouter
 

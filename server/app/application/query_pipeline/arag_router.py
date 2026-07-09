@@ -14,12 +14,14 @@ You are an adaptive query router for a RAG system. Classify the user's query int
 - "multi_hop": Multi-step reasoning requiring iterative retrieval. "What causes X, and how does that lead to Y?"
 - "comparison": Questions comparing two or more entities. "Compare X and Y" or "What are the differences between X and Y?"
 - "aggregation": Broad overview or summary questions. "Tell me about the main themes" or "Summarize the document"
+- "conversation": Questions about the conversation itself, prior turns, what the user or assistant previously said, or requests to restate thread history.
 
 For "multi_hop" and "comparison" routes, also decompose the query into sub-queries that retrieve for individual steps or entities.
 For "aggregation", generate diverse reformulations that help retrieve broad coverage of the topic.
+For "conversation", use [] for sub_queries because the answer should come from thread memory rather than retrieval.
 
 Return a JSON object with:
-- "route": one of "simple", "multi_hop", "comparison", "aggregation"
+- "route": one of "simple", "multi_hop", "comparison", "aggregation", "conversation"
 - "sub_queries": an array of strings. Use [] for "simple". Use decomposed or reformulated sub-queries for the other routes when they help retrieval.
 """
 
@@ -52,7 +54,13 @@ class AragRouter:
             raw = await self._llm_client.generate(messages, model=model)
             parsed = json.loads(raw)
             route = str(parsed.get("route", "simple")).lower()
-            if route not in ("simple", "multi_hop", "comparison", "aggregation"):
+            if route not in (
+                "simple",
+                "multi_hop",
+                "comparison",
+                "aggregation",
+                "conversation",
+            ):
                 wide_event["invalid_route"] = route
                 route = "simple"
             sub_queries = [

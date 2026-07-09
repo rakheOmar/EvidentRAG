@@ -82,7 +82,7 @@ class Evidence(Base):
     )
 
     document: Mapped[Document] = relationship(back_populates="evidence")
-    query_candidate_links: Mapped[list[QueryEvidenceCandidate]] = relationship(
+    query_candidate_links: Mapped[list[MessageEvidenceCandidate]] = relationship(
         back_populates="evidence", cascade="all, delete-orphan"
     )
 
@@ -91,26 +91,19 @@ class Evidence(Base):
     )
 
 
-class Query(Base):
-    __tablename__ = "queries"
+class Thread(Base):
+    __tablename__ = "threads"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    query_text: Mapped[str] = mapped_column(Text, nullable=False)
-    selected_route: Mapped[str] = mapped_column(
-        Text, nullable=False, default="simple", server_default="simple"
-    )
-    sub_queries: Mapped[list] = mapped_column(
-        JSONB, nullable=False, default=list, server_default="[]"
-    )
-    status: Mapped[str] = mapped_column(
-        Text, nullable=False, default="pending", server_default="pending"
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
     )
     extra: Mapped[dict] = mapped_column(
         "metadata", JSONB, nullable=False, default=dict, server_default="{}"
     )
-    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, default=_now, server_default="now()"
     )
@@ -121,22 +114,79 @@ class Query(Base):
         server_default="now()",
         onupdate=_now,
     )
+    messages: Mapped[list[Message]] = relationship(
+        back_populates="thread", cascade="all, delete-orphan"
+    )
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    thread_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("threads.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    reply_to_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    role: Mapped[str] = mapped_column(Text, nullable=False)
+    content_text: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    status: Mapped[str] = mapped_column(
+        Text, nullable=False, default="pending", server_default="pending"
+    )
+    selected_route: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sub_queries: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
+    )
+    extra: Mapped[dict] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=_now, server_default="now()"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        default=_now,
+        server_default="now()",
+        onupdate=_now,
     )
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending', 'running', 'completed', 'failed')",
-            name="ck_queries_status",
+            "role IN ('user', 'assistant')",
+            name="ck_messages_role",
         ),
+        CheckConstraint(
+            "status IN ('pending', 'running', 'completed', 'failed')",
+            name="ck_messages_status",
+        ),
+        UniqueConstraint("thread_id", "position", name="uq_messages_thread_position"),
     )
 
-    answer: Mapped[Answer | None] = relationship(
-        back_populates="query", cascade="all, delete-orphan", uselist=False
+    thread: Mapped[Thread] = relationship(back_populates="messages")
+    reply_to_message: Mapped[Message | None] = relationship(
+        remote_side="Message.id",
+        foreign_keys=[reply_to_message_id],
     )
-    evidence_candidates: Mapped[list[QueryEvidenceCandidate]] = relationship(
-        back_populates="query", cascade="all, delete-orphan"
+    answer: Mapped[Answer | None] = relationship(
+        back_populates="message", cascade="all, delete-orphan", uselist=False
+    )
+    evidence_candidates: Mapped[list[MessageEvidenceCandidate]] = relationship(
+        back_populates="message", cascade="all, delete-orphan"
     )
 
 
@@ -146,9 +196,9 @@ class Answer(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    query_id: Mapped[uuid.UUID] = mapped_column(
+    message_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("queries.id", ondelete="CASCADE"),
+        ForeignKey("messages.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
     )
@@ -165,7 +215,7 @@ class Answer(Base):
         TIMESTAMP(timezone=True), nullable=False, default=_now, server_default="now()"
     )
 
-    query: Mapped[Query] = relationship(back_populates="answer")
+    message: Mapped[Message] = relationship(back_populates="answer")
     segments: Mapped[list[Segment]] = relationship(
         back_populates="answer", cascade="all, delete-orphan"
     )
@@ -193,12 +243,12 @@ class Segment(Base):
     )
 
 
-class QueryEvidenceCandidate(Base):
-    __tablename__ = "query_evidence_candidates"
+class MessageEvidenceCandidate(Base):
+    __tablename__ = "message_evidence_candidates"
 
-    query_id: Mapped[uuid.UUID] = mapped_column(
+    message_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("queries.id", ondelete="CASCADE"),
+        ForeignKey("messages.id", ondelete="CASCADE"),
         primary_key=True,
     )
     stage: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -216,18 +266,18 @@ class QueryEvidenceCandidate(Base):
         TIMESTAMP(timezone=True), nullable=False, default=_now, server_default="now()"
     )
 
-    query: Mapped[Query] = relationship(back_populates="evidence_candidates")
+    message: Mapped[Message] = relationship(back_populates="evidence_candidates")
     evidence: Mapped[Evidence] = relationship(back_populates="query_candidate_links")
 
     __table_args__ = (
         UniqueConstraint(
-            "query_id",
+            "message_id",
             "stage",
             "rank",
-            name="uq_query_evidence_candidates_query_stage_rank",
+            name="uq_message_evidence_candidates_message_stage_rank",
         ),
         CheckConstraint(
             "stage IN ('dense', 'sparse', 'fused', 'reranked', 'selected')",
-            name="ck_query_evidence_candidates_stage",
+            name="ck_message_evidence_candidates_stage",
         ),
     )

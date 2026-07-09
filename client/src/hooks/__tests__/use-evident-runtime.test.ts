@@ -4,17 +4,25 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type PropsWithChildren } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { EvidentChatMessage, QuerySummary } from "@/lib/types";
+import type {
+  EvidentChatMessage,
+  ThreadDetail,
+  ThreadSummary,
+  ThreadTurnResponse,
+} from "@/lib/types";
 
 import { useEvidentRuntime } from "../use-evident-runtime";
 
-const fetchAnswerMock = vi.fn();
-const postQueryMock = vi.fn();
+const appendThreadMessageMock = vi.fn();
+const createThreadMock = vi.fn();
+const fetchThreadMock = vi.fn();
+const navigateMock = vi.fn();
+let routeThreadId: string | undefined;
 const useExternalStoreRuntimeMock = vi.fn(
   (adapter: ExternalStoreAdapter<EvidentChatMessage>) => adapter
 );
-const useQueryHistoryMock = vi.fn<
-  () => { data: QuerySummary[]; isLoading: boolean }
+const useThreadHistoryMock = vi.fn<
+  () => { data: ThreadSummary[]; isLoading: boolean }
 >(() => ({
   data: [],
   isLoading: false,
@@ -26,11 +34,26 @@ vi.mock("@assistant-ui/react", () => ({
   ) => useExternalStoreRuntimeMock(adapter),
 }));
 
+vi.mock("react-router", async () => {
+  const actual =
+    await vi.importActual<typeof import("react-router")>("react-router");
+
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+    useParams: () => ({ threadId: routeThreadId }),
+  };
+});
+
 vi.mock("@/lib/api", () => ({
-  fetchAnswer: (...args: unknown[]) => fetchAnswerMock(...args),
-  postQuery: (...args: unknown[]) => postQueryMock(...args),
-  queryKeys: { queries: ["queries"] },
-  useQueryHistory: () => useQueryHistoryMock(),
+  appendThreadMessage: (...args: unknown[]) => appendThreadMessageMock(...args),
+  createThread: (...args: unknown[]) => createThreadMock(...args),
+  fetchThread: (...args: unknown[]) => fetchThreadMock(...args),
+  queryKeys: {
+    thread: (threadId: string) => ["thread", threadId],
+    threads: ["threads"],
+  },
+  useThreadHistory: () => useThreadHistoryMock(),
 }));
 
 class FakeEventSource {
@@ -113,14 +136,62 @@ function createWrapper() {
   };
 }
 
+function makeTurnResponse(
+  overrides: Partial<ThreadTurnResponse> = {}
+): ThreadTurnResponse {
+  return {
+    assistant_message: {
+      completed_at: null,
+      content_text: "",
+      created_at: "2026-07-04T10:00:01Z",
+      error_message: null,
+      id: "assistant-1",
+      position: 1,
+      reply_to_message_id: "user-1",
+      role: "assistant",
+      selected_route: null,
+      status: "pending",
+      sub_queries: [],
+      thread_id: "thread-1",
+      updated_at: "2026-07-04T10:00:01Z",
+    },
+    thread: {
+      created_at: "2026-07-04T10:00:00Z",
+      id: "thread-1",
+      summary: "",
+      title: "What is BERT",
+      updated_at: "2026-07-04T10:00:00Z",
+    },
+    user_message: {
+      completed_at: "2026-07-04T10:00:00Z",
+      content_text: "What is BERT?",
+      created_at: "2026-07-04T10:00:00Z",
+      error_message: null,
+      id: "user-1",
+      position: 0,
+      reply_to_message_id: null,
+      role: "user",
+      selected_route: null,
+      status: "completed",
+      sub_queries: [],
+      thread_id: "thread-1",
+      updated_at: "2026-07-04T10:00:00Z",
+    },
+    ...overrides,
+  };
+}
+
 describe("useEvidentRuntime", () => {
   beforeEach(() => {
     FakeEventSource.instances = [];
-    fetchAnswerMock.mockReset();
-    postQueryMock.mockReset();
+    appendThreadMessageMock.mockReset();
+    createThreadMock.mockReset();
+    fetchThreadMock.mockReset();
+    navigateMock.mockReset();
+    routeThreadId = undefined;
     useExternalStoreRuntimeMock.mockClear();
-    useQueryHistoryMock.mockReset();
-    useQueryHistoryMock.mockReturnValue({ data: [], isLoading: false });
+    useThreadHistoryMock.mockReset();
+    useThreadHistoryMock.mockReturnValue({ data: [], isLoading: false });
     vi.stubGlobal("EventSource", FakeEventSource);
   });
 
@@ -128,45 +199,29 @@ describe("useEvidentRuntime", () => {
     vi.unstubAllGlobals();
   });
 
-  it("streams content_parts events through completion", async () => {
-    postQueryMock.mockResolvedValue({ id: "query-1" });
-    fetchAnswerMock.mockResolvedValue({
-      evidence: [],
-      full_text: "Evidence Retrieval Memory improves future retrieval.",
-      id: "answer-1",
-      query_id: "query-1",
-      segments: [],
-    });
+  it("creates a thread and streams assistant completion", async () => {
+    createThreadMock.mockResolvedValue(makeTurnResponse());
 
     const { result } = renderHook(() => useEvidentRuntime(), {
       wrapper: createWrapper(),
     });
 
     await act(async () => {
-      await result.current.adapter.onNew(
-        makeAppendMessage("How does Evidence Retrieval Memory work?")
-      );
+      await result.current.adapter.onNew(makeAppendMessage("What is BERT?"));
     });
 
-    expect(postQueryMock).toHaveBeenCalledWith(
-      "How does Evidence Retrieval Memory work?"
-    );
+    expect(createThreadMock).toHaveBeenCalledWith("What is BERT?");
+    expect(navigateMock).toHaveBeenCalledWith("/chat/thread-1");
 
     const eventSource = getFirstEventSource();
-    expect(eventSource.url).toBe("/api/v1/queries/query-1/events");
+    expect(eventSource.url).toBe(
+      "/api/v1/threads/thread-1/messages/assistant-1/events"
+    );
 
     act(() => {
       eventSource.emit("route_selected", {
-        route: "multi_hop",
-        sub_queries: ["What is ERM?", "How does ERM improve retrieval?"],
-      });
-    });
-
-    act(() => {
-      eventSource.emit("hop_progress", {
-        hop: 1,
-        intermediate_answer: "ERM stores feedback-linked retrieval memory.",
-        sub_query: "What is ERM?",
+        route: "simple",
+        sub_queries: [],
       });
     });
 
@@ -177,31 +232,21 @@ describe("useEvidentRuntime", () => {
     });
 
     act(() => {
-      eventSource.emit("content_parts", {
-        parts: [
-          { type: "reasoning", text: "Routing Query..." },
-          { type: "text", text: "ERM" },
-        ],
-      });
-    });
-
-    act(() => {
       eventSource.emit("done", {
-        query_id: "query-1",
         content_parts: [
           {
             type: "text",
-            text: "Evidence Retrieval Memory improves future retrieval.",
-          },
-          {
-            type: "source",
-            sourceType: "document",
-            id: "ev-1",
-            title: "ERM Paper",
-            mediaType: "text/plain",
+            text: "BERT is a bidirectional transformer encoder.",
           },
         ],
         error: false,
+        evidence: [],
+        full_text: "BERT is a bidirectional transformer encoder.",
+        id: "answer-1",
+        message_id: "assistant-1",
+        reasoning_trace: [],
+        segments: [],
+        thread_id: "thread-1",
       });
     });
 
@@ -209,81 +254,186 @@ describe("useEvidentRuntime", () => {
       expect(result.current.isRunning).toBe(false);
       expect(result.current.messages).toHaveLength(2);
       expect(result.current.messages[0]).toMatchObject({
-        contentParts: [
-          { type: "text", text: "How does Evidence Retrieval Memory work?" },
-        ],
+        contentParts: [{ type: "text", text: "What is BERT?" }],
         role: "user",
+        threadId: "thread-1",
       });
       expect(result.current.messages[1]).toMatchObject({
         contentParts: [
           {
             type: "text",
-            text: "Evidence Retrieval Memory improves future retrieval.",
+            text: "BERT is a bidirectional transformer encoder.",
           },
         ],
-        hopProgress: [
-          {
-            hop: 1,
-            intermediate_answer: "ERM stores feedback-linked retrieval memory.",
-            sub_query: "What is ERM?",
-          },
-        ],
-        queryId: "query-1",
+        messageId: "assistant-1",
         role: "assistant",
-        route: "multi_hop",
+        route: "simple",
         status: "complete",
-        subQueries: ["What is ERM?", "How does ERM improve retrieval?"],
+        subQueries: [],
+        threadId: "thread-1",
       });
     });
-
-    expect(eventSource.close).toHaveBeenCalledTimes(1);
   });
 
-  it("marks the assistant as error when done event has error flag", async () => {
-    postQueryMock.mockResolvedValue({ id: "query-2" });
+  it("appends a follow-up to the active thread", async () => {
+    createThreadMock.mockResolvedValue(makeTurnResponse());
+    appendThreadMessageMock.mockResolvedValue(
+      makeTurnResponse({
+        assistant_message: {
+          ...makeTurnResponse().assistant_message,
+          id: "assistant-2",
+          position: 3,
+          reply_to_message_id: "user-2",
+        },
+        user_message: {
+          ...makeTurnResponse().user_message,
+          content_text: "What is HNSW?",
+          id: "user-2",
+          position: 2,
+        },
+      })
+    );
 
     const { result } = renderHook(() => useEvidentRuntime(), {
       wrapper: createWrapper(),
     });
 
     await act(async () => {
-      await result.current.adapter.onNew(makeAppendMessage("Break this Query"));
+      await result.current.adapter.onNew(makeAppendMessage("What is BERT?"));
     });
 
-    const eventSource = getFirstEventSource();
+    getFirstEventSource().close.mockClear();
+    FakeEventSource.instances = [];
 
-    act(() => {
-      eventSource.emit("done", {
-        query_id: "query-2",
-        content_parts: [],
-        error: true,
-        error_message: "Worker exploded",
-      });
+    await act(async () => {
+      await result.current.adapter.onNew(makeAppendMessage("What is HNSW?"));
+    });
+
+    expect(appendThreadMessageMock).toHaveBeenCalledWith(
+      "thread-1",
+      "What is HNSW?"
+    );
+    expect(getFirstEventSource().url).toBe(
+      "/api/v1/threads/thread-1/messages/assistant-2/events"
+    );
+  });
+
+  it("loads a persisted thread from the route parameter", async () => {
+    routeThreadId = "thread-1";
+    useThreadHistoryMock.mockReturnValue({
+      data: [
+        {
+          created_at: "2026-07-04T10:00:00Z",
+          id: "thread-1",
+          summary: "",
+          title: "What is BERT",
+          updated_at: "2026-07-04T10:00:00Z",
+        },
+      ],
+      isLoading: false,
+    });
+    fetchThreadMock.mockResolvedValue({
+      created_at: "2026-07-04T10:00:00Z",
+      id: "thread-1",
+      messages: [
+        makeTurnResponse().user_message,
+        {
+          ...makeTurnResponse().assistant_message,
+          answer: {
+            content_parts: [
+              {
+                type: "text",
+                text: "BERT is a bidirectional transformer encoder.",
+              },
+            ],
+            evidence: [],
+            full_text: "BERT is a bidirectional transformer encoder.",
+            id: "answer-1",
+            message_id: "assistant-1",
+            reasoning_trace: [],
+            segments: [],
+          },
+          selected_route: "simple",
+          status: "completed",
+        },
+      ],
+      summary: "",
+      title: "What is BERT",
+      updated_at: "2026-07-04T10:00:00Z",
+    } satisfies ThreadDetail);
+
+    const { result } = renderHook(() => useEvidentRuntime(), {
+      wrapper: createWrapper(),
     });
 
     await waitFor(() => {
-      expect(result.current.isRunning).toBe(false);
-      expect(result.current.messages[1]).toMatchObject({
-        queryId: "query-2",
-        role: "assistant",
-        status: "error",
-      });
+      expect(fetchThreadMock).toHaveBeenCalledWith("thread-1");
     });
 
-    expect(eventSource.close).toHaveBeenCalledTimes(1);
+    expect(result.current.adapter.adapters?.threadList?.threads).toEqual([
+      {
+        id: "thread-1",
+        remoteId: "thread-1",
+        status: "regular",
+        title: "What is BERT",
+      },
+    ]);
+    await waitFor(() => {
+      expect(result.current.messages).toMatchObject([
+        {
+          contentParts: [{ type: "text", text: "What is BERT?" }],
+          role: "user",
+        },
+        {
+          contentParts: [
+            {
+              type: "text",
+              text: "BERT is a bidirectional transformer encoder.",
+            },
+          ],
+          role: "assistant",
+          route: "simple",
+          status: "complete",
+        },
+      ]);
+    });
+  });
+
+  it("navigates to a selected thread from the thread list", async () => {
+    const { result } = renderHook(() => useEvidentRuntime(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.adapter.adapters?.threadList?.onSwitchToThread?.(
+        "thread-42"
+      );
+    });
+
+    expect(navigateMock).toHaveBeenCalledWith("/chat/thread-42");
+  });
+
+  it("returns to the base chat route for a new thread", () => {
+    const { result } = renderHook(() => useEvidentRuntime(), {
+      wrapper: createWrapper(),
+    });
+
+    act(() => {
+      result.current.adapter.adapters?.threadList?.onSwitchToNewThread?.();
+    });
+
+    expect(navigateMock).toHaveBeenCalledWith("/chat");
   });
 
   it("marks the assistant as error when SSE stream transport fails", async () => {
-    postQueryMock.mockResolvedValue({ id: "query-transport" });
+    createThreadMock.mockResolvedValue(makeTurnResponse());
 
     const { result } = renderHook(() => useEvidentRuntime(), {
       wrapper: createWrapper(),
     });
 
     await act(async () => {
-      await result.current.adapter.onNew(
-        makeAppendMessage("Explain citation transport failures")
-      );
+      await result.current.adapter.onNew(makeAppendMessage("Explain failures"));
     });
 
     const eventSource = getFirstEventSource();
@@ -295,115 +445,10 @@ describe("useEvidentRuntime", () => {
     await waitFor(() => {
       expect(result.current.isRunning).toBe(false);
       expect(result.current.messages[1]).toMatchObject({
-        queryId: "query-transport",
+        messageId: "assistant-1",
         role: "assistant",
         status: "error",
       });
     });
-
-    expect(eventSource.close).toHaveBeenCalledTimes(1);
-  });
-
-  it("cancels the active SSE stream", async () => {
-    postQueryMock.mockResolvedValue({ id: "query-3" });
-
-    const { result } = renderHook(() => useEvidentRuntime(), {
-      wrapper: createWrapper(),
-    });
-
-    await act(async () => {
-      await result.current.adapter.onNew(
-        makeAppendMessage("Cancel this Query")
-      );
-    });
-
-    const eventSource = getFirstEventSource();
-
-    await act(async () => {
-      await result.current.adapter.onCancel?.();
-    });
-
-    expect(result.current.isRunning).toBe(false);
-    expect(eventSource.close).toHaveBeenCalledTimes(1);
-  });
-
-  it("maps Query history into assistant-ui thread-list items and resets on new thread", async () => {
-    useQueryHistoryMock.mockReturnValue({
-      data: [
-        {
-          completed_at: null,
-          created_at: "2026-07-04T10:00:00Z",
-          error_message: null,
-          id: "query-4",
-          query_text: "Explain the Simple Route",
-          selected_route: "simple",
-          status: "completed",
-          updated_at: "2026-07-04T10:00:01Z",
-        },
-      ],
-      isLoading: false,
-    });
-    fetchAnswerMock.mockResolvedValue({
-      evidence: [],
-      full_text: "The Simple Route uses one retrieval pass.",
-      id: "answer-4",
-      query_id: "query-4",
-      segments: [],
-    });
-    postQueryMock.mockResolvedValue({ id: "query-5" });
-
-    const { result } = renderHook(() => useEvidentRuntime(), {
-      wrapper: createWrapper(),
-    });
-
-    expect(result.current.adapter.adapters?.threadList?.threads).toEqual([
-      {
-        id: "query-4",
-        remoteId: "query-4",
-        status: "regular",
-        title: "Explain the Simple Route",
-      },
-    ]);
-
-    await act(async () => {
-      await result.current.adapter.adapters?.threadList?.onSwitchToThread?.(
-        "query-4"
-      );
-    });
-
-    expect(fetchAnswerMock).toHaveBeenCalledWith("query-4");
-    expect(result.current.messages).toMatchObject([
-      {
-        contentParts: [{ type: "text", text: "Explain the Simple Route" }],
-        queryId: "query-4",
-        role: "user",
-      },
-      {
-        contentParts: [
-          { type: "text", text: "The Simple Route uses one retrieval pass." },
-        ],
-        hopProgress: [],
-        queryId: "query-4",
-        role: "assistant",
-        route: "simple",
-        status: "complete",
-        subQueries: [],
-      },
-    ]);
-
-    await act(async () => {
-      await result.current.adapter.onNew(makeAppendMessage("Temporary Query"));
-    });
-
-    await act(async () => {
-      await result.current.adapter.adapters?.threadList?.onSwitchToNewThread?.();
-    });
-
-    expect(result.current.messages).toEqual([]);
-
-    const onDelete = result.current.adapter.adapters?.threadList?.onDelete;
-
-    expect(onDelete).toBeTypeOf("function");
-    await expect(onDelete?.("query-4")).resolves.toBeUndefined();
   });
 });

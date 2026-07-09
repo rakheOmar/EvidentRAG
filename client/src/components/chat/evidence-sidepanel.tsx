@@ -50,7 +50,8 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
   onClose,
 }) => {
   const isMobile = useIsMobile();
-  const { selectEvidence } = useEvidencePanel();
+  const { clearEvidence, selectedMessageId, selectEvidence } =
+    useEvidencePanel();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const prevActiveRef = useRef(activeEvidenceId);
@@ -71,9 +72,9 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
   const handleClose = useCallback(() => {
     setDismissed(true);
     setMobileOpen(false);
-    selectEvidence([]);
+    clearEvidence();
     onClose();
-  }, [selectEvidence, onClose]);
+  }, [clearEvidence, onClose]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -96,9 +97,13 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
         onValueChange={(value) => {
           const id = Array.isArray(value) ? value[0] : undefined;
           if (!id || id === activeEvidenceId) {
-            selectEvidence([]);
+            clearEvidence();
+            return;
+          }
+          if (selectedMessageId) {
+            selectEvidence(selectedMessageId, [id]);
           } else {
-            selectEvidence([id]);
+            clearEvidence();
           }
         }}
         value={accordionValue}
@@ -135,7 +140,14 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
         ))}
       </Accordion>
     ),
-    [activeEvidenceId, evidence, accordionValue, selectEvidence]
+    [
+      activeEvidenceId,
+      clearEvidence,
+      evidence,
+      accordionValue,
+      selectEvidence,
+      selectedMessageId,
+    ]
   );
 
   if (isMobile) {

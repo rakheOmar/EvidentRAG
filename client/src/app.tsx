@@ -13,6 +13,7 @@ export function App() {
       <Routes>
         <Route element={<HomePage />} index />
         <Route element={<ChatPage />} path="chat" />
+        <Route element={<ChatPage />} path="chat/:threadId" />
       </Routes>
     </Suspense>
   );

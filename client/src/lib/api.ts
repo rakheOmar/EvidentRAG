@@ -1,75 +1,99 @@
 import { useQuery } from "@tanstack/react-query";
 
-import type { QueryAnswerResponse, QuerySummary } from "@/lib/types";
+import type {
+  ThreadDetail,
+  ThreadSummary,
+  ThreadTurnResponse,
+} from "@/lib/types";
 
 const queryKeys = {
-  answer: (queryId: string) => ["answer", queryId] as const,
-  queries: ["queries"] as const,
+  thread: (threadId: string) => ["thread", threadId] as const,
+  threads: ["threads"] as const,
 };
 
-export async function postQuery(queryText: string): Promise<QuerySummary> {
-  const response = await fetch("/api/v1/queries", {
-    body: JSON.stringify({ query_text: queryText }),
+export async function createThread(
+  content: string
+): Promise<ThreadTurnResponse> {
+  const response = await fetch("/api/v1/threads", {
+    body: JSON.stringify({ content }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
 
   if (!response.ok) {
     throw new Error(
-      `POST /api/v1/queries failed: ${response.status} ${response.statusText}`
+      `POST /api/v1/threads failed: ${response.status} ${response.statusText}`
     );
   }
 
-  return (await response.json()) as QuerySummary;
+  return (await response.json()) as ThreadTurnResponse;
 }
 
-export async function fetchQueryHistory(): Promise<QuerySummary[]> {
-  const response = await fetch("/api/v1/queries", { method: "GET" });
+export async function appendThreadMessage(
+  threadId: string,
+  content: string
+): Promise<ThreadTurnResponse> {
+  const response = await fetch(`/api/v1/threads/${threadId}/messages`, {
+    body: JSON.stringify({ content }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
 
   if (!response.ok) {
     throw new Error(
-      `GET /api/v1/queries failed: ${response.status} ${response.statusText}`
+      `POST /api/v1/threads/${threadId}/messages failed: ${response.status} ${response.statusText}`
     );
   }
 
-  return (await response.json()) as QuerySummary[];
+  return (await response.json()) as ThreadTurnResponse;
 }
 
-export async function fetchAnswer(
-  queryId: string
-): Promise<QueryAnswerResponse> {
-  const response = await fetch(`/api/v1/queries/${queryId}/answer`, {
+export async function fetchThreads(): Promise<ThreadSummary[]> {
+  const response = await fetch("/api/v1/threads", { method: "GET" });
+
+  if (!response.ok) {
+    throw new Error(
+      `GET /api/v1/threads failed: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return (await response.json()) as ThreadSummary[];
+}
+
+export async function fetchThread(threadId: string): Promise<ThreadDetail> {
+  const response = await fetch(`/api/v1/threads/${threadId}`, {
     method: "GET",
   });
 
   if (!response.ok) {
     throw new Error(
-      `GET /api/v1/queries/${queryId}/answer failed: ${response.status} ${response.statusText}`
+      `GET /api/v1/threads/${threadId} failed: ${response.status} ${response.statusText}`
     );
   }
 
-  return (await response.json()) as QueryAnswerResponse;
+  return (await response.json()) as ThreadDetail;
 }
 
-export function useQueryHistory() {
+export function useThreadHistory() {
   return useQuery({
-    queryFn: fetchQueryHistory,
-    queryKey: queryKeys.queries,
+    queryFn: fetchThreads,
+    queryKey: queryKeys.threads,
     refetchOnWindowFocus: true,
   });
 }
 
-export function useAnswer(queryId: string | null) {
+export function useThread(threadId: string | null) {
   return useQuery({
-    enabled: queryId !== null,
+    enabled: threadId !== null,
     queryFn: () => {
-      if (queryId === null) {
-        throw new Error("queryId is required to fetch an answer.");
+      if (threadId === null) {
+        throw new Error("threadId is required to fetch a thread.");
       }
 
-      return fetchAnswer(queryId);
+      return fetchThread(threadId);
     },
-    queryKey: queryId === null ? ["answer", "idle"] : queryKeys.answer(queryId),
+    queryKey:
+      threadId === null ? ["thread", "idle"] : queryKeys.thread(threadId),
   });
 }
 

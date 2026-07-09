@@ -51,17 +51,13 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
-import {
-  InlineCitationText,
-} from "@/components/assistant-ui/inline-citations";
+import { InlineCitationText } from "@/components/assistant-ui/inline-citations";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
-import { ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { Sources } from "@/components/assistant-ui/sources";
 import {
   ChainOfThought,
   ChainOfThoughtContent,
   ChainOfThoughtHeader,
-  ChainOfThoughtSearchResult,
   ChainOfThoughtSearchResults,
   ChainOfThoughtStep,
 } from "@/components/assistant-ui/chain-of-thought";
@@ -111,7 +107,13 @@ type MessageMetadataCustom = {
   }[];
   route?: QueryRoute;
   subQueries?: string[];
+  generating?: boolean;
 };
+
+type ReasoningTraceEntry =
+  NonNullable<MessageMetadataCustom["reasoningTrace"]>[number];
+
+type RetrievalCandidateEntry = NonNullable<ReasoningTraceEntry["candidates"]>[number];
 
 function formatRouteLabel(route: QueryRoute): string {
   switch (route) {
@@ -121,6 +123,8 @@ function formatRouteLabel(route: QueryRoute): string {
       return "Comparison";
     case "aggregation":
       return "Aggregation";
+    case "conversation":
+      return "Conversation";
     default:
       return "Simple";
   }
@@ -134,6 +138,8 @@ function routeBadgeClassName(route: QueryRoute): string {
       return "bg-violet-500/12 text-violet-700 dark:text-violet-300";
     case "aggregation":
       return "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300";
+    case "conversation":
+      return "bg-amber-500/12 text-amber-700 dark:text-amber-300";
     default:
       return "bg-primary/10 text-primary";
   }
@@ -200,7 +206,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
       }}
     >
       <ThreadPrimitive.Viewport
-        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden"
+        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth md:scrollbar-none md:[&::-webkit-scrollbar]:hidden"
         data-slot="aui_thread-viewport"
         turnAnchor="top"
       >
@@ -484,7 +490,7 @@ const TextWithCitations: FC = () => {
                     ) {
                       clearEvidence();
                     } else {
-                      selectEvidence([id]);
+                      selectEvidence(messageId, [id]);
                     }
                   }}
                 >
@@ -533,6 +539,21 @@ const RetrievalCandidate: FC<{
     </CollapsibleContent>
   </Collapsible>
 );
+
+function getReasoningEntryKey(
+  entry: ReasoningTraceEntry
+): string {
+  if (entry.type === "step") {
+    return `step-${entry.text ?? ""}`;
+  }
+  if (entry.type === "hop") {
+    return `hop-${entry.hop ?? ""}-${entry.sub_query ?? ""}`;
+  }
+  const candidates = (entry.candidates ?? [])
+    .map((candidate: RetrievalCandidateEntry) => candidate.evidence_id)
+    .join("-");
+  return `retrieval-${entry.label ?? ""}-${candidates}`;
+}
 
 const AssistantMessage: FC = () => {
   const {
@@ -594,7 +615,7 @@ const AssistantMessage: FC = () => {
                         const progress = hopProgress.find((hop) => hop.hop === index + 1);
 
                         return (
-                          <div key={`${index + 1}-${subQuery}`} className="space-y-1">
+                          <div key={subQuery} className="space-y-1">
                             <p className="font-medium text-[11px] uppercase tracking-wide text-muted-foreground">
                               Step {index + 1}
                             </p>
@@ -620,11 +641,11 @@ const AssistantMessage: FC = () => {
             <ChainOfThought open={cotOpen} onOpenChange={setCotOpen}>
               <ChainOfThoughtHeader shimmer={isRunning && !generating}>Process trace</ChainOfThoughtHeader>
               <ChainOfThoughtContent>
-                {reasoningTrace.map((entry, index) => {
+                {reasoningTrace.map((entry) => {
                   if (entry.type === "step") {
                     return (
                       <ChainOfThoughtStep
-                        key={`step-${index}`}
+                        key={getReasoningEntryKey(entry)}
                         icon={stepIcon(entry.text ?? "")}
                         label={entry.text ?? ""}
                       />
@@ -633,7 +654,7 @@ const AssistantMessage: FC = () => {
                   if (entry.type === "hop") {
                     return (
                       <ChainOfThoughtStep
-                        key={`hop-${index}`}
+                        key={getReasoningEntryKey(entry)}
                         icon={GitBranchIcon}
                         label={`Step ${entry.hop}`}
                         description={
@@ -649,7 +670,7 @@ const AssistantMessage: FC = () => {
                   }
                   return (
                     <ChainOfThoughtStep
-                      key={`retrieval-${index}`}
+                      key={getReasoningEntryKey(entry)}
                       icon={SearchIcon}
                       label={entry.label ?? "Retrieval"}
                     >

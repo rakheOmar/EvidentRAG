@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import logging
 import re
 from time import perf_counter
@@ -91,6 +92,14 @@ class QdrantStore:
             points=points,
             wait=True,
         )
+
+    async def close(self) -> None:
+        close = getattr(self._client, "close", None)
+        if close is None:
+            return
+        result = close()
+        if inspect.isawaitable(result):
+            await result
 
     async def hybrid_search(
         self,
