@@ -1,14 +1,7 @@
 "use client";
 
 import { XIcon } from "lucide-react";
-import {
-  type FC,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type FC, useCallback, useMemo } from "react";
 import { useEvidencePanel } from "@/components/chat/evidence-context";
 import {
   Accordion,
@@ -52,26 +45,8 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
   const isMobile = useIsMobile();
   const { clearEvidence, selectedMessageId, selectEvidence } =
     useEvidencePanel();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const prevActiveRef = useRef(activeEvidenceId);
-
-  useEffect(() => {
-    if (activeEvidenceId) {
-      setDismissed(false);
-    }
-  }, [activeEvidenceId]);
-
-  useEffect(() => {
-    if (activeEvidenceId && activeEvidenceId !== prevActiveRef.current) {
-      setMobileOpen(true);
-    }
-    prevActiveRef.current = activeEvidenceId;
-  }, [activeEvidenceId]);
 
   const handleClose = useCallback(() => {
-    setDismissed(true);
-    setMobileOpen(false);
     clearEvidence();
     onClose();
   }, [clearEvidence, onClose]);
@@ -85,6 +60,35 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
     [onClose]
   );
 
+  const handleOpenChange = useCallback<
+    NonNullable<React.ComponentProps<typeof Drawer>["onOpenChange"]>
+  >(
+    (nextOpen) => {
+      if (!nextOpen) {
+        handleClose();
+      }
+    },
+    [handleClose]
+  );
+
+  const handleValueChange = useCallback<
+    NonNullable<React.ComponentProps<typeof Accordion>["onValueChange"]>
+  >(
+    (value) => {
+      const id = Array.isArray(value) ? value[0] : undefined;
+      if (!id || id === activeEvidenceId) {
+        clearEvidence();
+        return;
+      }
+      if (selectedMessageId) {
+        selectEvidence(selectedMessageId, [id]);
+      } else {
+        clearEvidence();
+      }
+    },
+    [activeEvidenceId, clearEvidence, selectedMessageId, selectEvidence]
+  );
+
   const accordionValue = useMemo(
     () => (activeEvidenceId ? [activeEvidenceId] : []),
     [activeEvidenceId]
@@ -94,30 +98,19 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
     () => (
       <Accordion
         className="overflow-hidden"
-        onValueChange={(value) => {
-          const id = Array.isArray(value) ? value[0] : undefined;
-          if (!id || id === activeEvidenceId) {
-            clearEvidence();
-            return;
-          }
-          if (selectedMessageId) {
-            selectEvidence(selectedMessageId, [id]);
-          } else {
-            clearEvidence();
-          }
-        }}
+        onValueChange={handleValueChange}
         value={accordionValue}
       >
         {evidence?.map((item) => (
           <AccordionItem className="min-w-0" key={item.id} value={item.id}>
             <AccordionTrigger className="min-w-0 px-4 py-2.5">
               <div className="flex min-w-0 items-center gap-2">
-                {item.document_title && (
+                {item.document_title ? (
                   <span className="truncate font-medium text-sm">
                     {item.document_title}
                   </span>
-                )}
-                {item.page != null && (
+                ) : null}
+                {item.page !== null && (
                   <span className="shrink-0 text-sidebar-foreground/50 text-xs">
                     p. {item.page}
                   </span>
@@ -126,11 +119,11 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
             </AccordionTrigger>
             <AccordionContent>
               <div className="min-w-0 space-y-1.5 px-4 pb-3">
-                {item.context_header && (
+                {item.context_header ? (
                   <p className="font-medium text-[11px] text-sidebar-foreground/40 uppercase tracking-wider">
                     {item.context_header}
                   </p>
-                )}
+                ) : null}
                 <p className="wrap-break-word text-foreground/90 text-xs leading-relaxed">
                   {item.content}
                 </p>
@@ -140,26 +133,12 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
         ))}
       </Accordion>
     ),
-    [
-      activeEvidenceId,
-      clearEvidence,
-      evidence,
-      accordionValue,
-      selectEvidence,
-      selectedMessageId,
-    ]
+    [accordionValue, evidence, handleValueChange]
   );
 
   if (isMobile) {
     return (
-      <Drawer
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) {
-            handleClose();
-          }
-        }}
-        open={mobileOpen}
-      >
+      <Drawer onOpenChange={handleOpenChange} open={open}>
         <DrawerContent className="bg-sidebar text-sidebar-foreground">
           <DrawerHeader className="border-sidebar-border border-b pb-2">
             <DrawerTitle className="text-sidebar-foreground">
@@ -174,11 +153,11 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
 
   return (
     <section
-      aria-hidden={!open || dismissed}
+      aria-hidden={!open}
       aria-label="Evidence details"
       className={cn(
         "flex w-full flex-col overflow-hidden rounded-xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg transition-all duration-300 ease-in-out",
-        open && !dismissed
+        open
           ? "translate-x-0 opacity-100"
           : "pointer-events-none translate-x-8 opacity-0"
       )}

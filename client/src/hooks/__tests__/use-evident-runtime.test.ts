@@ -102,7 +102,7 @@ class FakeEventSource {
 }
 
 function getFirstEventSource() {
-  const eventSource = FakeEventSource.instances[0];
+  const [eventSource] = FakeEventSource.instances;
 
   if (eventSource === undefined) {
     throw new Error("Expected an EventSource instance to exist.");
@@ -227,7 +227,7 @@ describe("useEvidentRuntime", () => {
 
     act(() => {
       eventSource.emit("content_parts", {
-        parts: [{ type: "reasoning", text: "Routing Query..." }],
+        parts: [{ text: "Routing Query...", type: "reasoning" }],
       });
     });
 
@@ -235,8 +235,8 @@ describe("useEvidentRuntime", () => {
       eventSource.emit("done", {
         content_parts: [
           {
-            type: "text",
             text: "BERT is a bidirectional transformer encoder.",
+            type: "text",
           },
         ],
         error: false,
@@ -254,15 +254,15 @@ describe("useEvidentRuntime", () => {
       expect(result.current.isRunning).toBe(false);
       expect(result.current.messages).toHaveLength(2);
       expect(result.current.messages[0]).toMatchObject({
-        contentParts: [{ type: "text", text: "What is BERT?" }],
+        contentParts: [{ text: "What is BERT?", type: "text" }],
         role: "user",
         threadId: "thread-1",
       });
       expect(result.current.messages[1]).toMatchObject({
         contentParts: [
           {
-            type: "text",
             text: "BERT is a bidirectional transformer encoder.",
+            type: "text",
           },
         ],
         messageId: "assistant-1",
@@ -342,8 +342,8 @@ describe("useEvidentRuntime", () => {
           answer: {
             content_parts: [
               {
-                type: "text",
                 text: "BERT is a bidirectional transformer encoder.",
+                type: "text",
               },
             ],
             evidence: [],
@@ -381,14 +381,14 @@ describe("useEvidentRuntime", () => {
     await waitFor(() => {
       expect(result.current.messages).toMatchObject([
         {
-          contentParts: [{ type: "text", text: "What is BERT?" }],
+          contentParts: [{ text: "What is BERT?", type: "text" }],
           role: "user",
         },
         {
           contentParts: [
             {
-              type: "text",
               text: "BERT is a bidirectional transformer encoder.",
+              type: "text",
             },
           ],
           role: "assistant",

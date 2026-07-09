@@ -4,8 +4,8 @@ import {
   createContext,
   type FC,
   type ReactNode,
+  use,
   useCallback,
-  useContext,
   useMemo,
   useState,
 } from "react";
@@ -55,7 +55,7 @@ export const EvidencePanelProvider: FC<{ children: ReactNode }> = ({
 };
 
 export function useEvidencePanel(): EvidenceContextValue {
-  const ctx = useContext(EvidenceContext);
+  const ctx = use(EvidenceContext);
   if (!ctx) {
     throw new Error(
       "useEvidencePanel must be used within an EvidencePanelProvider"

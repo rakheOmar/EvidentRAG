@@ -26,7 +26,7 @@ import "./index.css";
 import { ThemeProvider } from "@/components/theme-provider.tsx";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-import App from "./app.tsx";
+import { App } from "./app.tsx";
 
 const queryClient = new QueryClient();
 const rootElement = document.querySelector("#root");

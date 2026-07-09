@@ -10,7 +10,7 @@ import type { EvidentChatMessage } from "@/lib/types";
 const makeMessage = (
   overrides: Partial<EvidentChatMessage> = {}
 ): EvidentChatMessage => ({
-  contentParts: [{ type: "text", text: "Hello world." }],
+  contentParts: [{ text: "Hello world.", type: "text" }],
   createdAt: new Date("2026-07-04T10:00:00Z"),
   id: "msg-1",
   role: "assistant",
@@ -22,7 +22,7 @@ describe("convertEvidentMessage", () => {
   it("passes text parts through as-is", () => {
     const message = makeMessage({
       contentParts: [
-        { type: "text", text: "RAG combines retrieval with generation." },
+        { text: "RAG combines retrieval with generation.", type: "text" },
       ],
     });
 
@@ -30,25 +30,25 @@ describe("convertEvidentMessage", () => {
 
     expect(result).toEqual<ThreadMessageLike>({
       content: [
-        { type: "text", text: "RAG combines retrieval with generation." },
+        { text: "RAG combines retrieval with generation.", type: "text" },
       ],
       createdAt: new Date("2026-07-04T10:00:00Z"),
       id: "msg-1",
       role: "assistant",
-      status: { type: "complete", reason: "stop" },
+      status: { reason: "stop", type: "complete" },
     });
   });
 
   it("passes reasoning parts through as-is", () => {
     const message = makeMessage({
-      contentParts: [{ type: "reasoning", text: "Routing Query..." }],
+      contentParts: [{ text: "Routing Query...", type: "reasoning" }],
       status: "running",
     });
 
     const result = convertEvidentMessage(message);
 
     expect(result).toEqual<ThreadMessageLike>({
-      content: [{ type: "reasoning", text: "Routing Query..." }],
+      content: [{ text: "Routing Query...", type: "reasoning" }],
       createdAt: new Date("2026-07-04T10:00:00Z"),
       id: "msg-1",
       role: "assistant",
@@ -60,12 +60,12 @@ describe("convertEvidentMessage", () => {
     const message = makeMessage({
       contentParts: [
         {
-          type: "source",
-          sourceType: "document",
           id: "ev-1",
-          title: "RAG Paper",
           mediaType: "text/plain",
           providerMetadata: { evidentrag: { page: 3 } },
+          sourceType: "document",
+          title: "RAG Paper",
+          type: "source",
         },
       ],
     });
@@ -75,31 +75,31 @@ describe("convertEvidentMessage", () => {
     expect(result).toEqual<ThreadMessageLike>({
       content: [
         {
-          type: "source",
-          sourceType: "document",
           id: "ev-1",
-          title: "RAG Paper",
           mediaType: "text/plain",
           providerMetadata: { evidentrag: { page: 3 } },
+          sourceType: "document",
+          title: "RAG Paper",
+          type: "source",
         },
       ],
       createdAt: new Date("2026-07-04T10:00:00Z"),
       id: "msg-1",
       role: "assistant",
-      status: { type: "complete", reason: "stop" },
+      status: { reason: "stop", type: "complete" },
     });
   });
 
   it("passes mixed content parts through as-is", () => {
     const parts: ThreadAssistantMessagePart[] = [
-      { type: "reasoning", text: "Generating Answer..." },
-      { type: "text", text: "RAG stands for Retrieval Augmented Generation." },
+      { text: "Generating Answer...", type: "reasoning" },
+      { text: "RAG stands for Retrieval Augmented Generation.", type: "text" },
       {
-        type: "source",
-        sourceType: "document",
         id: "ev-1",
-        title: "RAG Paper",
         mediaType: "text/plain",
+        sourceType: "document",
+        title: "RAG Paper",
+        type: "source",
       },
     ];
     const message = makeMessage({ contentParts: parts, status: "complete" });
@@ -111,7 +111,7 @@ describe("convertEvidentMessage", () => {
       createdAt: new Date("2026-07-04T10:00:00Z"),
       id: "msg-1",
       role: "assistant",
-      status: { type: "complete", reason: "stop" },
+      status: { reason: "stop", type: "complete" },
     });
   });
 
@@ -128,12 +128,12 @@ describe("convertEvidentMessage", () => {
 
     const result = convertEvidentMessage(message);
 
-    expect(result.status).toEqual({ type: "incomplete", reason: "error" });
+    expect(result.status).toEqual({ reason: "error", type: "incomplete" });
   });
 
   it("converts a user message without status", () => {
     const message: EvidentChatMessage = {
-      contentParts: [{ type: "text", text: "What is RAG?" }],
+      contentParts: [{ text: "What is RAG?", type: "text" }],
       createdAt: new Date("2026-07-04T10:00:00Z"),
       id: "user-1",
       role: "user",
@@ -143,7 +143,7 @@ describe("convertEvidentMessage", () => {
     const result = convertEvidentMessage(message);
 
     expect(result).toEqual<ThreadMessageLike>({
-      content: [{ type: "text", text: "What is RAG?" }],
+      content: [{ text: "What is RAG?", type: "text" }],
       createdAt: new Date("2026-07-04T10:00:00Z"),
       id: "user-1",
       role: "user",

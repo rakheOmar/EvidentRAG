@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useCallback } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -30,12 +31,13 @@ function EvidenceHarness() {
     selectEvidence,
   } = useEvidencePanel();
 
+  const seedSelection = useCallback(() => {
+    selectEvidence("message-1", ["ev-1"]);
+  }, [selectEvidence]);
+
   return (
     <div>
-      <button
-        onClick={() => selectEvidence("message-1", ["ev-1"])}
-        type="button"
-      >
+      <button onClick={seedSelection} type="button">
         seed selection
       </button>
       <button onClick={clearEvidence} type="button">
@@ -92,7 +94,7 @@ describe("EvidenceSidepanel", () => {
     const evidenceButtons = screen.getAllByRole("button", {
       name: DOCUMENT_ONE_BUTTON_NAME,
     });
-    const secondEvidenceButton = evidenceButtons[1];
+    const [, secondEvidenceButton] = evidenceButtons;
     expect(secondEvidenceButton).toBeDefined();
     if (!secondEvidenceButton) {
       throw new Error("Expected a second evidence button.");

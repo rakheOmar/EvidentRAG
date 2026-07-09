@@ -55,9 +55,10 @@ function toRuntimeMessage(message: ThreadMessage): EvidentChatMessage {
   const answer = message.answer ?? null;
   const contentParts: ThreadAssistantMessagePart[] =
     message.role === "assistant"
-      ? (answer?.content_parts?.filter((part) => part.type !== "source") ??
-        (answer ? [{ type: "text", text: answer.full_text }] : []))
-      : [{ type: "text", text: message.content_text }];
+      ? // biome-ignore lint/suspicious/noUnnecessaryConditions: AnswerDetail.content_parts is optional, so the ?? fallback is required (false positive from Biome's module-graph panic)
+        (answer?.content_parts?.filter((part) => part.type !== "source") ??
+          (answer ? [{ text: answer.full_text, type: "text" }] : []))
+      : [{ text: message.content_text, type: "text" }];
 
   if (answer?.segments) {
     setMessageSegments(message.id, answer.segments);
@@ -104,7 +105,7 @@ function replacePendingMessages(
   }
   next.push(
     {
-      contentParts: [{ type: "text", text: queryText }],
+      contentParts: [{ text: queryText, type: "text" }],
       createdAt: new Date(response.user_message.created_at),
       id: response.user_message.id,
       messageId: response.user_message.id,
@@ -113,7 +114,7 @@ function replacePendingMessages(
       threadId: response.thread.id,
     },
     {
-      contentParts: [{ type: "reasoning", text: "Starting..." }],
+      contentParts: [{ text: "Starting...", type: "reasoning" }],
       createdAt: new Date(response.assistant_message.created_at),
       id: response.assistant_message.id,
       messageId: response.assistant_message.id,
@@ -207,7 +208,7 @@ export function useEvidentRuntime() {
       setMessages((current) => [
         ...current,
         {
-          contentParts: [{ type: "text", text: queryText }],
+          contentParts: [{ text: queryText, type: "text" }],
           createdAt: new Date(),
           id: optimisticUserId,
           role: "user",
@@ -277,10 +278,10 @@ export function useEvidentRuntime() {
           const payload = JSON.parse(event.data) as HopProgressEvent;
 
           const hopEntry: ReasoningTraceEntry = {
-            type: "hop",
             hop: payload.hop,
             intermediate_answer: payload.intermediate_answer,
             sub_query: payload.sub_query,
+            type: "hop",
           };
           updateAssistantMessage((entry) => {
             const trace = entry.reasoningTrace ?? [];
@@ -314,11 +315,11 @@ export function useEvidentRuntime() {
               ...entry,
               contentParts: payload.parts,
               generating: entry.generating || hasAnswerText,
-              status: "running",
               reasoningTrace:
                 stepText && !exists
-                  ? [...trace, { type: "step", text: stepText }]
+                  ? [...trace, { text: stepText, type: "step" }]
                   : trace,
+              status: "running",
             };
           });
         }
@@ -345,7 +346,6 @@ export function useEvidentRuntime() {
           updateAssistantMessage((entry) => ({
             ...entry,
             contentParts: displayParts,
-            reasoningTrace: payload.reasoning_trace ?? entry.reasoningTrace,
             hopProgress:
               entry.hopProgress && entry.hopProgress.length > 0
                 ? entry.hopProgress
@@ -359,6 +359,7 @@ export function useEvidentRuntime() {
                       intermediate_answer: t.intermediate_answer,
                       sub_query: t.sub_query,
                     })),
+            reasoningTrace: payload.reasoning_trace ?? entry.reasoningTrace,
             status: "complete",
           }));
         }

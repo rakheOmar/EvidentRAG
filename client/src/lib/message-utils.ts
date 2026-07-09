@@ -9,11 +9,11 @@ function toMessageStatus(
     case "running":
       return { type: "running" };
     case "complete":
-      return { type: "complete", reason: "stop" };
+      return { reason: "stop", type: "complete" };
     case "error":
-      return { type: "incomplete", reason: "error" };
+      return { reason: "error", type: "incomplete" };
     default:
-      return { type: "complete", reason: "stop" };
+      return { reason: "stop", type: "complete" };
   }
 }
 

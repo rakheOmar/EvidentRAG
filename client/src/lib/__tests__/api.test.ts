@@ -81,7 +81,7 @@ function stubJson(body: unknown, init: { status?: number } = {}): Response {
 }
 
 function getFirstCall(fetchMock: ReturnType<typeof vi.fn>) {
-  const firstCall = fetchMock.mock.calls[0];
+  const [firstCall] = fetchMock.mock.calls;
 
   if (firstCall === undefined) {
     throw new Error("Expected fetch to be called at least once.");
@@ -99,8 +99,8 @@ describe("createThread", () => {
     const expected = makeTurnResponse();
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(expected), {
-        status: 201,
         headers: { "Content-Type": "application/json" },
+        status: 201,
       })
     );
     vi.stubGlobal("fetch", fetchMock);
