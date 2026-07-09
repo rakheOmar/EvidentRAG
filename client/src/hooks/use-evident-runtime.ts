@@ -57,7 +57,7 @@ function toRuntimeMessage(message: ThreadMessage): EvidentChatMessage {
     message.role === "assistant"
       ? // biome-ignore lint/suspicious/noUnnecessaryConditions: AnswerDetail.content_parts is optional, so the ?? fallback is required (false positive from Biome's module-graph panic)
         (answer?.content_parts?.filter((part) => part.type !== "source") ??
-          (answer ? [{ text: answer.full_text, type: "text" }] : []))
+        (answer ? [{ text: answer.full_text, type: "text" }] : []))
       : [{ text: message.content_text, type: "text" }];
 
   if (answer?.segments) {

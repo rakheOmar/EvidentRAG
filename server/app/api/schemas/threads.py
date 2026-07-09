@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -25,9 +26,11 @@ class ThreadSummaryResponse(BaseModel):
 
 
 class SegmentResponse(BaseModel):
+    id: UUID
     segment_index: int
     text: str
     evidence_ids: list[UUID]
+    rating: Literal["up", "down"] | None = None
 
 
 class EvidenceResponse(BaseModel):
@@ -37,6 +40,8 @@ class EvidenceResponse(BaseModel):
     document_title: str
     document_slug: str
     page: int
+    erm_state: Literal["boost", "penalty"] | None = None
+    erm_multiplier: float | None = None
 
 
 class AnswerResponse(BaseModel):
@@ -76,3 +81,12 @@ class ThreadTurnResponse(BaseModel):
     thread: ThreadSummaryResponse
     user_message: MessageResponse
     assistant_message: MessageResponse
+
+
+class SentenceTraceFeedbackRequest(BaseModel):
+    rating: Literal["up", "down"]
+
+
+class SentenceTraceFeedbackResponse(BaseModel):
+    rating: Literal["up", "down"]
+    trace_id: UUID

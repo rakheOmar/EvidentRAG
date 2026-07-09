@@ -35,12 +35,15 @@ import {
   SearchIcon,
   SparklesIcon,
   SquareIcon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
 } from "lucide-react";
 import {
   type ComponentType,
   createContext,
   type FC,
   type PropsWithChildren,
+  useCallback,
   useEffect,
   useContext,
   useMemo,
@@ -82,7 +85,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useEvidencePanel } from "@/components/chat/evidence-context";
-import { getMessageSegments } from "@/lib/segments-store";
+import { putSentenceTraceFeedback } from "@/lib/api";
+import { getMessageSegments, updateSegmentRating } from "@/lib/segments-store";
 import { cn } from "@/lib/utils";
 
 type MessageMetadataCustom = {
@@ -406,6 +410,7 @@ const TextWithCitations: FC = () => {
   const messageId = useAuiState((s) => s.message.id);
   const segments = getMessageSegments(messageId);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [pendingTraceId, setPendingTraceId] = useState<string | null>(null);
   const { selectedEvidenceIds, selectEvidence, clearEvidence } =
     useEvidencePanel();
 
@@ -451,6 +456,19 @@ const TextWithCitations: FC = () => {
     });
   }, [segments]);
 
+  const handleFeedback = useCallback(
+    async (traceId: string, rating: "up" | "down") => {
+      setPendingTraceId(traceId);
+      try {
+        await putSentenceTraceFeedback(traceId, rating);
+        updateSegmentRating(messageId, traceId, rating);
+      } finally {
+        setPendingTraceId(null);
+      }
+    },
+    [messageId]
+  );
+
   if (segments && segments.length > 0) {
     return (
       <>
@@ -462,14 +480,47 @@ const TextWithCitations: FC = () => {
               : seg.evidence_ids.some((id) => selectedEvidenceSet.has(id)));
 
           return (
-            <InlineCitationText
-              className={
-                isHighlighted ? "rounded bg-accent/80 shadow-sm" : undefined
-              }
-              key={seg.segment_index}
-            >
-              {seg.text}
-            </InlineCitationText>
+            <span className="inline-flex items-center gap-1" key={seg.segment_index}>
+              <InlineCitationText
+                className={
+                  isHighlighted ? "rounded bg-accent/80 shadow-sm" : undefined
+                }
+              >
+                {seg.text}
+              </InlineCitationText>
+              {seg.evidence_ids.length > 0 ? (
+                <span className="inline-flex items-center gap-0.5 align-baseline">
+                  <Button
+                    aria-label="Thumbs up this sentence"
+                    className={cn(
+                      "size-5 rounded-full p-0",
+                      seg.rating === "up" && "bg-emerald-500/15 text-emerald-700"
+                    )}
+                    disabled={pendingTraceId === seg.id}
+                    onClick={() => void handleFeedback(seg.id, "up")}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <ThumbsUpIcon className="size-3" />
+                  </Button>
+                  <Button
+                    aria-label="Thumbs down this sentence"
+                    className={cn(
+                      "size-5 rounded-full p-0",
+                      seg.rating === "down" && "bg-rose-500/15 text-rose-700"
+                    )}
+                    disabled={pendingTraceId === seg.id}
+                    onClick={() => void handleFeedback(seg.id, "down")}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <ThumbsDownIcon className="size-3" />
+                  </Button>
+                </span>
+              ) : null}
+            </span>
           );
         })}
         {evidenceNumbers.size > 0 && (

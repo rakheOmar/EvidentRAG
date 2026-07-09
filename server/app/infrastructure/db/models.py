@@ -235,11 +235,16 @@ class Segment(Base):
     segment_index: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     evidence_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    rating: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     answer: Mapped[Answer] = relationship(back_populates="segments")
 
     __table_args__ = (
         UniqueConstraint("answer_id", "segment_index", name="uq_segments_answer_index"),
+        CheckConstraint(
+            "rating IS NULL OR rating IN ('up', 'down')",
+            name="ck_segments_rating",
+        ),
     )
 
 
@@ -281,3 +286,58 @@ class MessageEvidenceCandidate(Base):
             name="ck_message_evidence_candidates_stage",
         ),
     )
+
+
+class ErmQueryEmbedding(Base):
+    __tablename__ = "erm_query_embeddings"
+
+    query_embedding_hash: Mapped[str] = mapped_column(Text, primary_key=True)
+    embedding: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=_now, server_default="now()"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        default=_now,
+        server_default="now()",
+        onupdate=_now,
+    )
+
+    scores: Mapped[list[ErmScore]] = relationship(
+        back_populates="query_embedding", cascade="all, delete-orphan"
+    )
+
+
+class ErmScore(Base):
+    __tablename__ = "erm_scores"
+
+    query_embedding_hash: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("erm_query_embeddings.query_embedding_hash", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    evidence_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("evidence.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    boost_score: Mapped[float] = mapped_column(
+        DOUBLE_PRECISION, nullable=False, default=0.0, server_default="0"
+    )
+    penalty_score: Mapped[float] = mapped_column(
+        DOUBLE_PRECISION, nullable=False, default=0.0, server_default="0"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=_now, server_default="now()"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        default=_now,
+        server_default="now()",
+        onupdate=_now,
+    )
+
+    query_embedding: Mapped[ErmQueryEmbedding] = relationship(back_populates="scores")
+    evidence: Mapped[Evidence] = relationship()

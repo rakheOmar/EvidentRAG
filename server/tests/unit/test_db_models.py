@@ -10,6 +10,8 @@ from app.infrastructure.db.models import (
     Base,
     Document,
     Evidence,
+    ErmQueryEmbedding,
+    ErmScore,
     Message,
     MessageEvidenceCandidate,
     Segment,
@@ -110,6 +112,9 @@ def test_segment_table_columns_match_schema() -> None:
 
     assert Segment.__tablename__ == "segments"
     assert str(cols["answer_id"].type) == "UUID"
+    assert str(cols["rating"].type) == "TEXT"
+    checks = _check_constraints(table)
+    assert any("rating" in str(constraint.sqltext) for constraint in checks)
     unique_constraints = _unique_constraints(table)
     assert any(
         tuple(column.name for column in constraint.columns)
@@ -133,6 +138,29 @@ def test_message_evidence_candidate_table_columns_match_schema() -> None:
         == ("message_id", "stage", "rank")
         for constraint in unique_constraints
     )
+
+
+def test_erm_query_embedding_table_columns_match_schema() -> None:
+    cols = {c.name: c for c in _table(ErmQueryEmbedding).c}
+
+    assert ErmQueryEmbedding.__tablename__ == "erm_query_embeddings"
+    assert str(cols["query_embedding_hash"].type) == "TEXT"
+    assert cols["query_embedding_hash"].primary_key
+    assert str(cols["embedding"].type) == "JSONB"
+    assert len(cols) == 4
+
+
+def test_erm_scores_table_columns_match_schema() -> None:
+    cols = {c.name: c for c in _table(ErmScore).c}
+
+    assert ErmScore.__tablename__ == "erm_scores"
+    assert str(cols["query_embedding_hash"].type) == "TEXT"
+    assert cols["query_embedding_hash"].primary_key
+    assert str(cols["evidence_id"].type) == "UUID"
+    assert cols["evidence_id"].primary_key
+    assert str(cols["boost_score"].type) == "DOUBLE PRECISION"
+    assert str(cols["penalty_score"].type) == "DOUBLE PRECISION"
+    assert len(cols) == 6
 
 
 def test_create_engine_uses_correct_url() -> None:
