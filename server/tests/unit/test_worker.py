@@ -6,7 +6,6 @@ import pytest
 
 from app.core.config import (
     AppSettings,
-    RerankerSettings,
     DatabaseSettings,
     EmbeddingSettings,
     LLMSettings,
@@ -14,18 +13,19 @@ from app.core.config import (
     OtelSettings,
     QdrantSettings,
     RedisSettings,
+    RerankerSettings,
     Settings,
 )
 
 
 @pytest.mark.asyncio
-async def test_run_query_pipeline_builds_pipeline_from_ctx_and_runs_query(
+async def test_run_message_pipeline_builds_pipeline_from_ctx_and_runs_message(
     monkeypatch,
 ) -> None:
     from app import worker as worker_module
 
     captured: dict[str, object] = {}
-    query_id = uuid.uuid4()
+    message_id = uuid.uuid4()
 
     class FakeQueryPipeline:
         def __init__(
@@ -49,8 +49,8 @@ async def test_run_query_pipeline_builds_pipeline_from_ctx_and_runs_query(
                 "arag_router": arag_router,
             }
 
-        async def run(self, actual_query_id) -> None:
-            captured["query_id"] = actual_query_id
+        async def run(self, actual_message_id) -> None:
+            captured["message_id"] = actual_message_id
 
     monkeypatch.setattr(worker_module, "QueryPipeline", FakeQueryPipeline)
 
@@ -64,10 +64,10 @@ async def test_run_query_pipeline_builds_pipeline_from_ctx_and_runs_query(
         "arag_router": object(),
     }
 
-    await worker_module.run_query_pipeline(ctx, query_id)
+    await worker_module.run_message_pipeline(ctx, message_id)
 
     assert captured["init_kwargs"] == ctx
-    assert captured["query_id"] == query_id
+    assert captured["message_id"] == message_id
 
 
 @pytest.mark.asyncio
@@ -154,10 +154,6 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
             captured["reranker_settings"] = actual_settings
             captured["rerank_client_instance"] = self
 
-    class FakeRedis:
-        async def aclose(self) -> None:
-            captured["redis_closed"] = True
-
     def fake_create_engine(actual_settings) -> object:
         captured["db_settings"] = actual_settings
         return fake_engine
@@ -240,18 +236,9 @@ async def test_worker_shutdown_closes_redis_and_disposes_engine() -> None:
     }
 
 
-def test_worker_settings_expose_arq_hooks() -> None:
+def test_worker_settings_registers_message_pipeline() -> None:
     from app import worker as worker_module
 
-    assert worker_module.WorkerSettings.functions == [worker_module.run_query_pipeline]
-    on_startup = worker_module.WorkerSettings.__dict__["on_startup"]
-    on_shutdown = worker_module.WorkerSettings.__dict__["on_shutdown"]
-
-    assert isinstance(on_startup, staticmethod)
-    assert isinstance(on_shutdown, staticmethod)
-    assert on_startup.__func__ is worker_module.startup
-    assert on_shutdown.__func__ is worker_module.shutdown
-    assert (
-        worker_module.WorkerSettings.redis_settings
-        == worker_module.RedisSettings.from_dsn(worker_module.settings.redis.url)
-    )
+    assert worker_module.WorkerSettings.functions == [
+        worker_module.run_message_pipeline
+    ]

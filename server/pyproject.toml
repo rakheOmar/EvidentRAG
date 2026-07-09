@@ -20,6 +20,9 @@ dependencies = [
     "docling>=2.107.0",
 ]
 
+[project.scripts]
+seed-demo-data = "app.seed.seed_demo_data:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.4.0",

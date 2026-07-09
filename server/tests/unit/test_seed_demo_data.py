@@ -4,11 +4,17 @@ import json
 import uuid
 from pathlib import Path
 from typing import Any
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
-from app.seed.seed_demo_data import seed_demo_data
+from app.seed.seed_demo_data import (
+    EXPECTED_THREAD_SCHEMA_TABLES,
+    _validate_seed_schema,
+    run_seed_demo_data,
+    seed_demo_data,
+)
 
 
 class _FakeResult:
@@ -84,9 +90,13 @@ class _FakeBeginContext:
 class _FakeEngine:
     def __init__(self) -> None:
         self.connection = _FakeConnection()
+        self.disposed = False
 
     def begin(self) -> _FakeBeginContext:
         return _FakeBeginContext(self.connection)
+
+    async def dispose(self) -> None:
+        self.disposed = True
 
 
 class _FakeEmbeddingClient:
@@ -128,12 +138,32 @@ class _FakeQdrantStore:
     def __init__(self) -> None:
         self.points: list[Any] | None = None
         self.reset_called = False
+        self.closed = False
 
     async def reset_collection(self) -> None:
         self.reset_called = True
 
     async def upsert_points(self, points) -> None:
         self.points = points
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+def test_validate_seed_schema_matches_thread_message_model() -> None:
+    _validate_seed_schema()
+
+
+def test_validate_seed_schema_tracks_expected_thread_message_tables() -> None:
+    assert EXPECTED_THREAD_SCHEMA_TABLES == {
+        "documents",
+        "evidence",
+        "threads",
+        "messages",
+        "answers",
+        "segments",
+        "message_evidence_candidates",
+    }
 
 
 @pytest.mark.asyncio
@@ -520,3 +550,75 @@ async def test_seed_demo_data_skips_bad_evidence_chunk_on_400(
     ]
     assert qdrant_store.points is not None
     assert len(qdrant_store.points) == 2
+
+
+@pytest.mark.asyncio
+async def test_run_seed_demo_data_uses_runtime_dependencies(
+    monkeypatch, tmp_path: Path
+) -> None:
+    seed_dir = tmp_path / "demo-corpus"
+    fake_engine = _FakeEngine()
+    fake_session_factory = object()
+    fake_qdrant_store = _FakeQdrantStore()
+    fake_embedding_client = object()
+    captured: dict[str, Any] = {}
+    settings = SimpleNamespace(
+        db=object(),
+        qdrant=object(),
+        embeddings=object(),
+    )
+
+    monkeypatch.setattr("app.seed.seed_demo_data.load_dotenv", lambda: None)
+    monkeypatch.setattr("app.seed.seed_demo_data.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.seed.seed_demo_data.configure_logging",
+        lambda actual_settings: captured.setdefault("logged_settings", actual_settings),
+    )
+
+    def fake_create_engine(db_settings):
+        captured["db_settings"] = db_settings
+        return fake_engine
+
+    def fake_create_session_factory(engine):
+        captured["engine"] = engine
+        return fake_session_factory
+
+    def fake_qdrant_factory(qdrant_settings):
+        captured["qdrant_settings"] = qdrant_settings
+        return fake_qdrant_store
+
+    def fake_embedding_factory(embedding_settings):
+        captured["embedding_settings"] = embedding_settings
+        return fake_embedding_client
+
+    monkeypatch.setattr("app.seed.seed_demo_data.create_engine", fake_create_engine)
+    monkeypatch.setattr(
+        "app.seed.seed_demo_data.create_session_factory", fake_create_session_factory
+    )
+    monkeypatch.setattr("app.seed.seed_demo_data.QdrantStore", fake_qdrant_factory)
+    monkeypatch.setattr(
+        "app.seed.seed_demo_data.EmbeddingClient", fake_embedding_factory
+    )
+
+    async def fake_seed_demo_data(**kwargs):
+        captured["seed_kwargs"] = kwargs
+        return 4
+
+    monkeypatch.setattr("app.seed.seed_demo_data.seed_demo_data", fake_seed_demo_data)
+
+    seeded_count = await run_seed_demo_data(seed_dir=seed_dir)
+
+    assert seeded_count == 4
+    assert captured["logged_settings"] is settings
+    assert captured["db_settings"] is settings.db
+    assert captured["engine"] is fake_engine
+    assert captured["qdrant_settings"] is settings.qdrant
+    assert captured["embedding_settings"] is settings.embeddings
+    assert captured["seed_kwargs"] == {
+        "session_factory": fake_session_factory,
+        "qdrant_store": fake_qdrant_store,
+        "embedding_client": fake_embedding_client,
+        "seed_dir": seed_dir,
+    }
+    assert fake_qdrant_store.closed is True
+    assert fake_engine.disposed is True

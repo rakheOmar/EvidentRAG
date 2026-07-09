@@ -9,9 +9,13 @@ from pathlib import Path
 from time import perf_counter
 
 import httpx
+from dotenv import load_dotenv
 from qdrant_client.http.models import PointStruct
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core.config import get_settings
+from app.core.logging import configure_logging
+from app.infrastructure.db.session import create_engine, create_session_factory
 from app.infrastructure.db.models import Base, Document, Evidence
 from app.infrastructure.embeddings.embedding import EmbeddingClient
 from app.infrastructure.qdrant.client import QdrantStore
@@ -19,6 +23,18 @@ from app.infrastructure.qdrant.client import QdrantStore
 
 DEFAULT_SEED_DIR = Path(__file__).with_name("demo-corpus")
 EMBEDDING_BATCH_SIZE = 16
+EXPECTED_THREAD_SCHEMA_TABLES = frozenset(
+    {
+        "documents",
+        "evidence",
+        "threads",
+        "messages",
+        "answers",
+        "segments",
+        "message_evidence_candidates",
+    }
+)
+LEGACY_QUERY_SCHEMA_TABLES = frozenset({"queries", "query_evidence_candidates"})
 logger = logging.getLogger(__name__)
 
 
@@ -90,9 +106,31 @@ async def _recreate_schema(session_factory: async_sessionmaker) -> None:
     if bind is None:
         return
 
+    _validate_seed_schema()
+
     async with bind.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+
+
+def _validate_seed_schema() -> None:
+    metadata_tables = set(Base.metadata.tables)
+    missing_tables = EXPECTED_THREAD_SCHEMA_TABLES - metadata_tables
+    legacy_tables = LEGACY_QUERY_SCHEMA_TABLES & metadata_tables
+
+    if missing_tables or legacy_tables:
+        details: list[str] = []
+        if missing_tables:
+            details.append(
+                "missing expected thread/message tables: "
+                + ", ".join(sorted(missing_tables))
+            )
+        if legacy_tables:
+            details.append(
+                "found legacy query-centric tables in metadata: "
+                + ", ".join(sorted(legacy_tables))
+            )
+        raise RuntimeError("Seed schema is out of date: " + "; ".join(details))
 
 
 async def seed_demo_data(
@@ -218,3 +256,33 @@ async def seed_demo_data(
     finally:
         wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
         logger.info("seed_demo_data", extra={"wide_event": wide_event})
+
+
+async def run_seed_demo_data(seed_dir: Path = DEFAULT_SEED_DIR) -> int:
+    load_dotenv()
+    settings = get_settings()
+    configure_logging(settings)
+
+    engine = create_engine(settings.db)
+    session_factory = create_session_factory(engine)
+    qdrant_store = QdrantStore(settings.qdrant)
+    embedding_client = EmbeddingClient(settings.embeddings)
+
+    try:
+        return await seed_demo_data(
+            session_factory=session_factory,
+            qdrant_store=qdrant_store,
+            embedding_client=embedding_client,
+            seed_dir=seed_dir,
+        )
+    finally:
+        await qdrant_store.close()
+        await engine.dispose()
+
+
+def main() -> None:
+    asyncio.run(run_seed_demo_data())
+
+
+if __name__ == "__main__":
+    main()

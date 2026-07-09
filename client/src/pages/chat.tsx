@@ -26,15 +26,16 @@ import { cn } from "@/lib/utils";
 const ChatLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [panelDismissed, setPanelDismissed] = useState(true);
-  const { clearEvidence, selectedEvidenceIds } = useEvidencePanel();
+  const { clearEvidence, selectedEvidenceIds, selectedMessageId } =
+    useEvidencePanel();
   const threadId = useAuiState((s) => s.threads.mainThreadId ?? null);
 
   const evidence = useMemo(() => {
-    if (!threadId) {
+    if (!(threadId && selectedMessageId)) {
       return null;
     }
-    return getMessageEvidence(`${threadId}-assistant`);
-  }, [threadId]);
+    return getMessageEvidence(selectedMessageId);
+  }, [selectedMessageId, threadId]);
 
   const showPanel = evidence !== null && evidence.length > 0 && !panelDismissed;
 

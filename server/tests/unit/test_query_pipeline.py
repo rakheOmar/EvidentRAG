@@ -3,36 +3,44 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
-from collections.abc import Mapping
-from types import SimpleNamespace
 from typing import cast
 
 import pytest
 
-from app.infrastructure.db.models import Query
-from app.infrastructure.reranker.reranker import RerankResult
+from app.infrastructure.db.models import Message, Thread
 
 
 class _FakeSession:
     def __init__(
-        self,
-        query: Query,
-        evidence_by_id: Mapping[uuid.UUID, object] | None = None,
+        self, thread: Thread, user_message: Message, assistant_message: Message
     ) -> None:
-        self._query = query
-        self._evidence_by_id = dict(evidence_by_id or {})
+        self.thread = thread
+        self.user_message = user_message
+        self.assistant_message = assistant_message
         self.committed_statuses: list[str] = []
         self.added_objects: list[object] = []
+        self.execute_values: list[Message] = [self.user_message]
 
-    async def get(self, model, query_id):
-        if model is Query and query_id == self._query.id:
-            return self._query
-        if query_id in self._evidence_by_id:
-            return self._evidence_by_id[query_id]
+    async def scalar(self, statement):
+        text = str(statement)
+        if "FROM messages" in text and "messages.id" in text:
+            return self.assistant_message
+        if "FROM answers" in text:
+            return None
         return None
 
+    async def get(self, model, object_id):
+        if model is Message and object_id == self.user_message.id:
+            return self.user_message
+        if model is Thread and object_id == self.thread.id:
+            return self.thread
+        return None
+
+    async def execute(self, statement):
+        return _FakeExecuteResult(self.execute_values)
+
     async def commit(self) -> None:
-        self.committed_statuses.append(self._query.status)
+        self.committed_statuses.append(self.assistant_message.status)
 
     def add(self, obj: object) -> None:
         self.added_objects.append(obj)
@@ -65,59 +73,56 @@ class _FakeRedis:
         self.published.append((channel, message))
 
 
-class _FakeEmbeddingClient:
-    def __init__(self, vectors: list[list[float]]) -> None:
-        self._vectors = vectors
-        self.calls: list[list[str]] = []
+def _make_thread_messages() -> tuple[Thread, Message, Message]:
+    thread = Thread(title="What is BERT", summary="")
+    thread.id = uuid.uuid4()
+    thread.created_at = datetime.now(timezone.utc)
+    thread.updated_at = thread.created_at
 
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        self.calls.append(texts)
-        return self._vectors
+    user_message = Message(
+        thread_id=thread.id,
+        position=0,
+        role="user",
+        content_text="What is BERT?",
+        status="completed",
+        sub_queries=[],
+    )
+    user_message.id = uuid.uuid4()
+    user_message.created_at = thread.created_at
+    user_message.updated_at = thread.updated_at
 
-
-class _FakeQdrantStore:
-    def __init__(self, response) -> None:
-        self._response = response
-        self.calls: list[dict[str, object]] = []
-
-    async def hybrid_search(self, **kwargs):
-        self.calls.append(kwargs)
-        return self._response
-
-
-class _FakeRerankClient:
-    def __init__(self, results: list[RerankResult]) -> None:
-        self._results = results
-        self.calls: list[dict[str, object]] = []
-
-    async def rerank(
-        self, query: str, documents: list[str], top_n: int = 5
-    ) -> list[RerankResult]:
-        self.calls.append({"query": query, "documents": documents, "top_n": top_n})
-        return self._results
-
-
-class _FakeLLMClient:
-    def __init__(self, chunks: list[str]) -> None:
-        self._chunks = chunks
-        self.calls: list[dict[str, object]] = []
-
-    async def generate(self, messages: list[dict[str, str]], model=None) -> str:
-        self.calls.append({"messages": messages, "model": model, "mode": "generate"})
-        return "".join(self._chunks)
-
-    async def generate_stream(self, messages: list[dict[str, str]], model=None):
-        self.calls.append({"messages": messages, "model": model, "mode": "stream"})
-        for chunk in self._chunks:
-            yield chunk
+    assistant_message = Message(
+        thread_id=thread.id,
+        reply_to_message_id=user_message.id,
+        position=1,
+        role="assistant",
+        content_text="",
+        status="pending",
+        sub_queries=[],
+    )
+    assistant_message.id = uuid.uuid4()
+    assistant_message.created_at = thread.created_at
+    assistant_message.updated_at = thread.updated_at
+    return thread, user_message, assistant_message
 
 
-def _make_query() -> Query:
-    query = Query(query_text="What does EvidentRAG say about citations?")
-    query.id = uuid.uuid4()
-    query.created_at = datetime.now(timezone.utc)
-    query.updated_at = query.created_at
-    return query
+class _FakeConversationRouter:
+    async def classify(self, query_text: str):
+        class _Result:
+            route = "conversation"
+            sub_queries: list[str] = []
+
+        return _Result()
+
+
+class _FakeStreamingLLM:
+    def __init__(self, stream_response: str) -> None:
+        self.stream_response = stream_response
+        self.stream_calls: list[list[dict[str, str]]] = []
+
+    async def generate_stream(self, messages):
+        self.stream_calls.append(messages)
+        yield self.stream_response
 
 
 def _read_event(redis: _FakeRedis, index: int) -> dict[str, object]:
@@ -128,6 +133,7 @@ def test_query_pipeline_prompts_require_fluent_punctuated_segments() -> None:
     from app.application.query_pipeline.query_pipeline import (
         AGGREGATION_SYSTEM_PROMPT,
         COMPARISON_SYSTEM_PROMPT,
+        CONVERSATION_SYSTEM_PROMPT,
         MULTI_HOP_SYSTEM_PROMPT,
         SIMPLE_SYSTEM_PROMPT,
     )
@@ -139,6 +145,7 @@ def test_query_pipeline_prompts_require_fluent_punctuated_segments() -> None:
         MULTI_HOP_SYSTEM_PROMPT,
         COMPARISON_SYSTEM_PROMPT,
         AGGREGATION_SYSTEM_PROMPT,
+        CONVERSATION_SYSTEM_PROMPT,
     ):
         assert "proper capitalization and punctuation" in prompt
         assert expected_instruction in prompt
@@ -150,8 +157,8 @@ async def test_query_pipeline_run_marks_running_then_completed_and_publishes_eve
 ):
     from app.application.query_pipeline.query_pipeline import QueryPipeline
 
-    query = _make_query()
-    session = _FakeSession(query)
+    thread, user_message, assistant_message = _make_thread_messages()
+    session = _FakeSession(thread, user_message, assistant_message)
     redis = _FakeRedis()
 
     pipeline = QueryPipeline(
@@ -159,13 +166,13 @@ async def test_query_pipeline_run_marks_running_then_completed_and_publishes_eve
         redis=redis,
     )
 
-    await pipeline.run(query.id)
+    await pipeline.run(assistant_message.id)
 
     assert session.committed_statuses == ["running", "running", "completed"]
-    assert query.status == "completed"
-    assert query.completed_at is not None
+    assert assistant_message.status == "completed"
+    assert assistant_message.completed_at is not None
 
-    channel = f"query:{query.id}:events"
+    channel = f"message:{assistant_message.id}:events"
     assert [published_channel for published_channel, _ in redis.published] == [
         channel,
         channel,
@@ -178,507 +185,98 @@ async def test_query_pipeline_run_marks_running_then_completed_and_publishes_eve
 
     second = _read_event(redis, 1)
     assert second["event"] == "content_parts"
-    data = cast(dict[str, object], second["data"])
-    assert data["parts"] == [
-        {"type": "reasoning", "text": "Routing Query via Simple Route..."}
-    ]
 
     third = _read_event(redis, 2)
     assert third["event"] == "done"
     assert third["data"] == {
-        "query_id": str(query.id),
+        "thread_id": str(thread.id),
+        "message_id": str(assistant_message.id),
         "content_parts": [],
         "error": False,
     }
 
 
 @pytest.mark.asyncio
-async def test_query_pipeline_run_embeds_retrieves_and_stages_candidate_traces() -> (
-    None
-):
+async def test_query_pipeline_answers_conversation_route_from_thread_memory() -> None:
     from app.application.query_pipeline.query_pipeline import QueryPipeline
-    from app.infrastructure.db.models import QueryEvidenceCandidate
 
-    dense_id = uuid.uuid4()
-    sparse_id = uuid.uuid4()
-    fused_id = uuid.uuid4()
+    thread = Thread(title="What is BERT", summary="Earlier the user asked about BERT.")
+    thread.id = uuid.uuid4()
+    thread.created_at = datetime.now(timezone.utc)
+    thread.updated_at = thread.created_at
 
-    class _Point:
-        def __init__(self, evidence_id: uuid.UUID, score: float) -> None:
-            self.payload = {"evidence_id": str(evidence_id)}
-            self.score = score
+    prior_user = Message(
+        thread_id=thread.id,
+        position=0,
+        role="user",
+        content_text="What is BERT?",
+        status="completed",
+        sub_queries=[],
+    )
+    prior_user.id = uuid.uuid4()
+    prior_user.created_at = thread.created_at
+    prior_user.updated_at = thread.updated_at
 
-    query = _make_query()
-    session = _FakeSession(query)
+    user_message = Message(
+        thread_id=thread.id,
+        position=2,
+        role="user",
+        content_text="What was my last question?",
+        status="completed",
+        sub_queries=[],
+    )
+    user_message.id = uuid.uuid4()
+    user_message.created_at = thread.created_at
+    user_message.updated_at = thread.updated_at
+
+    assistant_message = Message(
+        thread_id=thread.id,
+        reply_to_message_id=user_message.id,
+        position=3,
+        role="assistant",
+        content_text="",
+        status="pending",
+        sub_queries=[],
+    )
+    assistant_message.id = uuid.uuid4()
+    assistant_message.created_at = thread.created_at
+    assistant_message.updated_at = thread.updated_at
+
+    session = _FakeSession(thread, user_message, assistant_message)
+    session.execute_values = [prior_user, user_message]
     redis = _FakeRedis()
-    embedding_client = _FakeEmbeddingClient([[0.1, 0.2]])
-    qdrant_store = _FakeQdrantStore(
-        {
-            "dense": [_Point(dense_id, 0.91)],
-            "sparse": [_Point(sparse_id, 0.73)],
-            "fused": [_Point(fused_id, 0.88)],
-        }
+    llm = _FakeStreamingLLM(
+        '[{"text":"Your last question was \\"What is BERT?\\".","evidence_ids":[]}]'
     )
 
     pipeline = QueryPipeline(
         session_factory=_FakeSessionFactory(session),
         redis=redis,
-        embedding_client=embedding_client,
-        qdrant_store=qdrant_store,
+        llm_client=llm,
+        arag_router=_FakeConversationRouter(),
     )
 
-    await pipeline.run(query.id)
+    await pipeline.run(assistant_message.id)
 
-    assert embedding_client.calls == [[query.query_text]]
-    assert qdrant_store.calls == [
-        {
-            "query_text": query.query_text,
-            "dense_vector": [0.1, 0.2],
-            "dense_limit": 20,
-            "sparse_limit": 20,
-            "fused_limit": 20,
-        }
-    ]
+    route_event = _read_event(redis, 0)
+    assert route_event["data"] == {"route": "conversation", "sub_queries": []}
 
-    candidates = [
-        obj for obj in session.added_objects if isinstance(obj, QueryEvidenceCandidate)
-    ]
-    assert [
-        (candidate.stage, candidate.evidence_id, candidate.rank, candidate.score)
-        for candidate in candidates
-    ] == [
-        ("dense", dense_id, 0, 0.91),
-        ("sparse", sparse_id, 0, 0.73),
-        ("fused", fused_id, 0, 0.88),
-    ]
-
-    events = [json.loads(message) for _, message in redis.published]
-    assert events == [
-        {
-            "event": "route_selected",
-            "data": {"route": "simple", "sub_queries": []},
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {"type": "reasoning", "text": "Routing Query via Simple Route..."}
-                ]
-            },
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {"type": "reasoning", "text": "Retrieving Evidence from Qdrant..."}
-                ]
-            },
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {
-                        "type": "reasoning",
-                        "text": "Fusing dense + sparse candidates via RRF...",
-                    }
-                ]
-            },
-        },
-        {
-            "event": "done",
-            "data": {
-                "query_id": str(query.id),
-                "content_parts": [],
-                "error": False,
-            },
-        },
-    ]
-
-
-@pytest.mark.asyncio
-async def test_query_pipeline_run_reranks_fused_hits_and_stages_selected_candidates() -> (
-    None
-):
-    from app.application.query_pipeline.query_pipeline import QueryPipeline
-    from app.infrastructure.db.models import QueryEvidenceCandidate
-
-    first_id = uuid.uuid4()
-    second_id = uuid.uuid4()
-
-    class _Point:
-        def __init__(self, evidence_id: uuid.UUID, score: float) -> None:
-            self.payload = {"evidence_id": str(evidence_id)}
-            self.score = score
-
-    query = _make_query()
-    evidence_by_id = {
-        first_id: SimpleNamespace(content="first evidence chunk"),
-        second_id: SimpleNamespace(content="second evidence chunk"),
-    }
-    session = _FakeSession(query, evidence_by_id=evidence_by_id)
-    redis = _FakeRedis()
-    embedding_client = _FakeEmbeddingClient([[0.1, 0.2]])
-    qdrant_store = _FakeQdrantStore(
-        {
-            "dense": [],
-            "sparse": [],
-            "fused": [_Point(first_id, 0.61), _Point(second_id, 0.58)],
-        }
-    )
-    rerank_client = _FakeRerankClient(
-        [
-            RerankResult(index=1, relevance_score=0.95),
-            RerankResult(index=0, relevance_score=0.72),
-        ]
+    done_event = _read_event(redis, -1)
+    done_data = cast(dict[str, object], done_event["data"])
+    assert done_event["event"] == "done"
+    assert done_data["error"] is False
+    assert done_data["full_text"] == 'Your last question was "What is BERT?".'
+    assert llm.stream_calls[0][0]["content"].startswith(
+        "Answer the user's question using ONLY the provided conversation history"
     )
 
-    pipeline = QueryPipeline(
-        session_factory=_FakeSessionFactory(session),
-        redis=redis,
-        embedding_client=embedding_client,
-        qdrant_store=qdrant_store,
-        rerank_client=rerank_client,
-    )
 
-    await pipeline.run(query.id)
+class _FakeExecuteResult:
+    def __init__(self, values):
+        self._values = values
 
-    assert rerank_client.calls == [
-        {
-            "query": query.query_text,
-            "documents": ["first evidence chunk", "second evidence chunk"],
-            "top_n": 5,
-        }
-    ]
+    def scalars(self):
+        return self
 
-    candidates = [
-        obj for obj in session.added_objects if isinstance(obj, QueryEvidenceCandidate)
-    ]
-    reranked = [candidate for candidate in candidates if candidate.stage == "reranked"]
-    selected = [candidate for candidate in candidates if candidate.stage == "selected"]
-
-    assert [
-        (candidate.evidence_id, candidate.rank, candidate.score)
-        for candidate in reranked
-    ] == [
-        (second_id, 0, 0.95),
-        (first_id, 1, 0.72),
-    ]
-    assert [
-        (candidate.evidence_id, candidate.rank, candidate.score)
-        for candidate in selected
-    ] == [
-        (second_id, 0, 0.95),
-        (first_id, 1, 0.72),
-    ]
-
-    events = [json.loads(message) for _, message in redis.published]
-    assert events == [
-        {
-            "event": "route_selected",
-            "data": {"route": "simple", "sub_queries": []},
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {"type": "reasoning", "text": "Routing Query via Simple Route..."}
-                ]
-            },
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {"type": "reasoning", "text": "Retrieving Evidence from Qdrant..."}
-                ]
-            },
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {
-                        "type": "reasoning",
-                        "text": "Fusing dense + sparse candidates via RRF...",
-                    }
-                ]
-            },
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {
-                        "type": "reasoning",
-                        "text": "Reranking top-20 candidates via Cohere...",
-                    }
-                ]
-            },
-        },
-        {
-            "event": "done",
-            "data": {
-                "query_id": str(query.id),
-                "content_parts": [],
-                "error": False,
-            },
-        },
-    ]
-
-
-@pytest.mark.asyncio
-async def test_query_pipeline_run_marks_failed_and_publishes_done_with_error_flag() -> (
-    None
-):
-    from app.application.query_pipeline.query_pipeline import QueryPipeline
-
-    query = _make_query()
-    session = _FakeSession(query)
-    redis = _FakeRedis()
-
-    pipeline = QueryPipeline(
-        session_factory=_FakeSessionFactory(session),
-        redis=redis,
-    )
-
-    async def fail_after_route_selected(
-        session, query: Query, wide_event=None, reasoning_trace=None
-    ) -> None:
-        raise RuntimeError("generation failed")
-
-    pipeline._run_simple_route = fail_after_route_selected  # type: ignore[attr-defined]
-
-    with pytest.raises(RuntimeError, match="generation failed"):
-        await pipeline.run(query.id)
-
-    assert session.committed_statuses == ["running", "running", "failed"]
-    assert query.status == "failed"
-    assert query.error_message == "generation failed"
-
-    channel = f"query:{query.id}:events"
-    assert [published_channel for published_channel, _ in redis.published] == [
-        channel,
-        channel,
-    ]
-
-    first = _read_event(redis, 0)
-    assert first["event"] == "route_selected"
-    assert first["data"] == {"route": "simple", "sub_queries": []}
-
-    second = _read_event(redis, 1)
-    assert second["event"] == "done"
-    assert second["data"] == {
-        "query_id": str(query.id),
-        "content_parts": [],
-        "error": True,
-        "error_message": "generation failed",
-    }
-
-
-@pytest.mark.asyncio
-async def test_query_pipeline_run_generates_content_parts_and_persists_answer_graph() -> (
-    None
-):
-    from app.application.query_pipeline.query_pipeline import QueryPipeline
-    from app.infrastructure.db.models import (
-        Answer,
-        Segment,
-    )
-
-    first_id = uuid.uuid4()
-    second_id = uuid.uuid4()
-
-    class _Point:
-        def __init__(self, evidence_id: uuid.UUID, score: float) -> None:
-            self.payload = {"evidence_id": str(evidence_id)}
-            self.score = score
-
-    query = _make_query()
-    evidence_by_id = {
-        first_id: SimpleNamespace(content="first evidence chunk"),
-        second_id: SimpleNamespace(content="second evidence chunk"),
-    }
-    session = _FakeSession(query, evidence_by_id=evidence_by_id)
-    redis = _FakeRedis()
-    embedding_client = _FakeEmbeddingClient([[0.1, 0.2]])
-    qdrant_store = _FakeQdrantStore(
-        {
-            "dense": [],
-            "sparse": [],
-            "fused": [_Point(first_id, 0.61), _Point(second_id, 0.58)],
-        }
-    )
-    rerank_client = _FakeRerankClient(
-        [
-            RerankResult(index=1, relevance_score=0.95),
-            RerankResult(index=0, relevance_score=0.72),
-        ]
-    )
-    llm_client = _FakeLLMClient(
-        [
-            '[{"text":"First sentence.","evidence_ids":["',
-            '{sid}"]}},{{"text":"Second sentence.","evidence_ids":["{fid}","{sid}"]}}]'.format(
-                sid=second_id,
-                fid=first_id,
-            ),
-        ]
-    )
-
-    pipeline = QueryPipeline(
-        session_factory=_FakeSessionFactory(session),
-        redis=redis,
-        embedding_client=embedding_client,
-        qdrant_store=qdrant_store,
-        rerank_client=rerank_client,
-        llm_client=llm_client,
-    )
-
-    await pipeline.run(query.id)
-
-    assert len(llm_client.calls) == 1
-    assert llm_client.calls[0]["mode"] == "stream"
-
-    answers = [obj for obj in session.added_objects if isinstance(obj, Answer)]
-    segments = [obj for obj in session.added_objects if isinstance(obj, Segment)]
-
-    assert len(answers) == 1
-    assert answers[0].query_id == query.id
-    assert answers[0].full_text == "First sentence. Second sentence."
-
-    assert [(seg.segment_index, seg.text) for seg in segments] == [
-        (0, "First sentence."),
-        (1, "Second sentence."),
-    ]
-    assert [seg.evidence_ids for seg in segments] == [
-        [str(second_id)],
-        [str(first_id), str(second_id)],
-    ]
-
-    events = [json.loads(message) for _, message in redis.published]
-    assert events == [
-        {
-            "event": "route_selected",
-            "data": {"route": "simple", "sub_queries": []},
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {"type": "reasoning", "text": "Routing Query via Simple Route..."}
-                ]
-            },
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {"type": "reasoning", "text": "Retrieving Evidence from Qdrant..."}
-                ]
-            },
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {
-                        "type": "reasoning",
-                        "text": "Fusing dense + sparse candidates via RRF...",
-                    }
-                ]
-            },
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {
-                        "type": "reasoning",
-                        "text": "Reranking top-20 candidates via Cohere...",
-                    }
-                ]
-            },
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {"type": "reasoning", "text": "Generating Answer..."},
-                    {"type": "text", "text": "First sentence."},
-                ]
-            },
-        },
-        {
-            "event": "content_parts",
-            "data": {
-                "parts": [
-                    {"type": "reasoning", "text": "Generating Answer..."},
-                    {
-                        "type": "text",
-                        "text": "First sentence. Second sentence.",
-                    },
-                ]
-            },
-        },
-        {
-            "event": "done",
-            "data": {
-                "query_id": str(query.id),
-                "content_parts": [
-                    {"type": "text", "text": "First sentence. Second sentence."},
-                    {
-                        "type": "source",
-                        "sourceType": "document",
-                        "id": str(second_id),
-                        "title": f"Evidence {str(second_id)[:8]}...",
-                        "mediaType": "text/plain",
-                        "providerMetadata": {
-                            "evidentrag": {
-                                "id": str(second_id),
-                                "content": "second evidence chunk",
-                            }
-                        },
-                    },
-                    {
-                        "type": "source",
-                        "sourceType": "document",
-                        "id": str(first_id),
-                        "title": f"Evidence {str(first_id)[:8]}...",
-                        "mediaType": "text/plain",
-                        "providerMetadata": {
-                            "evidentrag": {
-                                "id": str(first_id),
-                                "content": "first evidence chunk",
-                            }
-                        },
-                    },
-                ],
-                "segments": [
-                    {
-                        "segment_index": 0,
-                        "text": "First sentence.",
-                        "evidence_ids": [str(second_id)],
-                    },
-                    {
-                        "segment_index": 1,
-                        "text": "Second sentence.",
-                        "evidence_ids": [str(first_id), str(second_id)],
-                    },
-                ],
-                "reasoning_trace": [
-                    {"type": "step", "text": "Routing Query via Simple Route..."},
-                    {"type": "step", "text": "Retrieving Evidence from Qdrant..."},
-                    {
-                        "type": "step",
-                        "text": "Fusing dense + sparse candidates via RRF...",
-                    },
-                    {
-                        "type": "step",
-                        "text": "Reranking top-20 candidates via Cohere...",
-                    },
-                    {"type": "step", "text": "Generating Answer..."},
-                ],
-                "error": False,
-            },
-        },
-    ]
+    def __iter__(self):
+        return iter(self._values)

@@ -1,18 +1,19 @@
 import type { ThreadAssistantMessagePart } from "@assistant-ui/react";
 
-export type QueryStatus = "pending" | "running" | "completed" | "failed";
+export type MessageStatus = "pending" | "running" | "completed" | "failed";
 
-export type QueryRoute = "simple" | "multi_hop" | "comparison" | "aggregation";
+export type QueryRoute =
+  | "simple"
+  | "multi_hop"
+  | "comparison"
+  | "aggregation"
+  | "conversation";
 
-export interface QuerySummary {
-  completed_at: string | null;
+export interface ThreadSummary {
   created_at: string;
-  error_message: string | null;
   id: string;
-  query_text: string;
-  selected_route: QueryRoute | null;
-  status: QueryStatus;
-  sub_queries?: string[];
+  summary: string;
+  title: string;
   updated_at: string;
 }
 
@@ -62,12 +63,40 @@ export type ReasoningTraceEntry =
   | ReasoningTraceRetrieval;
 
 export interface AnswerDetail {
+  content_parts?: ThreadAssistantMessagePart[];
   evidence: Evidence[];
   full_text: string;
   id: string;
-  query_id: string;
+  message_id: string;
   reasoning_trace?: ReasoningTraceEntry[];
   segments: Segment[];
+}
+
+export interface ThreadMessage {
+  answer?: AnswerDetail | null;
+  completed_at: string | null;
+  content_text: string;
+  created_at: string;
+  error_message: string | null;
+  id: string;
+  position: number;
+  reply_to_message_id: string | null;
+  role: "assistant" | "user";
+  selected_route: QueryRoute | null;
+  status: MessageStatus;
+  sub_queries: string[];
+  thread_id: string;
+  updated_at: string;
+}
+
+export interface ThreadDetail extends ThreadSummary {
+  messages: ThreadMessage[];
+}
+
+export interface ThreadTurnResponse {
+  assistant_message: ThreadMessage;
+  thread: ThreadSummary;
+  user_message: ThreadMessage;
 }
 
 export interface RouteSelectedEvent {
@@ -81,49 +110,20 @@ export interface HopProgressEvent {
   sub_query: string;
 }
 
-export interface RetrievingEvent {
-  status: "retrieving";
-}
-
-export interface GeneratingEvent {
-  sentence: string;
-}
-
 export interface PendingAnswerResponse {
   status: string;
 }
 
-export type QueryAnswerResponse = AnswerDetail | PendingAnswerResponse;
-
-export function isAnswerDetail(value: unknown): value is AnswerDetail {
-  if (value === null || value === undefined || typeof value !== "object") {
-    return false;
-  }
-  const obj = value as Record<string, unknown>;
-  return (
-    typeof obj.full_text === "string" &&
-    Array.isArray(obj.evidence) &&
-    Array.isArray(obj.segments)
-  );
-}
-
-export interface DoneEvent extends AnswerDetail {}
-
-export interface ErrorEvent {
-  message: string;
+export interface DoneEventWithContentParts extends AnswerDetail {
+  content_parts: ThreadAssistantMessagePart[];
+  error: boolean;
+  error_message?: string;
+  message_id: string;
+  thread_id: string;
 }
 
 export interface ContentPartsEvent {
   parts: ThreadAssistantMessagePart[];
-}
-
-export interface DoneEventWithContentParts {
-  content_parts: ThreadAssistantMessagePart[];
-  error: boolean;
-  error_message?: string;
-  query_id: string;
-  reasoning_trace?: ReasoningTraceEntry[];
-  segments?: Segment[];
 }
 
 export interface EvidentChatMessage {
@@ -132,10 +132,11 @@ export interface EvidentChatMessage {
   generating?: boolean;
   hopProgress?: HopProgressEvent[];
   id: string;
-  queryId?: string | null;
+  messageId?: string | null;
   reasoningTrace?: ReasoningTraceEntry[];
   role: "assistant" | "user";
   route?: QueryRoute;
   status: "running" | "complete" | "error";
   subQueries?: string[];
+  threadId?: string | null;
 }

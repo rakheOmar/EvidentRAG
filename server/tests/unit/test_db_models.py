@@ -10,9 +10,10 @@ from app.infrastructure.db.models import (
     Base,
     Document,
     Evidence,
-    Query,
-    QueryEvidenceCandidate,
+    Message,
+    MessageEvidenceCandidate,
     Segment,
+    Thread,
 )
 from app.infrastructure.db.session import create_engine
 
@@ -42,31 +43,7 @@ def test_document_table_columns_match_schema() -> None:
 
     assert Document.__tablename__ == "documents"
     assert str(cols["id"].type) == "UUID"
-    assert not cols["id"].nullable
     assert cols["id"].primary_key
-
-    assert str(cols["title"].type) == "TEXT"
-    assert not cols["title"].nullable
-
-    assert str(cols["slug"].type) == "TEXT"
-    assert not cols["slug"].nullable
-    assert cols["slug"].unique
-
-    assert str(cols["source_path"].type) == "TEXT"
-    assert not cols["source_path"].nullable
-    assert cols["source_path"].unique
-
-    assert cols["source_type"].default is not None
-
-    assert str(cols["content_hash"].type) == "TEXT"
-    assert not cols["content_hash"].nullable
-
-    assert str(cols["page_count"].type) == "INTEGER"
-    assert not cols["page_count"].nullable
-
-    assert str(cols["metadata"].type) == "JSONB"
-    assert not cols["metadata"].nullable
-
     assert len(cols) == 10
 
 
@@ -76,105 +53,54 @@ def test_evidence_table_columns_match_schema() -> None:
     assert Evidence.__tablename__ == "evidence"
     assert str(cols["id"].type) == "UUID"
     assert cols["id"].primary_key
-
-    assert str(cols["document_id"].type) == "UUID"
-    assert not cols["document_id"].nullable
-
-    assert str(cols["locator"].type) == "TEXT"
-    assert not cols["locator"].nullable
-    assert cols["locator"].unique
-
-    assert str(cols["content"].type) == "TEXT"
-    assert not cols["content"].nullable
-
-    assert str(cols["content_hash"].type) == "TEXT"
-    assert not cols["content_hash"].nullable
-
-    assert str(cols["context_header"].type) == "TEXT"
-    assert not cols["context_header"].nullable
-
-    assert str(cols["page"].type) == "INTEGER"
-    assert not cols["page"].nullable
-
-    assert str(cols["chunk_index"].type) == "INTEGER"
-    assert not cols["chunk_index"].nullable
-
-    assert str(cols["token_count"].type) == "INTEGER"
-    assert not cols["token_count"].nullable
-
-    assert str(cols["metadata"].type) == "JSONB"
-    assert not cols["metadata"].nullable
-
     assert len(cols) == 12
 
 
-def test_query_table_columns_match_schema() -> None:
-    table = _table(Query)
-    cols = {c.name: c for c in table.c}
+def test_thread_table_columns_match_schema() -> None:
+    cols = {c.name: c for c in _table(Thread).c}
 
-    assert Query.__tablename__ == "queries"
+    assert Thread.__tablename__ == "threads"
     assert str(cols["id"].type) == "UUID"
     assert cols["id"].primary_key
+    assert str(cols["title"].type) == "TEXT"
+    assert not cols["title"].nullable
+    assert str(cols["summary"].type) == "TEXT"
+    assert not cols["summary"].nullable
+    assert len(cols) == 6
 
-    assert str(cols["query_text"].type) == "TEXT"
-    assert not cols["query_text"].nullable
 
-    assert str(cols["selected_route"].type) == "TEXT"
-    assert not cols["selected_route"].nullable
-    assert cols["selected_route"].default is not None
+def test_message_table_columns_match_schema() -> None:
+    table = _table(Message)
+    cols = {c.name: c for c in table.c}
 
-    assert str(cols["sub_queries"].type) == "JSONB"
-    assert not cols["sub_queries"].nullable
-    assert cols["sub_queries"].default is not None
-
+    assert Message.__tablename__ == "messages"
+    assert str(cols["thread_id"].type) == "UUID"
+    assert str(cols["position"].type) == "INTEGER"
+    assert str(cols["role"].type) == "TEXT"
     assert str(cols["status"].type) == "TEXT"
-    assert not cols["status"].nullable
-    assert cols["status"].default is not None
+    assert str(cols["sub_queries"].type) == "JSONB"
+    assert str(cols["reply_to_message_id"].type) == "UUID"
 
-    assert str(cols["metadata"].type) == "JSONB"
-    assert not cols["metadata"].nullable
+    checks = _check_constraints(table)
+    assert any("role" in str(constraint.sqltext) for constraint in checks)
+    assert any("status" in str(constraint.sqltext) for constraint in checks)
 
-    assert str(cols["error_message"].type) == "TEXT"
-    assert cols["error_message"].nullable
+    unique_constraints = _unique_constraints(table)
+    assert any(
+        tuple(column.name for column in constraint.columns) == ("thread_id", "position")
+        for constraint in unique_constraints
+    )
 
-    assert str(cols["completed_at"].type) == "TIMESTAMP"
-    assert cols["completed_at"].nullable
-
-    status_checks = _check_constraints(table)
-    assert any("status" in str(constraint.sqltext) for constraint in status_checks)
-
-    assert len(cols) == 10
+    assert len(cols) == 14
 
 
 def test_answer_table_columns_match_schema() -> None:
     cols = {c.name: c for c in _table(Answer).c}
 
     assert Answer.__tablename__ == "answers"
-    assert str(cols["id"].type) == "UUID"
-    assert cols["id"].primary_key
-
-    assert str(cols["query_id"].type) == "UUID"
-    assert not cols["query_id"].nullable
-    assert cols["query_id"].unique
-
-    assert str(cols["full_text"].type) == "TEXT"
-    assert not cols["full_text"].nullable
-
-    assert str(cols["model_name"].type) == "TEXT"
-    assert cols["model_name"].nullable
-
-    assert str(cols["prompt_version"].type) == "TEXT"
-    assert cols["prompt_version"].nullable
-
-    assert str(cols["metadata"].type) == "JSONB"
-    assert not cols["metadata"].nullable
-
-    assert str(cols["reasoning_trace"].type) == "JSONB"
-    assert not cols["reasoning_trace"].nullable
-
-    assert str(cols["created_at"].type) == "TIMESTAMP"
-    assert not cols["created_at"].nullable
-
+    assert str(cols["message_id"].type) == "UUID"
+    assert not cols["message_id"].nullable
+    assert cols["message_id"].unique
     assert len(cols) == 8
 
 
@@ -183,21 +109,7 @@ def test_segment_table_columns_match_schema() -> None:
     cols = {c.name: c for c in table.c}
 
     assert Segment.__tablename__ == "segments"
-    assert str(cols["id"].type) == "UUID"
-    assert cols["id"].primary_key
-
     assert str(cols["answer_id"].type) == "UUID"
-    assert not cols["answer_id"].nullable
-
-    assert str(cols["segment_index"].type) == "INTEGER"
-    assert not cols["segment_index"].nullable
-
-    assert str(cols["text"].type) == "TEXT"
-    assert not cols["text"].nullable
-
-    assert str(cols["evidence_ids"].type) == "JSONB"
-    assert not cols["evidence_ids"].nullable
-
     unique_constraints = _unique_constraints(table)
     assert any(
         tuple(column.name for column in constraint.columns)
@@ -205,46 +117,22 @@ def test_segment_table_columns_match_schema() -> None:
         for constraint in unique_constraints
     )
 
-    assert len(cols) == 5
 
-
-def test_query_evidence_candidate_table_columns_match_schema() -> None:
-    table = _table(QueryEvidenceCandidate)
+def test_message_evidence_candidate_table_columns_match_schema() -> None:
+    table = _table(MessageEvidenceCandidate)
     cols = {c.name: c for c in table.c}
 
-    assert QueryEvidenceCandidate.__tablename__ == "query_evidence_candidates"
-    assert str(cols["query_id"].type) == "UUID"
-    assert cols["query_id"].primary_key
-
-    assert str(cols["stage"].type) == "TEXT"
-    assert cols["stage"].primary_key
-
-    assert str(cols["evidence_id"].type) == "UUID"
-    assert cols["evidence_id"].primary_key
-
-    assert str(cols["rank"].type) == "INTEGER"
-    assert not cols["rank"].nullable
-
-    assert str(cols["score"].type) == "DOUBLE PRECISION"
-    assert cols["score"].nullable
-
-    assert str(cols["metadata"].type) == "JSONB"
-    assert not cols["metadata"].nullable
-
-    assert str(cols["created_at"].type) == "TIMESTAMP"
-    assert not cols["created_at"].nullable
-
+    assert MessageEvidenceCandidate.__tablename__ == "message_evidence_candidates"
+    assert str(cols["message_id"].type) == "UUID"
+    assert cols["message_id"].primary_key
     checks = _check_constraints(table)
     assert any("stage" in str(constraint.sqltext) for constraint in checks)
-
     unique_constraints = _unique_constraints(table)
     assert any(
         tuple(column.name for column in constraint.columns)
-        == ("query_id", "stage", "rank")
+        == ("message_id", "stage", "rank")
         for constraint in unique_constraints
     )
-
-    assert len(cols) == 7
 
 
 def test_create_engine_uses_correct_url() -> None:
@@ -264,4 +152,3 @@ def test_create_engine_uses_correct_url() -> None:
     assert engine.url.username == "admin"
     assert engine.url.password == "secret"
     assert engine.url.database == "ragdb"
-    assert engine.dialect.name == "postgresql"

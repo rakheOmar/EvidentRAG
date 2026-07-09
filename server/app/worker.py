@@ -84,11 +84,11 @@ async def shutdown(ctx: dict) -> None:
         logger.info("worker_shutdown", extra={"wide_event": wide_event})
 
 
-async def run_query_pipeline(ctx: dict, query_id) -> None:
+async def run_message_pipeline(ctx: dict, message_id) -> None:
     started_at = perf_counter()
     wide_event: dict[str, object] = {
-        "event": "run_query_pipeline",
-        "query_id": str(query_id),
+        "event": "run_message_pipeline",
+        "message_id": str(message_id),
     }
 
     try:
@@ -101,7 +101,7 @@ async def run_query_pipeline(ctx: dict, query_id) -> None:
             llm_client=ctx["llm_client"],
             arag_router=ctx.get("arag_router"),
         )
-        await pipeline.run(query_id)
+        await pipeline.run(message_id)
         wide_event["outcome"] = "success"
     except Exception as exc:
         wide_event["outcome"] = "error"
@@ -110,11 +110,11 @@ async def run_query_pipeline(ctx: dict, query_id) -> None:
         raise
     finally:
         wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-        logger.info("run_query_pipeline", extra={"wide_event": wide_event})
+        logger.info("run_message_pipeline", extra={"wide_event": wide_event})
 
 
 class WorkerSettings:
-    functions = [run_query_pipeline]
+    functions = [run_message_pipeline]
     on_startup = staticmethod(startup)
     on_shutdown = staticmethod(shutdown)
     redis_settings = RedisSettings.from_dsn(settings.redis.url)
