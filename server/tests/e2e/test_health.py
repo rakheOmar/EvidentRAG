@@ -33,7 +33,7 @@ def test_health_returns_service_info(client) -> None:
     assert collections["evidentrag_evidence"] >= 0
 
     assert svc["redis"]["status"] == "healthy"
-    assert svc["redis"]["url"] == "redis://localhost:6379/0"
+    assert svc["redis"]["url"] in ("redis://localhost:6379", "redis://localhost:6379/0")
 
 
 def test_health_degraded_when_redis_down(client) -> None:

@@ -21,6 +21,42 @@ def test_emits_completed_segment_texts_and_parses_final() -> None:
     ]
 
 
+def test_parse_final_handles_leading_preamble() -> None:
+    from app.application.query_pipeline.json_stream_parser import JsonStreamParser
+
+    parser = JsonStreamParser()
+    parser.feed('Here is your summary:\n[{"text":"First.","evidence_ids":["e1"]}]')
+
+    assert parser.parse_final() == [{"text": "First.", "evidence_ids": ["e1"]}]
+
+
+def test_parse_final_handles_markdown_code_fences() -> None:
+    from app.application.query_pipeline.json_stream_parser import JsonStreamParser
+
+    parser = JsonStreamParser()
+    parser.feed('```json\n[{"text":"First.","evidence_ids":["e1"]}]\n```')
+
+    assert parser.parse_final() == [{"text": "First.", "evidence_ids": ["e1"]}]
+
+
+def test_parse_final_handles_trailing_text() -> None:
+    from app.application.query_pipeline.json_stream_parser import JsonStreamParser
+
+    parser = JsonStreamParser()
+    parser.feed('[{"text":"First.","evidence_ids":["e1"]}] I hope this helps')
+
+    assert parser.parse_final() == [{"text": "First.", "evidence_ids": ["e1"]}]
+
+
+def test_parse_final_returns_empty_for_non_json_output() -> None:
+    from app.application.query_pipeline.json_stream_parser import JsonStreamParser
+
+    parser = JsonStreamParser()
+    parser.feed("BERT and attention are closely related concepts.")
+
+    assert parser.parse_final() == []
+
+
 def test_ignores_incomplete_segment_until_it_closes() -> None:
     from app.application.query_pipeline.json_stream_parser import JsonStreamParser
 
@@ -37,8 +73,7 @@ def test_get_accumulated_text_joins_all_segment_texts() -> None:
 
     parser = JsonStreamParser()
     parser.feed(
-        '[{"text":"First.","evidence_ids":[]},'
-        '{"text":"Second.","evidence_ids":[]}]'
+        '[{"text":"First.","evidence_ids":[]},{"text":"Second.","evidence_ids":[]}]'
     )
 
     assert parser.get_accumulated_text() == "First. Second."
@@ -64,7 +99,10 @@ def test_get_accumulated_text_combines_completed_with_partial() -> None:
     parser.feed(
         '[{"text":"RAG stands for Retrieval Augmented Generation.","evidence_ids":["e1"]},'
     )
-    assert parser.get_accumulated_text() == "RAG stands for Retrieval Augmented Generation."
+    assert (
+        parser.get_accumulated_text()
+        == "RAG stands for Retrieval Augmented Generation."
+    )
 
     parser.feed('{"text":"It combines retriev')
     assert (

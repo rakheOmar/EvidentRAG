@@ -66,25 +66,25 @@ const Sidebar: FC<{ collapsed?: boolean }> = ({ collapsed }) => (
         collapsed ? "w-12 px-2 pt-1" : "w-65 p-3"
       )}
     >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <ThreadListNew
-              className={cn(
-                "overflow-hidden transition-all duration-200",
-                collapsed
-                  ? "w-8 gap-0 px-2 has-[>svg]:px-2"
-                  : "w-full gap-2 px-2.5 has-[>svg]:px-2.5"
-              )}
-              labelClassName={cn(
-                "overflow-hidden transition-all duration-200",
-                collapsed ? "max-w-0 opacity-0" : "max-w-24 opacity-100"
-              )}
-            />
-          }
+      {collapsed ? (
+        <ThreadListNew
+          className="w-8 gap-0 overflow-hidden px-2 transition-all duration-200 has-[>svg]:px-2"
+          labelClassName="max-w-0 overflow-hidden opacity-0 transition-all duration-200"
+          title="New Query"
         />
-        {collapsed && <TooltipContent side="right">New Query</TooltipContent>}
-      </Tooltip>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <ThreadListNew
+                className="w-full gap-2 overflow-hidden px-2.5 transition-all duration-200 has-[>svg]:px-2.5"
+                labelClassName="max-w-24 overflow-hidden opacity-100 transition-all duration-200"
+              />
+            }
+          />
+          <TooltipContent side="right">New Query</TooltipContent>
+        </Tooltip>
+      )}
       <ThreadListItems
         aria-hidden={collapsed}
         className={cn(

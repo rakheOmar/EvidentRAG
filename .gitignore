@@ -38,3 +38,6 @@ __pycache__/
 *.njsproj
 *.sln
 *.sw?
+
+# Agent config
+.agents/

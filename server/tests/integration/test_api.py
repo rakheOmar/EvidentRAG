@@ -24,13 +24,12 @@ def _create_answer(client, *, query_id: str, full_text: str) -> None:
     client.portal.call(_persist)
 
 
-def _sse_done_event(
-    answer_id: str, query_id: str, evidence_id: str
-) -> str:
+def _sse_done_event(answer_id: str, query_id: str, evidence_id: str) -> str:
     data = {
         "id": answer_id,
         "query_id": query_id,
         "full_text": "This is the completed answer.",
+        "reasoning_trace": [],
         "segments": [
             {
                 "segment_index": 0,
@@ -272,6 +271,7 @@ def test_get_query_answer_returns_completed_answer_when_present(client) -> None:
         "id": graph["answer_id"],
         "query_id": query_id,
         "full_text": "This is the completed answer.",
+        "reasoning_trace": [],
         "segments": [
             {
                 "segment_index": 0,
@@ -328,9 +328,7 @@ def test_get_query_events_replays_done_for_completed_query(client) -> None:
         body = b"".join(response.iter_bytes())
 
     assert response.status_code == 200
-    expected_event = _sse_done_event(
-        graph["answer_id"], query_id, graph["evidence_id"]
-    )
+    expected_event = _sse_done_event(graph["answer_id"], query_id, graph["evidence_id"])
     assert body.decode("utf-8") == expected_event
 
 

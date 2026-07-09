@@ -6,15 +6,15 @@ Extend the ARAG Router to classify Queries into all four Routes — Simple, Mult
 
 ## Acceptance criteria
 
-- [ ] ARAG Router (Gemini 2.5 Flash) classifies Queries into one of: `simple`, `multi_hop`, `comparison`, `aggregation`
-- [ ] Router optionally decomposes the Query into sub-queries (for Multi-hop and Comparison)
-- [ ] **Multi-hop**: sub-queries execute sequentially, each sub-query's results inform the next sub-query's retrieval parameters, final Answer chains all sub-answers
-- [ ] **Comparison**: parallel retrieval for 2+ entities, fused results organized by entity, final Answer synthesizes differences in a structured format
-- [ ] **Aggregation**: broad retrieval with a higher top-K, summarization prompt that covers diverse Evidence
-- [ ] SSE `route_selected` event reflects the chosen route and any sub-queries
-- [ ] Multi-hop SSE events show intermediate progress (e.g., `retrieving` for each hop)
-- [ ] Route badge in UI updates dynamically: "Simple", "Multi-hop", "Comparison", "Aggregation"
-- [ ] Multi-hop route shows sub-queries and intermediate answers in the UI (expandable)
+- [x] ARAG Router (Gemini 2.5 Flash) classifies Queries into one of: `simple`, `multi_hop`, `comparison`, `aggregation`
+- [x] Router optionally decomposes the Query into sub-queries (for Multi-hop and Comparison)
+- [x] **Multi-hop**: sub-queries execute sequentially, each sub-query's results inform the next sub-query's retrieval parameters, final Answer chains all sub-answers
+- [x] **Comparison**: parallel retrieval for 2+ entities, fused results organized by entity, final Answer synthesizes differences in a structured format
+- [x] **Aggregation**: broad retrieval with a higher top-K, summarization prompt that covers diverse Evidence
+- [x] SSE `route_selected` event reflects the chosen route and any sub-queries
+- [x] Multi-hop SSE events show intermediate progress (e.g., `retrieving` for each hop)
+- [x] Route badge in UI updates dynamically: "Simple", "Multi-hop", "Comparison", "Aggregation"
+- [x] Multi-hop route shows sub-queries and intermediate answers in the UI (expandable)
 
 ## Blocked by
 

@@ -1,14 +1,20 @@
+import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router";
 
-import { ChatPage } from "@/pages/chat.tsx";
+const ChatPage = lazy(() =>
+  import("@/pages/chat.tsx").then((m) => ({ default: m.ChatPage }))
+);
+
 import { HomePage } from "@/pages/home.tsx";
 
 export function App() {
   return (
-    <Routes>
-      <Route element={<HomePage />} index />
-      <Route element={<ChatPage />} path="chat" />
-    </Routes>
+    <Suspense fallback={null}>
+      <Routes>
+        <Route element={<HomePage />} index />
+        <Route element={<ChatPage />} path="chat" />
+      </Routes>
+    </Suspense>
   );
 }
 

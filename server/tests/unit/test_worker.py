@@ -37,6 +37,7 @@ async def test_run_query_pipeline_builds_pipeline_from_ctx_and_runs_query(
             qdrant_store,
             rerank_client,
             llm_client,
+            arag_router,
         ) -> None:
             captured["init_kwargs"] = {
                 "session_factory": session_factory,
@@ -45,6 +46,7 @@ async def test_run_query_pipeline_builds_pipeline_from_ctx_and_runs_query(
                 "qdrant_store": qdrant_store,
                 "rerank_client": rerank_client,
                 "llm_client": llm_client,
+                "arag_router": arag_router,
             }
 
         async def run(self, actual_query_id) -> None:
@@ -59,6 +61,7 @@ async def test_run_query_pipeline_builds_pipeline_from_ctx_and_runs_query(
         "qdrant_store": object(),
         "rerank_client": object(),
         "llm_client": object(),
+        "arag_router": object(),
     }
 
     await worker_module.run_query_pipeline(ctx, query_id)
@@ -141,6 +144,11 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
             captured["llm_settings"] = actual_settings
             captured["llm_client_instance"] = self
 
+    class FakeAragRouter:
+        def __init__(self, llm_client) -> None:
+            captured["arag_router_llm_client"] = llm_client
+            captured["arag_router_instance"] = self
+
     class FakeRerankClient:
         def __init__(self, actual_settings) -> None:
             captured["reranker_settings"] = actual_settings
@@ -170,6 +178,7 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
     monkeypatch.setattr(worker_module, "QdrantStore", FakeQdrantStore)
     monkeypatch.setattr(worker_module, "EmbeddingClient", FakeEmbeddingClient)
     monkeypatch.setattr(worker_module, "LLMClient", FakeLLMClient)
+    monkeypatch.setattr(worker_module, "AragRouter", FakeAragRouter)
     monkeypatch.setattr(worker_module, "RerankClient", FakeRerankClient)
     monkeypatch.setattr(
         worker_module.Redis, "from_url", staticmethod(fake_redis_from_url)
@@ -187,6 +196,7 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
     assert captured["reranker_settings"] is settings.reranker
     assert captured["redis_url"] == settings.redis.url
     assert captured["ensure_collection_called"] is True
+    assert captured["arag_router_llm_client"] is captured["llm_client_instance"]
 
     assert ctx == {
         "engine": fake_engine,
@@ -196,6 +206,7 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
         "llm_client": captured["llm_client_instance"],
         "rerank_client": captured["rerank_client_instance"],
         "redis": fake_redis,
+        "arag_router": captured["arag_router_instance"],
     }
 
 

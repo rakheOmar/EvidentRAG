@@ -16,6 +16,7 @@ class QueryResponse(BaseModel):
     id: UUID
     query_text: str
     selected_route: str
+    sub_queries: list[str]
     status: str
     error_message: str | None
     created_at: datetime
@@ -42,6 +43,7 @@ class AnswerResponse(BaseModel):
     id: UUID
     query_id: UUID
     full_text: str
+    reasoning_trace: list[dict[str, object]] = []
     segments: list[SegmentResponse]
     evidence: list[EvidenceResponse]
     content_parts: list[dict[str, object]] | None = None

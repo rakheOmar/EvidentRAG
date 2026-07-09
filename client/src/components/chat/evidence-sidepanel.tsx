@@ -1,7 +1,14 @@
 "use client";
 
 import { XIcon } from "lucide-react";
-import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type FC,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useEvidencePanel } from "@/components/chat/evidence-context";
 import {
   Accordion,
@@ -23,17 +30,17 @@ import { cn } from "@/lib/utils";
 export interface EvidencePanelData {
   content: string;
   context_header: string | null;
-  document_title: string | null;
   document_slug: string | null;
-  page: number | null;
+  document_title: string | null;
   id: string;
+  page: number | null;
 }
 
 interface EvidenceSidepanelProps {
-  evidence: EvidencePanelData[] | null;
   activeEvidenceId: string | null;
-  open: boolean;
+  evidence: EvidencePanelData[] | null;
   onClose: () => void;
+  open: boolean;
 }
 
 const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
@@ -70,9 +77,11 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+      }
     },
-    [onClose],
+    [onClose]
   );
 
   const accordionValue = useMemo(
@@ -80,62 +89,67 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
     [activeEvidenceId]
   );
 
-  const accordionContent = (
-    <Accordion
-      className="overflow-hidden"
-      onValueChange={(value) => {
-        const id = Array.isArray(value) ? value[0] : undefined;
-        if (!id || id === activeEvidenceId) {
-          selectEvidence([]);
-        } else {
-          selectEvidence([id]);
-        }
-      }}
-      value={accordionValue}
-    >
-      {evidence?.map((item) => (
-        <AccordionItem className="min-w-0" key={item.id} value={item.id}>
-          <AccordionTrigger className="min-w-0 px-4 py-2.5">
-            <div className="flex min-w-0 items-center gap-2">
-              {item.document_title && (
-                <span className="truncate text-sm font-medium">
-                  {item.document_title}
-                </span>
-              )}
-              {item.page != null && (
-                <span className="shrink-0 text-xs text-sidebar-foreground/50">
-                  p. {item.page}
-                </span>
-              )}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="min-w-0 space-y-1.5 px-4 pb-3">
-              {item.context_header && (
-                <p className="text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/40">
-                  {item.context_header}
+  const accordionContent = useMemo(
+    () => (
+      <Accordion
+        className="overflow-hidden"
+        onValueChange={(value) => {
+          const id = Array.isArray(value) ? value[0] : undefined;
+          if (!id || id === activeEvidenceId) {
+            selectEvidence([]);
+          } else {
+            selectEvidence([id]);
+          }
+        }}
+        value={accordionValue}
+      >
+        {evidence?.map((item) => (
+          <AccordionItem className="min-w-0" key={item.id} value={item.id}>
+            <AccordionTrigger className="min-w-0 px-4 py-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                {item.document_title && (
+                  <span className="truncate font-medium text-sm">
+                    {item.document_title}
+                  </span>
+                )}
+                {item.page != null && (
+                  <span className="shrink-0 text-sidebar-foreground/50 text-xs">
+                    p. {item.page}
+                  </span>
+                )}
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="min-w-0 space-y-1.5 px-4 pb-3">
+                {item.context_header && (
+                  <p className="font-medium text-[11px] text-sidebar-foreground/40 uppercase tracking-wider">
+                    {item.context_header}
+                  </p>
+                )}
+                <p className="wrap-break-word text-foreground/90 text-xs leading-relaxed">
+                  {item.content}
                 </p>
-              )}
-              <p className="wrap-break-word text-xs leading-relaxed text-foreground/90">
-                {item.content}
-              </p>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      ))}
-    </Accordion>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    ),
+    [activeEvidenceId, evidence, accordionValue, selectEvidence]
   );
 
   if (isMobile) {
     return (
       <Drawer
         onOpenChange={(nextOpen) => {
-          if (!nextOpen) handleClose();
+          if (!nextOpen) {
+            handleClose();
+          }
         }}
         open={mobileOpen}
       >
         <DrawerContent className="bg-sidebar text-sidebar-foreground">
-          <DrawerHeader className="border-b border-sidebar-border pb-2">
+          <DrawerHeader className="border-sidebar-border border-b pb-2">
             <DrawerTitle className="text-sidebar-foreground">
               Evidence
             </DrawerTitle>
@@ -148,17 +162,17 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
 
   return (
     <section
+      aria-hidden={!open || dismissed}
+      aria-label="Evidence details"
       className={cn(
         "flex w-full flex-col overflow-hidden rounded-xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg transition-all duration-300 ease-in-out",
         open && !dismissed
           ? "translate-x-0 opacity-100"
-          : "translate-x-8 opacity-0 pointer-events-none",
+          : "pointer-events-none translate-x-8 opacity-0"
       )}
       onKeyDown={handleKeyDown}
-      aria-label="Evidence details"
-      aria-hidden={!open || dismissed}
     >
-      <div className="flex shrink-0 items-center justify-between border-b border-sidebar-border px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between border-sidebar-border border-b px-4 py-3">
         <h2 className="font-medium text-sm">Evidence</h2>
         <Button
           aria-label="Close evidence panel"

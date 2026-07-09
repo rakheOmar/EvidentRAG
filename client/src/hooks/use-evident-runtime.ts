@@ -15,6 +15,9 @@ import type {
   ContentPartsEvent,
   DoneEventWithContentParts,
   EvidentChatMessage,
+  HopProgressEvent,
+  ReasoningTraceEntry,
+  RouteSelectedEvent,
 } from "@/lib/types";
 import { isAnswerDetail } from "@/lib/types";
 
@@ -55,49 +58,64 @@ export function useEvidentRuntime() {
     setIsRunning(false);
   }, []);
 
-  const onSwitchToThread = useCallback(
-    async (threadId: string) => {
-      const query = historyDataRef.current?.find((entry) => entry.id === threadId);
+  const onSwitchToThread = useCallback(async (threadId: string) => {
+    const query = historyDataRef.current?.find(
+      (entry) => entry.id === threadId
+    );
 
-      const answerResponse = await fetchAnswer(threadId);
-      const answer = isAnswerDetail(answerResponse) ? answerResponse : null;
-      const contentParts: ThreadAssistantMessagePart[] = answer
-        ? [{ type: "text", text: answer.full_text }]
-        : [];
+    const answerResponse = await fetchAnswer(threadId);
+    const answer = isAnswerDetail(answerResponse) ? answerResponse : null;
+    const contentParts: ThreadAssistantMessagePart[] = answer
+      ? [{ type: "text", text: answer.full_text }]
+      : [];
 
-      if (answer?.segments) {
-        setMessageSegments(`${threadId}-assistant`, answer.segments);
-      }
-      if (answer?.evidence) {
-        setMessageEvidence(`${threadId}-assistant`, answer.evidence);
-      }
+    if (answer?.segments) {
+      setMessageSegments(`${threadId}-assistant`, answer.segments);
+    }
+    if (answer?.evidence) {
+      setMessageEvidence(`${threadId}-assistant`, answer.evidence);
+    }
 
-      setCurrentThreadId(threadId);
-      setIsRunning(false);
+    const reasoningTrace = answer?.reasoning_trace ?? [];
+    const hopProgress = reasoningTrace
+      .filter(
+        (t): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
+          t.type === "hop"
+      )
+      .map((t) => ({
+        hop: t.hop,
+        intermediate_answer: t.intermediate_answer,
+        sub_query: t.sub_query,
+      }));
 
-      if (query) {
-        setMessages([
-          {
-            contentParts: [{ type: "text", text: query.query_text }],
-            createdAt: new Date(query.created_at),
-            id: `${threadId}-user`,
-            queryId: threadId,
-            role: "user",
-            status: "complete",
-          },
-          {
-            contentParts,
-            createdAt: new Date(),
-            id: `${threadId}-assistant`,
-            queryId: threadId,
-            role: "assistant",
-            status: "complete",
-          },
-        ]);
-      }
-    },
-    []
-  );
+    setCurrentThreadId(threadId);
+    setIsRunning(false);
+
+    if (query) {
+      setMessages([
+        {
+          contentParts: [{ type: "text", text: query.query_text }],
+          createdAt: new Date(query.created_at),
+          id: `${threadId}-user`,
+          queryId: threadId,
+          role: "user",
+          status: "complete",
+        },
+        {
+          contentParts,
+          createdAt: new Date(),
+          hopProgress,
+          id: `${threadId}-assistant`,
+          queryId: threadId,
+          reasoningTrace,
+          role: "assistant",
+          route: query.selected_route ?? undefined,
+          status: "complete",
+          subQueries: query.sub_queries ?? [],
+        },
+      ]);
+    }
+  }, []);
 
   const onDeleteThread = useCallback(async (_threadId: string) => {
     // EvidentRAG does not expose thread deletion yet.
@@ -121,9 +139,13 @@ export function useEvidentRuntime() {
         {
           contentParts: [],
           createdAt: new Date(),
+          generating: false,
+          hopProgress: [],
           id: assistantMessageId,
+          reasoningTrace: [],
           role: "assistant",
           status: "running",
+          subQueries: [],
         },
       ]);
 
@@ -151,15 +173,68 @@ export function useEvidentRuntime() {
       }));
 
       eventSource.addEventListener(
-        "content_parts",
+        "route_selected",
         (event: MessageEvent<string>) => {
-          const payload = JSON.parse(event.data) as ContentPartsEvent;
+          const payload = JSON.parse(event.data) as RouteSelectedEvent;
 
           updateAssistantMessage((entry) => ({
             ...entry,
-            contentParts: payload.parts,
-            status: "running",
+            route: payload.route,
+            subQueries: payload.sub_queries,
           }));
+        }
+      );
+
+      eventSource.addEventListener(
+        "hop_progress",
+        (event: MessageEvent<string>) => {
+          const payload = JSON.parse(event.data) as HopProgressEvent;
+
+          const hopEntry: ReasoningTraceEntry = {
+            type: "hop",
+            hop: payload.hop,
+            intermediate_answer: payload.intermediate_answer,
+            sub_query: payload.sub_query,
+          };
+          updateAssistantMessage((entry) => {
+            const trace = entry.reasoningTrace ?? [];
+            const last = trace.at(-1);
+            const exists = last?.type === "hop" && last.hop === payload.hop;
+            return {
+              ...entry,
+              hopProgress: [...(entry.hopProgress ?? []), payload],
+              reasoningTrace: exists ? trace : [...trace, hopEntry],
+            };
+          });
+        }
+      );
+
+      eventSource.addEventListener(
+        "content_parts",
+        (event: MessageEvent<string>) => {
+          const payload = JSON.parse(event.data) as ContentPartsEvent;
+          const stepText = payload.parts
+            .filter((p) => p.type === "reasoning")
+            .map((p) => (p as { text?: string }).text ?? "")
+            .join(" ")
+            .trim();
+
+          updateAssistantMessage((entry) => {
+            const trace = entry.reasoningTrace ?? [];
+            const last = trace.at(-1);
+            const exists = last?.type === "step" && last.text === stepText;
+            const hasAnswerText = payload.parts.some((p) => p.type === "text");
+            return {
+              ...entry,
+              contentParts: payload.parts,
+              generating: entry.generating || hasAnswerText,
+              status: "running",
+              reasoningTrace:
+                stepText && !exists
+                  ? [...trace, { type: "step", text: stepText }]
+                  : trace,
+            };
+          });
         }
       );
 
@@ -181,14 +256,33 @@ export function useEvidentRuntime() {
           updateAssistantMessage((entry) => ({
             ...entry,
             contentParts: displayParts,
+            reasoningTrace: payload.reasoning_trace ?? entry.reasoningTrace,
+            hopProgress:
+              entry.hopProgress && entry.hopProgress.length > 0
+                ? entry.hopProgress
+                : (payload.reasoning_trace ?? [])
+                    .filter(
+                      (t): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
+                        t.type === "hop"
+                    )
+                    .map((t) => ({
+                      hop: t.hop,
+                      intermediate_answer: t.intermediate_answer,
+                      sub_query: t.sub_query,
+                    })),
             status: "complete",
           }));
 
           fetchAnswer(payload.query_id)
             .then((answerResponse) => {
-              const answer = isAnswerDetail(answerResponse) ? answerResponse : null;
+              const answer = isAnswerDetail(answerResponse)
+                ? answerResponse
+                : null;
               if (answer?.evidence) {
-                setMessageEvidence(`${payload.query_id}-assistant`, answer.evidence);
+                setMessageEvidence(
+                  `${payload.query_id}-assistant`,
+                  answer.evidence
+                );
               }
             })
             .catch(() => {

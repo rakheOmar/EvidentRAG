@@ -1,152 +1,298 @@
 "use client";
 
-import { type FC, useCallback, useMemo, useRef, useState } from "react";
-import type { Segment } from "@/lib/types";
-import { useEvidencePanel } from "@/components/chat/evidence-context";
+import { Badge } from "@/components/ui/badge";
+import type { CarouselApi } from "@/components/ui/carousel";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+} from "@/components/ui/carousel";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import { cn } from "@/lib/utils";
+import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
+import type { ComponentProps } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
-interface BadgeEntry {
-  num: number;
-  evidenceIds: string[];
-  segmentIndices: Set<number>;
-}
+export type InlineCitationProps = ComponentProps<"span">;
 
-function buildBadgeEntries(segments: Segment[]) {
-  const evidenceNumbers = new Map<string, number>();
-  const entries: BadgeEntry[] = [];
-  let next = 1;
+export const InlineCitation = ({
+  className,
+  ...props
+}: InlineCitationProps) => (
+  <span
+    className={cn("group inline items-center gap-1", className)}
+    {...props}
+  />
+);
 
-  for (const seg of segments) {
-    for (const id of seg.evidence_ids) {
-      let num = evidenceNumbers.get(id);
-      if (num === undefined) {
-        num = next++;
-        evidenceNumbers.set(id, num);
-        const indices = new Set<number>();
-        indices.add(seg.segment_index);
-        entries.push({
-          evidenceIds: [id],
-          num,
-          segmentIndices: indices,
-        });
-      } else {
-        const entry = entries.find((e) => e.num === num);
-        if (entry) {
-          entry.segmentIndices.add(seg.segment_index);
-          if (!entry.evidenceIds.includes(id)) {
-            entry.evidenceIds.push(id);
-          }
-        }
-      }
+export type InlineCitationTextProps = ComponentProps<"span">;
+
+export const InlineCitationText = ({
+  className,
+  ...props
+}: InlineCitationTextProps) => (
+  <span
+    className={cn("transition-colors group-hover:bg-accent", className)}
+    {...props}
+  />
+);
+
+export type InlineCitationCardProps = ComponentProps<typeof HoverCard>;
+
+export const InlineCitationCard = (props: InlineCitationCardProps) => (
+  <HoverCard closeDelay={0} openDelay={0} {...props} />
+);
+
+export type InlineCitationCardTriggerProps = ComponentProps<typeof Badge> & {
+  sources: string[];
+};
+
+export const InlineCitationCardTrigger = ({
+  sources,
+  className,
+  ...props
+}: InlineCitationCardTriggerProps) => (
+  <HoverCardTrigger
+    render={
+      <Badge
+        className={cn("ml-1 rounded-full", className)}
+        variant="secondary"
+        {...props}
+      >
+        {sources[0] ? (
+          <>
+            {new URL(sources[0]).hostname}{" "}
+            {sources.length > 1 && `+${sources.length - 1}`}
+          </>
+        ) : (
+          "unknown"
+        )}
+      </Badge>
     }
-  }
+  />
+);
 
-  return entries;
-}
+export type InlineCitationCardBodyProps = ComponentProps<"div">;
 
-function Badge({
-  active,
-  num,
-  onHover,
-  onLeave,
-  onSelect,
-}: {
-  active: boolean;
-  num: number;
-  onHover: () => void;
-  onLeave: () => void;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      className={
-        active
-          ? "ms-0.5 inline-flex cursor-pointer items-center justify-center rounded-xl bg-primary px-2.5 py-0.5 font-medium text-[11px] text-primary-foreground leading-none"
-          : "ms-0.5 inline-flex cursor-pointer items-center justify-center rounded-xl bg-muted px-2.5 py-0.5 font-medium text-[11px] text-muted-foreground leading-none hover:bg-muted/80"
-      }
-      onBlur={onLeave}
-      onClick={onSelect}
-      onFocus={onHover}
-      onMouseEnter={onHover}
-      onMouseLeave={onLeave}
-      type="button"
-    >
-      {num}
-    </button>
-  );
-}
+export const InlineCitationCardBody = ({
+  className,
+  ...props
+}: InlineCitationCardBodyProps) => (
+  <HoverCardContent className={cn("relative w-80 p-0", className)} {...props} />
+);
 
-export const InlineCitations: FC<{ segments: Segment[] }> = ({ segments }) => {
-  const [hoveredBadge, setHoveredBadge] = useState<number | null>(null);
-  const { selectedEvidenceIds, selectEvidence, clearEvidence } =
-    useEvidencePanel();
-  const prevIdsRef = useRef(selectedEvidenceIds);
+const CarouselApiContext = createContext<CarouselApi | undefined>(undefined);
 
-  const selectedEvidenceSet = useMemo(
-    () => new Set(selectedEvidenceIds),
-    [selectedEvidenceIds]
-  );
+const useCarouselApi = () => {
+  const context = useContext(CarouselApiContext);
+  return context;
+};
 
-  const badgeEntries = useMemo(() => buildBadgeEntries(segments), [segments]);
+export type InlineCitationCarouselProps = ComponentProps<typeof Carousel>;
 
-  const clearHover = useCallback(() => setHoveredBadge(null), []);
-
-  const handleBadgeSelect = useCallback(
-    (entry: BadgeEntry) => {
-      if (selectedEvidenceIds.length > 0) {
-        const sameSelection =
-          entry.evidenceIds.length === selectedEvidenceIds.length &&
-          entry.evidenceIds.every((id) => selectedEvidenceIds.includes(id));
-        if (sameSelection && prevIdsRef.current === selectedEvidenceIds) {
-          clearEvidence();
-          return;
-        }
-      }
-      prevIdsRef.current = entry.evidenceIds;
-      selectEvidence(entry.evidenceIds);
-    },
-    [clearEvidence, selectEvidence, selectedEvidenceIds]
-  );
-
-  const isSegmentHighlighted = useCallback(
-    (seg: Segment) => {
-      if (hoveredBadge !== null) {
-        return badgeEntries
-          .filter((e) => e.num === hoveredBadge)
-          .some((e) => e.segmentIndices.has(seg.segment_index));
-      }
-      return seg.evidence_ids.some((id) => selectedEvidenceSet.has(id));
-    },
-    [hoveredBadge, badgeEntries, selectedEvidenceSet]
-  );
+export const InlineCitationCarousel = ({
+  className,
+  children,
+  ...props
+}: InlineCitationCarouselProps) => {
+  const [api, setApi] = useState<CarouselApi>();
 
   return (
-    <div className="group inline items-center gap-1">
-      {segments.map((seg) => (
-        <span
-          className={
-            isSegmentHighlighted(seg)
-              ? "rounded bg-primary/10 px-1 transition-colors"
-              : "px-1 transition-colors"
-          }
-          key={seg.segment_index}
-        >
-          {seg.text}
-        </span>
-      ))}
-      {badgeEntries.length > 0 && (
-        <span className="ms-1">
-          {badgeEntries.map(({ evidenceIds, num, segmentIndices }) => (
-            <Badge
-              key={num}
-              active={evidenceIds.some((id) => selectedEvidenceSet.has(id))}
-              num={num}
-              onHover={() => setHoveredBadge(num)}
-              onLeave={clearHover}
-              onSelect={() => handleBadgeSelect({ evidenceIds, num, segmentIndices })}
-            />
-          ))}
-        </span>
+    <CarouselApiContext.Provider value={api}>
+      <Carousel className={cn("w-full", className)} setApi={setApi} {...props}>
+        {children}
+      </Carousel>
+    </CarouselApiContext.Provider>
+  );
+};
+
+export type InlineCitationCarouselContentProps = ComponentProps<"div">;
+
+export const InlineCitationCarouselContent = (
+  props: InlineCitationCarouselContentProps
+) => <CarouselContent {...props} />;
+
+export type InlineCitationCarouselItemProps = ComponentProps<"div">;
+
+export const InlineCitationCarouselItem = ({
+  className,
+  ...props
+}: InlineCitationCarouselItemProps) => (
+  <CarouselItem
+    className={cn("w-full space-y-2 p-4 pl-8", className)}
+    {...props}
+  />
+);
+
+export type InlineCitationCarouselHeaderProps = ComponentProps<"div">;
+
+export const InlineCitationCarouselHeader = ({
+  className,
+  ...props
+}: InlineCitationCarouselHeaderProps) => (
+  <div
+    className={cn(
+      "flex items-center justify-between gap-2 rounded-t-md bg-secondary p-2",
+      className
+    )}
+    {...props}
+  />
+);
+
+export type InlineCitationCarouselIndexProps = ComponentProps<"div">;
+
+export const InlineCitationCarouselIndex = ({
+  children,
+  className,
+  ...props
+}: InlineCitationCarouselIndexProps) => {
+  const api = useCarouselApi();
+  const [current, setCurrent] = useState(0);
+  const [count, setCount] = useState(0);
+
+  const syncState = useCallback(() => {
+    if (!api) {
+      return;
+    }
+    setCount(api.scrollSnapList().length);
+    setCurrent(api.selectedScrollSnap() + 1);
+  }, [api]);
+
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+
+    syncState();
+
+    api.on("select", syncState);
+
+    return () => {
+      api.off("select", syncState);
+    };
+  }, [api, syncState]);
+
+  return (
+    <div
+      className={cn(
+        "flex flex-1 items-center justify-end px-3 py-1 text-muted-foreground text-xs",
+        className
       )}
+      {...props}
+    >
+      {children ?? `${current}/${count}`}
     </div>
   );
 };
+
+export type InlineCitationCarouselPrevProps = ComponentProps<"button">;
+
+export const InlineCitationCarouselPrev = ({
+  className,
+  ...props
+}: InlineCitationCarouselPrevProps) => {
+  const api = useCarouselApi();
+
+  const handleClick = useCallback(() => {
+    if (api) {
+      api.scrollPrev();
+    }
+  }, [api]);
+
+  return (
+    <button
+      aria-label="Previous"
+      className={cn("shrink-0", className)}
+      onClick={handleClick}
+      type="button"
+      {...props}
+    >
+      <ArrowLeftIcon className="size-4 text-muted-foreground" />
+    </button>
+  );
+};
+
+export type InlineCitationCarouselNextProps = ComponentProps<"button">;
+
+export const InlineCitationCarouselNext = ({
+  className,
+  ...props
+}: InlineCitationCarouselNextProps) => {
+  const api = useCarouselApi();
+
+  const handleClick = useCallback(() => {
+    if (api) {
+      api.scrollNext();
+    }
+  }, [api]);
+
+  return (
+    <button
+      aria-label="Next"
+      className={cn("shrink-0", className)}
+      onClick={handleClick}
+      type="button"
+      {...props}
+    >
+      <ArrowRightIcon className="size-4 text-muted-foreground" />
+    </button>
+  );
+};
+
+export type InlineCitationSourceProps = ComponentProps<"div"> & {
+  title?: string;
+  url?: string;
+  description?: string;
+};
+
+export const InlineCitationSource = ({
+  title,
+  url,
+  description,
+  className,
+  children,
+  ...props
+}: InlineCitationSourceProps) => (
+  <div className={cn("space-y-1", className)} {...props}>
+    {title && (
+      <h4 className="truncate font-medium text-sm leading-tight">{title}</h4>
+    )}
+    {url && (
+      <p className="truncate break-all text-muted-foreground text-xs">{url}</p>
+    )}
+    {description && (
+      <p className="line-clamp-3 text-muted-foreground text-sm leading-relaxed">
+        {description}
+      </p>
+    )}
+    {children}
+  </div>
+);
+
+export type InlineCitationQuoteProps = ComponentProps<"blockquote">;
+
+export const InlineCitationQuote = ({
+  children,
+  className,
+  ...props
+}: InlineCitationQuoteProps) => (
+  <blockquote
+    className={cn(
+      "border-muted border-l-2 pl-3 text-muted-foreground text-sm italic",
+      className
+    )}
+    {...props}
+  >
+    {children}
+  </blockquote>
+);

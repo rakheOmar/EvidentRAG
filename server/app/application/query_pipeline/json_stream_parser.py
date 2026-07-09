@@ -6,6 +6,8 @@ import re
 
 class JsonStreamParser:
     _TEXT_PATTERN = re.compile(r'"text":\s*"((?:[^"\\]|\\.)*)"')
+    _LEADING_CODE_FENCE_PATTERN = re.compile(r"^```[a-zA-Z0-9_-]*\s*")
+    _TRAILING_CODE_FENCE_PATTERN = re.compile(r"\s*```\s*$")
 
     def __init__(self) -> None:
         self._buffer = ""
@@ -25,14 +27,12 @@ class JsonStreamParser:
         self._emitted_count = len(matches)
         return emitted
 
-    def _extract_evidence_ids(
-        self, text_match: re.Match[str]
-    ) -> list[object]:
+    def _extract_evidence_ids(self, text_match: re.Match[str]) -> list[object]:
         after_text = self._buffer[text_match.end() :]
         ids_idx = after_text.find('"evidence_ids":')
         if ids_idx == -1:
             return []
-        after_ids_key = after_text[ids_idx + len('"evidence_ids":'):]
+        after_ids_key = after_text[ids_idx + len('"evidence_ids":') :]
         stripped = after_ids_key.lstrip()
         if not stripped.startswith("["):
             return []
@@ -90,9 +90,35 @@ class JsonStreamParser:
             segments.append({"text": text, "evidence_ids": evidence_ids})
         return segments
 
+    def _extract_first_json_value(self, raw: str) -> object | None:
+        text = raw.strip()
+        if not text:
+            return []
+
+        text = self._LEADING_CODE_FENCE_PATTERN.sub("", text, count=1)
+        text = self._TRAILING_CODE_FENCE_PATTERN.sub("", text)
+
+        decoder = json.JSONDecoder()
+        for start_char in ("[", "{"):
+            start_index = text.find(start_char)
+            if start_index == -1:
+                continue
+            try:
+                value, _ = decoder.raw_decode(text, start_index)
+                return value
+            except json.JSONDecodeError:
+                continue
+
+        return None
+
     def parse_final(self) -> list[dict[str, object]]:
         if not self._buffer.strip():
             return []
-        decoder = json.JSONDecoder()
-        result, _ = decoder.raw_decode(self._buffer)
-        return result
+        result = self._extract_first_json_value(self._buffer)
+        if result is None:
+            return []
+        if isinstance(result, list):
+            return result
+        if isinstance(result, dict):
+            return [result]
+        return []

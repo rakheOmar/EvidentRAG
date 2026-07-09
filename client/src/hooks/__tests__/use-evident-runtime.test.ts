@@ -156,6 +156,21 @@ describe("useEvidentRuntime", () => {
     expect(eventSource.url).toBe("/api/v1/queries/query-1/events");
 
     act(() => {
+      eventSource.emit("route_selected", {
+        route: "multi_hop",
+        sub_queries: ["What is ERM?", "How does ERM improve retrieval?"],
+      });
+    });
+
+    act(() => {
+      eventSource.emit("hop_progress", {
+        hop: 1,
+        intermediate_answer: "ERM stores feedback-linked retrieval memory.",
+        sub_query: "What is ERM?",
+      });
+    });
+
+    act(() => {
       eventSource.emit("content_parts", {
         parts: [{ type: "reasoning", text: "Routing Query..." }],
       });
@@ -206,9 +221,18 @@ describe("useEvidentRuntime", () => {
             text: "Evidence Retrieval Memory improves future retrieval.",
           },
         ],
+        hopProgress: [
+          {
+            hop: 1,
+            intermediate_answer: "ERM stores feedback-linked retrieval memory.",
+            sub_query: "What is ERM?",
+          },
+        ],
         queryId: "query-1",
         role: "assistant",
+        route: "multi_hop",
         status: "complete",
+        subQueries: ["What is ERM?", "How does ERM improve retrieval?"],
       });
     });
 
@@ -358,9 +382,12 @@ describe("useEvidentRuntime", () => {
         contentParts: [
           { type: "text", text: "The Simple Route uses one retrieval pass." },
         ],
+        hopProgress: [],
         queryId: "query-4",
         role: "assistant",
+        route: "simple",
         status: "complete",
+        subQueries: [],
       },
     ]);
 

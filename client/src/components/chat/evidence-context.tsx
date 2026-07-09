@@ -11,9 +11,9 @@ import {
 } from "react";
 
 interface EvidenceContextValue {
-  selectedEvidenceIds: string[];
-  selectEvidence: (ids: string[]) => void;
   clearEvidence: () => void;
+  selectEvidence: (ids: string[]) => void;
+  selectedEvidenceIds: string[];
 }
 
 const EvidenceContext = createContext<EvidenceContextValue | null>(null);
