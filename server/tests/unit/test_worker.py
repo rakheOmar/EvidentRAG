@@ -71,6 +71,35 @@ async def test_run_message_pipeline_builds_pipeline_from_ctx_and_runs_message(
 
 
 @pytest.mark.asyncio
+async def test_run_message_pipeline_skips_non_retryable_errors(monkeypatch) -> None:
+    from app.application.query_pipeline.query_pipeline import NonRetryablePipelineError
+    from app import worker as worker_module
+
+    class FakeQueryPipeline:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        async def run(self, actual_message_id) -> None:
+            raise NonRetryablePipelineError(
+                f"Assistant message not found: {actual_message_id}"
+            )
+
+    monkeypatch.setattr(worker_module, "QueryPipeline", FakeQueryPipeline)
+
+    ctx = {
+        "session_factory": object(),
+        "redis": object(),
+        "embedding_client": object(),
+        "qdrant_store": object(),
+        "rerank_client": object(),
+        "llm_client": object(),
+        "arag_router": object(),
+    }
+
+    await worker_module.run_message_pipeline(ctx, uuid.uuid4())
+
+
+@pytest.mark.asyncio
 async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> None:
     from app import worker as worker_module
 

@@ -8,7 +8,10 @@ from dotenv import load_dotenv
 from redis.asyncio import Redis
 
 from app.application.query_pipeline.arag_router import AragRouter
-from app.application.query_pipeline.query_pipeline import QueryPipeline
+from app.application.query_pipeline.query_pipeline import (
+    NonRetryablePipelineError,
+    QueryPipeline,
+)
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.infrastructure.db.session import create_engine, create_session_factory
@@ -103,6 +106,11 @@ async def run_message_pipeline(ctx: dict, message_id) -> None:
         )
         await pipeline.run(message_id)
         wide_event["outcome"] = "success"
+    except NonRetryablePipelineError as exc:
+        wide_event["outcome"] = "skipped"
+        wide_event["error_type"] = type(exc).__name__
+        wide_event["error_message"] = str(exc)
+        logger.warning("run_message_pipeline skipped", extra={"wide_event": wide_event})
     except Exception as exc:
         wide_event["outcome"] = "error"
         wide_event["error_type"] = type(exc).__name__

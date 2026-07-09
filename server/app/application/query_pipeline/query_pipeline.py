@@ -10,6 +10,7 @@ from time import perf_counter
 from typing import TypedDict, cast
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
 from app.application.query_pipeline.content_parts import (
@@ -28,6 +29,11 @@ from app.infrastructure.db.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class NonRetryablePipelineError(Exception):
+    """Raised for conditions that cannot succeed on retry (e.g. the target
+    message no longer exists). The worker should not re-enqueue these."""
 
 
 class ConversationContext(TypedDict):
@@ -161,9 +167,11 @@ class QueryPipeline:
                 .where(Message.id == message_id)
             )
             if assistant_message is None or assistant_message.role != "assistant":
-                raise ValueError(f"Assistant message not found: {message_id}")
+                raise NonRetryablePipelineError(
+                    f"Assistant message not found: {message_id}"
+                )
             if assistant_message.reply_to_message_id is None:
-                raise ValueError(
+                raise NonRetryablePipelineError(
                     f"Assistant message missing user turn: {assistant_message.id}"
                 )
 
@@ -172,7 +180,12 @@ class QueryPipeline:
             )
             thread = await session.get(Thread, assistant_message.thread_id)
             if user_message is None or thread is None:
-                raise ValueError(f"Thread context not found for message: {message_id}")
+                raise NonRetryablePipelineError(
+                    f"Thread context not found for message: {message_id}"
+                )
+            assistant_message_id = assistant_message.id
+            assistant_message_id_str = str(assistant_message_id)
+            thread_id_str = str(thread.id)
 
             context = await self._build_conversation_context(
                 session, thread, user_message
@@ -199,14 +212,14 @@ class QueryPipeline:
                 reasoning_trace: list[dict[str, object]] = []
 
                 await self._publish(
-                    assistant_message.id,
+                    assistant_message_id,
                     "route_selected",
                     {"route": route, "sub_queries": sub_queries},
                 )
 
                 wide_event["route"] = route
                 wide_event["sub_queries"] = sub_queries
-                wide_event["thread_id"] = str(thread.id)
+                wide_event["thread_id"] = thread_id_str
 
                 if route == "multi_hop":
                     done_payload = await self._run_multi_hop_route(
@@ -260,16 +273,17 @@ class QueryPipeline:
 
                 wide_event["outcome"] = "success"
             except Exception as exc:
-                assistant_message.status = "failed"
-                assistant_message.error_message = str(exc)
-                assistant_message.updated_at = datetime.now(timezone.utc)
-                await session.commit()
+                await self._mark_message_failed(
+                    session,
+                    assistant_message_id,
+                    str(exc),
+                )
                 await self._publish(
-                    assistant_message.id,
+                    assistant_message_id,
                     "done",
                     {
-                        "thread_id": str(thread.id),
-                        "message_id": str(assistant_message.id),
+                        "thread_id": thread_id_str,
+                        "message_id": assistant_message_id_str,
                         "content_parts": [],
                         "error": True,
                         "error_message": str(exc),
@@ -297,11 +311,11 @@ class QueryPipeline:
                     cast(list[dict[str, object]], done_payload["evidence"]),
                 )
                 await self._publish(
-                    assistant_message.id,
+                    assistant_message_id,
                     "done",
                     {
-                        "thread_id": str(thread.id),
-                        "message_id": str(assistant_message.id),
+                        "thread_id": thread_id_str,
+                        "message_id": assistant_message_id_str,
                         "content_parts": cp,
                         "reasoning_trace": done_payload["reasoning_trace"],
                         "segments": done_payload["segments"],
@@ -319,15 +333,46 @@ class QueryPipeline:
                 )
             else:
                 await self._publish(
-                    assistant_message.id,
+                    assistant_message_id,
                     "done",
                     {
-                        "thread_id": str(thread.id),
-                        "message_id": str(assistant_message.id),
+                        "thread_id": thread_id_str,
+                        "message_id": assistant_message_id_str,
                         "content_parts": [],
                         "error": False,
                     },
                 )
+
+    async def _mark_message_failed(
+        self,
+        session,
+        message_id: uuid.UUID,
+        error_message: str,
+    ) -> None:
+        await session.rollback()
+
+        failed_message = await session.get(Message, message_id)
+        if failed_message is None:
+            return
+
+        failed_message.status = "failed"
+        failed_message.error_message = error_message
+        failed_message.updated_at = datetime.now(timezone.utc)
+
+        try:
+            await session.commit()
+        except SQLAlchemyError:
+            await session.rollback()
+            logger.warning(
+                "message_failure_persist_failed",
+                extra={
+                    "wide_event": {
+                        "event": "message_failure_persist_failed",
+                        "message_id": str(message_id),
+                        "outcome": "error",
+                    }
+                },
+            )
 
     async def _build_conversation_context(
         self,
