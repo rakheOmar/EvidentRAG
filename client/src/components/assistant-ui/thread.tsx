@@ -15,6 +15,7 @@ import {
   type ToolCallMessagePartComponent,
   useAuiState,
 } from "@assistant-ui/react";
+import type { QueryRoute } from "@/lib/types";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -23,10 +24,16 @@ import {
   ChevronRightIcon,
   CopyIcon,
   DownloadIcon,
+  DotIcon,
+  GitBranchIcon,
+  LayersIcon,
   MicIcon,
   MoreHorizontalIcon,
   PencilIcon,
   RefreshCwIcon,
+  RouteIcon,
+  SearchIcon,
+  SparklesIcon,
   SquareIcon,
 } from "lucide-react";
 import {
@@ -34,23 +41,30 @@ import {
   createContext,
   type FC,
   type PropsWithChildren,
+  useEffect,
   useContext,
+  useMemo,
+  useState,
 } from "react";
 import {
   ComposerAddAttachment,
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
-import { InlineCitations } from "@/components/assistant-ui/inline-citations";
-import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningRoot,
-  ReasoningText,
-  ReasoningTrigger,
-} from "@/components/assistant-ui/reasoning";
+  InlineCitationText,
+} from "@/components/assistant-ui/inline-citations";
+import { MarkdownText } from "@/components/assistant-ui/markdown-text";
+import { ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { Sources } from "@/components/assistant-ui/sources";
+import {
+  ChainOfThought,
+  ChainOfThoughtContent,
+  ChainOfThoughtHeader,
+  ChainOfThoughtSearchResult,
+  ChainOfThoughtSearchResults,
+  ChainOfThoughtStep,
+} from "@/components/assistant-ui/chain-of-thought";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import {
   ToolGroupContent,
@@ -58,9 +72,72 @@ import {
   ToolGroupTrigger,
 } from "@/components/assistant-ui/tool-group";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { useEvidencePanel } from "@/components/chat/evidence-context";
 import { getMessageSegments } from "@/lib/segments-store";
 import { cn } from "@/lib/utils";
+
+type MessageMetadataCustom = {
+  hopProgress?: {
+    hop: number;
+    intermediate_answer: string;
+    sub_query: string;
+  }[];
+  reasoningTrace?: {
+    type: "step" | "hop" | "retrieval";
+    text?: string;
+    hop?: number;
+    sub_query?: string;
+    intermediate_answer?: string;
+    label?: string;
+    candidates?: {
+      document_title: string;
+      evidence_id: string;
+      page: number;
+      snippet: string;
+    }[];
+  }[];
+  route?: QueryRoute;
+  subQueries?: string[];
+};
+
+function formatRouteLabel(route: QueryRoute): string {
+  switch (route) {
+    case "multi_hop":
+      return "Multi-hop";
+    case "comparison":
+      return "Comparison";
+    case "aggregation":
+      return "Aggregation";
+    default:
+      return "Simple";
+  }
+}
+
+function routeBadgeClassName(route: QueryRoute): string {
+  switch (route) {
+    case "multi_hop":
+      return "bg-blue-500/12 text-blue-700 dark:text-blue-300";
+    case "comparison":
+      return "bg-violet-500/12 text-violet-700 dark:text-violet-300";
+    case "aggregation":
+      return "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300";
+    default:
+      return "bg-primary/10 text-primary";
+  }
+}
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
 
@@ -123,7 +200,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
       }}
     >
       <ThreadPrimitive.Viewport
-        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth"
+        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden"
         data-slot="aui_thread-viewport"
         turnAnchor="top"
       >
@@ -322,13 +399,140 @@ const MessageError: FC = () => (
 const TextWithCitations: FC = () => {
   const messageId = useAuiState((s) => s.message.id);
   const segments = getMessageSegments(messageId);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const { selectedEvidenceIds, selectEvidence, clearEvidence } =
+    useEvidencePanel();
+
+  const selectedEvidenceSet = useMemo(
+    () => new Set(selectedEvidenceIds),
+    [selectedEvidenceIds]
+  );
+
+  const evidenceNumbers = useMemo(() => {
+    const order: string[] = [];
+    const seen = new Set<string>();
+    for (const seg of segments ?? []) {
+      for (const id of seg.evidence_ids) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          order.push(id);
+        }
+      }
+    }
+    return new Map(order.map((id, i) => [id, i + 1]));
+  }, [segments]);
+
+  const renderedSegments = useMemo(() => {
+    if (!segments) {
+      return [];
+    }
+
+    return segments.map((seg, index) => {
+      const previousText = index > 0 ? segments[index - 1]?.text ?? "" : "";
+      const needsLeadingSpace =
+        index > 0 &&
+        previousText.length > 0 &&
+        seg.text.length > 0 &&
+        !/\s$/.test(previousText) &&
+        !/^\s/.test(seg.text) &&
+        /[A-Za-z0-9).,!?:;"']$/.test(previousText) &&
+        /^[A-Za-z0-9("']/.test(seg.text);
+
+      return {
+        ...seg,
+        text: needsLeadingSpace ? ` ${seg.text}` : seg.text,
+      };
+    });
+  }, [segments]);
 
   if (segments && segments.length > 0) {
-    return <InlineCitations segments={segments} />;
+    return (
+      <>
+        {renderedSegments.map((seg) => {
+          const isHighlighted =
+            seg.evidence_ids.length > 0 &&
+            (hoveredId !== null
+              ? seg.evidence_ids.includes(hoveredId)
+              : seg.evidence_ids.some((id) => selectedEvidenceSet.has(id)));
+
+          return (
+            <InlineCitationText
+              className={
+                isHighlighted ? "rounded bg-accent/80 shadow-sm" : undefined
+              }
+              key={seg.segment_index}
+            >
+              {seg.text}
+            </InlineCitationText>
+          );
+        })}
+        {evidenceNumbers.size > 0 && (
+          <span className="ms-1 inline-flex items-center gap-0.5 align-baseline">
+            {[...evidenceNumbers.entries()].map(([id, num]) => {
+              const isSelected = selectedEvidenceSet.has(id);
+              return (
+                <Badge
+                  key={id}
+                  variant={isSelected ? "default" : "secondary"}
+                  className="ml-0.5 rounded-full cursor-pointer"
+                  onMouseEnter={() => setHoveredId(id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  onClick={() => {
+                    if (
+                      selectedEvidenceIds.length === 1 &&
+                      selectedEvidenceIds[0] === id
+                    ) {
+                      clearEvidence();
+                    } else {
+                      selectEvidence([id]);
+                    }
+                  }}
+                >
+                  {num}
+                </Badge>
+              );
+            })}
+          </span>
+        )}
+      </>
+    );
   }
 
   return <MarkdownText />;
 };
+
+const stepIcon = (text: string) => {
+  const lower = text.toLowerCase();
+  if (lower.includes("routing")) return RouteIcon;
+  if (lower.includes("retriev") || lower.includes("search"))
+    return SearchIcon;
+  if (lower.includes("fus") || lower.includes("rerank") || lower.includes("filter"))
+    return LayersIcon;
+  if (lower.includes("generat")) return SparklesIcon;
+  return DotIcon;
+};
+
+const RetrievalCandidate: FC<{
+  candidate: {
+    document_title: string;
+    evidence_id: string;
+    page: number;
+    snippet: string;
+  };
+}> = ({ candidate }) => (
+  <Collapsible>
+    <CollapsibleTrigger
+      render={
+        <Badge variant="secondary">
+          {`${candidate.document_title} · p.${candidate.page}`}
+        </Badge>
+      }
+    />
+    <CollapsibleContent className="mt-1 max-w-prose text-muted-foreground text-xs">
+      {candidate.snippet}
+    </CollapsibleContent>
+  </Collapsible>
+);
 
 const AssistantMessage: FC = () => {
   const {
@@ -342,6 +546,24 @@ const AssistantMessage: FC = () => {
   // for pt-[n] use -mb-[n + 6] & min-h-[n + 6] to preserve compensation
   const ACTION_BAR_PT = "pt-1.5";
   const ACTION_BAR_HEIGHT = `-mb-7.5 min-h-7.5 ${ACTION_BAR_PT}`;
+  const metadata = useAuiState(
+    (s) => s.message.metadata?.custom as MessageMetadataCustom | undefined
+  );
+  const isRunning = useAuiState((s) => s.message.status?.type === "running");
+  const route = metadata?.route;
+  const subQueries = metadata?.subQueries ?? [];
+  const hopProgress = metadata?.hopProgress ?? [];
+  const reasoningTrace = metadata?.reasoningTrace ?? [];
+  const generating = metadata?.generating ?? false;
+
+  const [cotOpen, setCotOpen] = useState(false);
+  useEffect(() => {
+    if (isRunning && !generating) {
+      setCotOpen(true);
+    } else if (generating) {
+      setCotOpen(false);
+    }
+  }, [isRunning, generating]);
 
   return (
     <MessagePrimitive.Root
@@ -354,6 +576,99 @@ const AssistantMessage: FC = () => {
         className="wrap-break-word px-2 text-foreground leading-relaxed [contain-intrinsic-size:auto_24px] [content-visibility:auto]"
         data-slot="aui_assistant-message-content"
       >
+        {route ? (
+          <div className="mb-3 flex flex-col gap-2">
+            <Badge className={routeBadgeClassName(route)} variant="secondary">
+              {formatRouteLabel(route)}
+            </Badge>
+
+            {route === "multi_hop" && (subQueries.length > 0 || hopProgress.length > 0) ? (
+              <Accordion className="w-full" defaultValue={["multi-hop-details"]} multiple>
+                <AccordionItem value="multi-hop-details">
+                  <AccordionTrigger className="py-1 font-medium text-muted-foreground text-xs">
+                    Multi-hop steps
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-3 rounded-xl border border-border/60 bg-muted/30 p-3">
+                      {subQueries.map((subQuery, index) => {
+                        const progress = hopProgress.find((hop) => hop.hop === index + 1);
+
+                        return (
+                          <div key={`${index + 1}-${subQuery}`} className="space-y-1">
+                            <p className="font-medium text-[11px] uppercase tracking-wide text-muted-foreground">
+                              Step {index + 1}
+                            </p>
+                            <p className="text-sm">{subQuery}</p>
+                            {progress?.intermediate_answer ? (
+                              <p className="text-muted-foreground text-sm">
+                                {progress.intermediate_answer}
+                              </p>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            ) : null}
+          </div>
+        ) : null}
+
+        {reasoningTrace.length > 0 ? (
+          <div className="mb-3">
+            <ChainOfThought open={cotOpen} onOpenChange={setCotOpen}>
+              <ChainOfThoughtHeader shimmer={isRunning && !generating}>Process trace</ChainOfThoughtHeader>
+              <ChainOfThoughtContent>
+                {reasoningTrace.map((entry, index) => {
+                  if (entry.type === "step") {
+                    return (
+                      <ChainOfThoughtStep
+                        key={`step-${index}`}
+                        icon={stepIcon(entry.text ?? "")}
+                        label={entry.text ?? ""}
+                      />
+                    );
+                  }
+                  if (entry.type === "hop") {
+                    return (
+                      <ChainOfThoughtStep
+                        key={`hop-${index}`}
+                        icon={GitBranchIcon}
+                        label={`Step ${entry.hop}`}
+                        description={
+                          <>
+                            <div>{entry.sub_query}</div>
+                            {entry.intermediate_answer ? (
+                              <div>{entry.intermediate_answer}</div>
+                            ) : null}
+                          </>
+                        }
+                      />
+                    );
+                  }
+                  return (
+                    <ChainOfThoughtStep
+                      key={`retrieval-${index}`}
+                      icon={SearchIcon}
+                      label={entry.label ?? "Retrieval"}
+                    >
+                      <ChainOfThoughtSearchResults>
+                        {(entry.candidates ?? []).map((candidate) => (
+                          <RetrievalCandidate
+                            key={candidate.evidence_id}
+                            candidate={candidate}
+                          />
+                        ))}
+                      </ChainOfThoughtSearchResults>
+                    </ChainOfThoughtStep>
+                  );
+                })}
+              </ChainOfThoughtContent>
+            </ChainOfThought>
+          </div>
+        ) : null}
+
         <MessagePrimitive.GroupedParts
           groupBy={groupPartByType({
             reasoning: ["group-chainOfThought", "group-reasoning"],
@@ -384,20 +699,12 @@ const AssistantMessage: FC = () => {
                     <ReasoningGroup group={part}>{children}</ReasoningGroup>
                   );
                 }
-                const running = part.status.type === "running";
-                return (
-                  <ReasoningRoot streaming={running}>
-                    <ReasoningTrigger active={running} />
-                    <ReasoningContent aria-busy={running}>
-                      <ReasoningText>{children}</ReasoningText>
-                    </ReasoningContent>
-                  </ReasoningRoot>
-                );
+                return null;
               }
               case "text":
                 return <TextWithCitations />;
               case "reasoning":
-                return <Reasoning {...part} />;
+                return null;
               case "tool-call":
                 return part.toolUI ?? <ToolFallbackComponent {...part} />;
               case "data":

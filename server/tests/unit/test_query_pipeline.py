@@ -102,8 +102,12 @@ class _FakeLLMClient:
         self._chunks = chunks
         self.calls: list[dict[str, object]] = []
 
+    async def generate(self, messages: list[dict[str, str]], model=None) -> str:
+        self.calls.append({"messages": messages, "model": model, "mode": "generate"})
+        return "".join(self._chunks)
+
     async def generate_stream(self, messages: list[dict[str, str]], model=None):
-        self.calls.append({"messages": messages, "model": model})
+        self.calls.append({"messages": messages, "model": model, "mode": "stream"})
         for chunk in self._chunks:
             yield chunk
 
@@ -118,6 +122,26 @@ def _make_query() -> Query:
 
 def _read_event(redis: _FakeRedis, index: int) -> dict[str, object]:
     return json.loads(redis.published[index][1])
+
+
+def test_query_pipeline_prompts_require_fluent_punctuated_segments() -> None:
+    from app.application.query_pipeline.query_pipeline import (
+        AGGREGATION_SYSTEM_PROMPT,
+        COMPARISON_SYSTEM_PROMPT,
+        MULTI_HOP_SYSTEM_PROMPT,
+        SIMPLE_SYSTEM_PROMPT,
+    )
+
+    expected_instruction = "joining the segments with spaces yields a fluent answer."
+
+    for prompt in (
+        SIMPLE_SYSTEM_PROMPT,
+        MULTI_HOP_SYSTEM_PROMPT,
+        COMPARISON_SYSTEM_PROMPT,
+        AGGREGATION_SYSTEM_PROMPT,
+    ):
+        assert "proper capitalization and punctuation" in prompt
+        assert expected_instruction in prompt
 
 
 @pytest.mark.asyncio
@@ -137,7 +161,7 @@ async def test_query_pipeline_run_marks_running_then_completed_and_publishes_eve
 
     await pipeline.run(query.id)
 
-    assert session.committed_statuses == ["running", "completed"]
+    assert session.committed_statuses == ["running", "running", "completed"]
     assert query.status == "completed"
     assert query.completed_at is not None
 
@@ -145,18 +169,23 @@ async def test_query_pipeline_run_marks_running_then_completed_and_publishes_eve
     assert [published_channel for published_channel, _ in redis.published] == [
         channel,
         channel,
+        channel,
     ]
 
     first = _read_event(redis, 0)
-    assert first["event"] == "content_parts"
-    data = cast(dict[str, object], first["data"])
+    assert first["event"] == "route_selected"
+    assert first["data"] == {"route": "simple", "sub_queries": []}
+
+    second = _read_event(redis, 1)
+    assert second["event"] == "content_parts"
+    data = cast(dict[str, object], second["data"])
     assert data["parts"] == [
         {"type": "reasoning", "text": "Routing Query via Simple Route..."}
     ]
 
-    second = _read_event(redis, 1)
-    assert second["event"] == "done"
-    assert second["data"] == {
+    third = _read_event(redis, 2)
+    assert third["event"] == "done"
+    assert third["data"] == {
         "query_id": str(query.id),
         "content_parts": [],
         "error": False,
@@ -225,6 +254,10 @@ async def test_query_pipeline_run_embeds_retrieves_and_stages_candidate_traces()
 
     events = [json.loads(message) for _, message in redis.published]
     assert events == [
+        {
+            "event": "route_selected",
+            "data": {"route": "simple", "sub_queries": []},
+        },
         {
             "event": "content_parts",
             "data": {
@@ -342,6 +375,10 @@ async def test_query_pipeline_run_reranks_fused_hits_and_stages_selected_candida
     events = [json.loads(message) for _, message in redis.published]
     assert events == [
         {
+            "event": "route_selected",
+            "data": {"route": "simple", "sub_queries": []},
+        },
+        {
             "event": "content_parts",
             "data": {
                 "parts": [
@@ -405,7 +442,9 @@ async def test_query_pipeline_run_marks_failed_and_publishes_done_with_error_fla
         redis=redis,
     )
 
-    async def fail_after_route_selected(session, query: Query, wide_event=None) -> None:
+    async def fail_after_route_selected(
+        session, query: Query, wide_event=None, reasoning_trace=None
+    ) -> None:
         raise RuntimeError("generation failed")
 
     pipeline._run_simple_route = fail_after_route_selected  # type: ignore[attr-defined]
@@ -413,18 +452,23 @@ async def test_query_pipeline_run_marks_failed_and_publishes_done_with_error_fla
     with pytest.raises(RuntimeError, match="generation failed"):
         await pipeline.run(query.id)
 
-    assert session.committed_statuses == ["running", "failed"]
+    assert session.committed_statuses == ["running", "running", "failed"]
     assert query.status == "failed"
     assert query.error_message == "generation failed"
 
     channel = f"query:{query.id}:events"
     assert [published_channel for published_channel, _ in redis.published] == [
         channel,
+        channel,
     ]
 
     first = _read_event(redis, 0)
-    assert first["event"] == "done"
-    assert first["data"] == {
+    assert first["event"] == "route_selected"
+    assert first["data"] == {"route": "simple", "sub_queries": []}
+
+    second = _read_event(redis, 1)
+    assert second["event"] == "done"
+    assert second["data"] == {
         "query_id": str(query.id),
         "content_parts": [],
         "error": True,
@@ -493,6 +537,7 @@ async def test_query_pipeline_run_generates_content_parts_and_persists_answer_gr
     await pipeline.run(query.id)
 
     assert len(llm_client.calls) == 1
+    assert llm_client.calls[0]["mode"] == "stream"
 
     answers = [obj for obj in session.added_objects if isinstance(obj, Answer)]
     segments = [obj for obj in session.added_objects if isinstance(obj, Segment)]
@@ -512,6 +557,10 @@ async def test_query_pipeline_run_generates_content_parts_and_persists_answer_gr
 
     events = [json.loads(message) for _, message in redis.published]
     assert events == [
+        {
+            "event": "route_selected",
+            "data": {"route": "simple", "sub_queries": []},
+        },
         {
             "event": "content_parts",
             "data": {
@@ -615,6 +664,19 @@ async def test_query_pipeline_run_generates_content_parts_and_persists_answer_gr
                         "text": "Second sentence.",
                         "evidence_ids": [str(first_id), str(second_id)],
                     },
+                ],
+                "reasoning_trace": [
+                    {"type": "step", "text": "Routing Query via Simple Route..."},
+                    {"type": "step", "text": "Retrieving Evidence from Qdrant..."},
+                    {
+                        "type": "step",
+                        "text": "Fusing dense + sparse candidates via RRF...",
+                    },
+                    {
+                        "type": "step",
+                        "text": "Reranking top-20 candidates via Cohere...",
+                    },
+                    {"type": "step", "text": "Generating Answer..."},
                 ],
                 "error": False,
             },

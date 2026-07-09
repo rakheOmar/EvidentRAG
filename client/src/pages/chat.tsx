@@ -1,14 +1,24 @@
-import { AssistantRuntimeProvider, useAui, useAuiState } from "@assistant-ui/react";
+import {
+  AssistantRuntimeProvider,
+  useAui,
+  useAuiState,
+} from "@assistant-ui/react";
 import { AuiProvider } from "@assistant-ui/store";
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Thread } from "@/components/assistant-ui/thread";
+import { Header } from "@/components/chat/chat-header";
+import { Sidebar } from "@/components/chat/chat-sidebar";
 import {
   EvidencePanelProvider,
   useEvidencePanel,
 } from "@/components/chat/evidence-context";
 import { EvidenceSidepanel } from "@/components/chat/evidence-sidepanel";
-import { Header } from "@/components/chat/chat-header";
-import { Sidebar } from "@/components/chat/chat-sidebar";
 import { useEvidentRuntime } from "@/hooks/use-evident-runtime";
 import { getMessageEvidence } from "@/lib/evidence-store";
 import { cn } from "@/lib/utils";
@@ -20,7 +30,9 @@ const ChatLayout = () => {
   const threadId = useAuiState((s) => s.threads.mainThreadId ?? null);
 
   const evidence = useMemo(() => {
-    if (!threadId) return null;
+    if (!threadId) {
+      return null;
+    }
     return getMessageEvidence(`${threadId}-assistant`);
   }, [threadId]);
 
@@ -37,6 +49,10 @@ const ChatLayout = () => {
     clearEvidence();
   }, [clearEvidence]);
 
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => !prev);
+  }, []);
+
   return (
     <div className="flex h-full w-full bg-muted/30">
       <div className="hidden md:block">
@@ -45,21 +61,26 @@ const ChatLayout = () => {
       <div className="flex flex-1 flex-col overflow-hidden p-2 md:pl-0">
         <div className="flex flex-1 flex-col overflow-hidden rounded-lg bg-background">
           <Header
-            onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+            onToggleSidebar={handleToggleSidebar}
             sidebarCollapsed={sidebarCollapsed}
           />
-          <div className={cn("flex flex-1 overflow-hidden", !showPanel && "justify-center")}>
+          <div
+            className={cn(
+              "flex flex-1 overflow-hidden",
+              !showPanel && "justify-center"
+            )}
+          >
             <main
               className={cn(
                 "overflow-hidden",
-                showPanel ? "flex-1" : "w-full max-w-4xl",
+                showPanel ? "flex-1" : "w-full max-w-4xl"
               )}
             >
               <Thread key={threadId ?? "no-thread"} />
             </main>
             <aside
               className={cn(
-                "hidden items-stretch py-2 pr-2 md:flex transition-[width] duration-300 ease-in-out overflow-hidden min-w-0",
+                "hidden min-w-0 items-stretch overflow-hidden py-2 pr-2 transition-[width] duration-300 ease-in-out md:flex",
                 showPanel ? "w-96 shrink-0" : "w-0"
               )}
             >

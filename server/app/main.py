@@ -1,4 +1,6 @@
+import logging
 from contextlib import asynccontextmanager
+from time import perf_counter
 
 from arq.connections import ArqRedis
 from fastapi import FastAPI
@@ -27,45 +29,96 @@ load_dotenv()
 settings = get_settings()
 configure_logging(settings)
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    configure_telemetry(app, settings)
-    engine = create_engine(settings.db)
-    session_factory = create_session_factory(engine)
-    qdrant_store = QdrantStore(settings.qdrant)
-    embedding_client = EmbeddingClient(settings.embeddings)
-    llm_client = LLMClient(settings.llm)
-    rerank_client = RerankClient(settings.reranker)
-    redis = Redis.from_url(settings.redis.url)
-    job_queue = ArqRedis.from_url(settings.redis.url)
+    startup_started_at = perf_counter()
+    startup_event: dict[str, object] = {
+        "event": "app_startup",
+        "seed_demo_data_enabled": settings.embeddings.seed_demo_data,
+    }
+    engine = None
+    redis = None
+    job_queue = None
 
-    app.state.settings = settings
-    app.state.engine = engine
-    app.state.session_factory = session_factory
-    app.state.qdrant_store = qdrant_store
-    app.state.embedding_client = embedding_client
-    app.state.llm_client = llm_client
-    app.state.rerank_client = rerank_client
-    app.state.redis = redis
-    app.state.job_queue = job_queue
+    try:
+        configure_telemetry(app, settings)
+        startup_event["telemetry_configured"] = True
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        engine = create_engine(settings.db)
+        session_factory = create_session_factory(engine)
+        qdrant_store = QdrantStore(settings.qdrant)
+        embedding_client = EmbeddingClient(settings.embeddings)
+        llm_client = LLMClient(settings.llm)
+        rerank_client = RerankClient(settings.reranker)
+        redis = Redis.from_url(settings.redis.url)
+        job_queue = ArqRedis.from_url(settings.redis.url)
 
-    await qdrant_store.ensure_collection()
+        app.state.settings = settings
+        app.state.engine = engine
+        app.state.session_factory = session_factory
+        app.state.qdrant_store = qdrant_store
+        app.state.embedding_client = embedding_client
+        app.state.llm_client = llm_client
+        app.state.rerank_client = rerank_client
+        app.state.redis = redis
+        app.state.job_queue = job_queue
+        startup_event["runtime_dependencies_initialized"] = True
 
-    if settings.embeddings.seed_demo_data:
-        await seed_demo_data(
-            session_factory=session_factory,
-            qdrant_store=qdrant_store,
-            embedding_client=embedding_client,
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        startup_event["database_schema_ready"] = True
+
+        await qdrant_store.ensure_collection()
+        startup_event["qdrant_collection_ready"] = True
+
+        if settings.embeddings.seed_demo_data:
+            seeded_count = await seed_demo_data(
+                session_factory=session_factory,
+                qdrant_store=qdrant_store,
+                embedding_client=embedding_client,
+            )
+            startup_event["seeded_documents"] = seeded_count
+
+        startup_event["outcome"] = "success"
+
+        yield
+    except Exception as exc:
+        startup_event["outcome"] = "error"
+        startup_event["error_type"] = type(exc).__name__
+        startup_event["error_message"] = str(exc)
+        raise
+    finally:
+        startup_event["duration_ms"] = round(
+            (perf_counter() - startup_started_at) * 1000, 2
         )
-    yield
+        logger.info("app_startup", extra={"wide_event": startup_event})
 
-    await job_queue.aclose()
-    await redis.aclose()
-    await engine.dispose()
+        shutdown_started_at = perf_counter()
+        shutdown_event: dict[str, object] = {"event": "app_shutdown"}
+        try:
+            if job_queue is not None:
+                await job_queue.aclose()
+                shutdown_event["job_queue_closed"] = True
+            if redis is not None:
+                await redis.aclose()
+                shutdown_event["redis_closed"] = True
+            if engine is not None:
+                await engine.dispose()
+                shutdown_event["engine_disposed"] = True
+            shutdown_event["outcome"] = "success"
+        except Exception as exc:
+            shutdown_event["outcome"] = "error"
+            shutdown_event["error_type"] = type(exc).__name__
+            shutdown_event["error_message"] = str(exc)
+            raise
+        finally:
+            shutdown_event["duration_ms"] = round(
+                (perf_counter() - shutdown_started_at) * 1000, 2
+            )
+            logger.info("app_shutdown", extra={"wide_event": shutdown_event})
 
 
 app = FastAPI(title=settings.app.app_name, lifespan=lifespan)

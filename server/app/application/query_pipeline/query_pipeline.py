@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -7,6 +8,9 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import cast
+
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.application.query_pipeline.content_parts import (
     answer_content_parts,
@@ -24,6 +28,80 @@ from app.infrastructure.db.models import (
 
 logger = logging.getLogger(__name__)
 
+SIMPLE_SYSTEM_PROMPT = (
+    "Answer the question using ONLY the provided evidence. "
+    "If the evidence does not contain the answer, respond with [] (empty array). "
+    "Respond ONLY with a valid JSON array and no other text. "
+    "Do not include markdown, code fences, or explanations before or after the JSON. "
+    'Each object must have a "text" key with a phrase-level text segment '
+    'and an "evidence_ids" key with a list of evidence IDs that support that segment. '
+    "Segment at the phrase level: break the answer into meaningful sub-phrases "
+    "where each sub-phrase draws on specific evidence. "
+    "The combined segments must read as polished natural prose with proper capitalization "
+    "and punctuation. Include any needed punctuation inside the relevant segment text so "
+    "joining the segments with spaces yields a fluent answer. "
+    "If a segment uses no evidence (e.g. connective text), use an empty array []. "
+    "Example: "
+    '[{"text": "This first claim", "evidence_ids": ["uuid1"]}, '
+    '{"text": " is supported by different evidence.", "evidence_ids": ["uuid2"]}]'
+)
+
+MULTI_HOP_SYSTEM_PROMPT = (
+    "Answer the original question using the chain of reasoning and evidence provided below. "
+    "Synthesize the intermediate answers into a coherent final answer. "
+    "Respond ONLY with a valid JSON array and no other text. "
+    "Do not include markdown, code fences, or explanations before or after the JSON. "
+    'Each object must have a "text" key with a phrase-level text segment '
+    'and an "evidence_ids" key with a list of evidence IDs that support that segment. '
+    "Segment at the phrase level. "
+    "The combined segments must read as polished natural prose with proper capitalization "
+    "and punctuation. Include any needed punctuation inside the relevant segment text so "
+    "joining the segments with spaces yields a fluent answer. "
+    "If a segment uses no evidence (e.g. connective text), use an empty array []. "
+    "Example: "
+    '[{"text": "First finding", "evidence_ids": ["uuid1"]}, '
+    '{"text": " which connects to", "evidence_ids": []}, '
+    '{"text": " a second finding.", "evidence_ids": ["uuid2"]}]'
+)
+
+COMPARISON_SYSTEM_PROMPT = (
+    "Compare the entities described in the question using the provided evidence. "
+    "Highlight similarities and differences in a structured format. "
+    "Respond ONLY with a valid JSON array and no other text. "
+    "Do not include markdown, code fences, or explanations before or after the JSON. "
+    'Each object must have a "text" key with a phrase-level text segment '
+    'and an "evidence_ids" key with a list of evidence IDs that support that segment. '
+    "Segment at the phrase level. "
+    "The combined segments must read as polished natural prose with proper capitalization "
+    "and punctuation. Include any needed punctuation inside the relevant segment text so "
+    "joining the segments with spaces yields a fluent answer. "
+    "If a segment uses no evidence (e.g. connective text), use an empty array []. "
+    "Example: "
+    '[{"text": "Both approaches share", "evidence_ids": ["uuid1"]}, '
+    '{"text": " but differ in", "evidence_ids": ["uuid2"]}]'
+)
+
+MAX_SUB_QUERIES = 4
+
+MIN_EVENT_INTERVAL_S = 2.0
+
+AGGREGATION_SYSTEM_PROMPT = (
+    "Provide a comprehensive summary covering the main themes and key points "
+    "from the provided evidence. Organize the summary by topic. "
+    "Respond ONLY with a valid JSON array and no other text. "
+    "Do not include markdown, code fences, or explanations before or after the JSON. "
+    'Each object must have a "text" key with a phrase-level text segment '
+    'and an "evidence_ids" key with a list of evidence IDs that support that segment. '
+    "Segment at the phrase level. "
+    "The combined segments must read as polished natural prose with proper capitalization "
+    "and punctuation. Include any needed punctuation inside the relevant segment text so "
+    "joining the segments with spaces yields a fluent answer. "
+    "If a segment uses no evidence (e.g. connective text), use an empty array []. "
+    "Example: "
+    '[{"text": "One key theme is", "evidence_ids": ["uuid1"]}, '
+    '{"text": " which is supported by multiple sources.", "evidence_ids": ["uuid2", "uuid3"]}]'
+)
+
 
 class QueryPipeline:
     def __init__(
@@ -35,6 +113,7 @@ class QueryPipeline:
         qdrant_store=None,
         rerank_client=None,
         llm_client=None,
+        arag_router=None,
     ) -> None:
         self._session_factory = session_factory
         self._redis = redis
@@ -42,13 +121,14 @@ class QueryPipeline:
         self._qdrant_store = qdrant_store
         self._rerank_client = rerank_client
         self._llm_client = llm_client
+        self._arag_router = arag_router
+        self._last_publish_at: float | None = None
 
     async def run(self, query_id) -> None:
         started_at = perf_counter()
         wide_event: dict[str, object] = {
             "event": "query_pipeline_run",
             "query_id": str(query_id),
-            "route": "simple",
         }
 
         async with self._session_factory() as session:
@@ -60,7 +140,45 @@ class QueryPipeline:
             await session.commit()
 
             try:
-                done_payload = await self._run_simple_route(session, query, wide_event)
+                route = "simple"
+                sub_queries: list[str] = []
+                if self._arag_router is not None:
+                    result = await self._arag_router.classify(query.query_text)
+                    route = result.route
+                    sub_queries = result.sub_queries
+
+                query.selected_route = route
+                query.sub_queries = sub_queries
+                await session.commit()
+
+                reasoning_trace: list[dict[str, object]] = []
+
+                await self._publish(
+                    query.id,
+                    "route_selected",
+                    {"route": route, "sub_queries": sub_queries},
+                )
+
+                wide_event["route"] = route
+                wide_event["sub_queries"] = sub_queries
+
+                if route == "multi_hop":
+                    done_payload = await self._run_multi_hop_route(
+                        session, query, sub_queries, wide_event, reasoning_trace
+                    )
+                elif route == "comparison":
+                    done_payload = await self._run_comparison_route(
+                        session, query, sub_queries, wide_event, reasoning_trace
+                    )
+                elif route == "aggregation":
+                    done_payload = await self._run_aggregation_route(
+                        session, query, sub_queries, wide_event, reasoning_trace
+                    )
+                else:
+                    done_payload = await self._run_simple_route(
+                        session, query, wide_event, reasoning_trace
+                    )
+
                 wide_event["outcome"] = "success"
             except Exception as exc:
                 query.status = "failed"
@@ -102,6 +220,7 @@ class QueryPipeline:
                     {
                         "query_id": str(query.id),
                         "content_parts": cp,
+                        "reasoning_trace": done_payload["reasoning_trace"],
                         "segments": done_payload["segments"],
                         "error": False,
                     },
@@ -118,13 +237,18 @@ class QueryPipeline:
                 )
 
     async def _run_simple_route(
-        self, session, query: Query, wide_event: dict[str, object] | None = None
+        self,
+        session,
+        query: Query,
+        wide_event: dict[str, object] | None = None,
+        reasoning_trace: list[dict[str, object]] | None = None,
     ) -> dict[str, object] | None:
         await self._publish(
             query.id,
             "content_parts",
             {"parts": [reasoning_part("Routing Query via Simple Route...")]},
         )
+        self._trace_step(reasoning_trace, "Routing Query via Simple Route...")
 
         if self._embedding_client is None or self._qdrant_store is None:
             return None
@@ -142,6 +266,7 @@ class QueryPipeline:
             "content_parts",
             {"parts": [reasoning_part("Retrieving Evidence from Qdrant...")]},
         )
+        self._trace_step(reasoning_trace, "Retrieving Evidence from Qdrant...")
         await self._stage_candidates(session, query, search_results)
 
         fused_points = (
@@ -157,6 +282,7 @@ class QueryPipeline:
             "content_parts",
             {"parts": [reasoning_part("Fusing dense + sparse candidates via RRF...")]},
         )
+        self._trace_step(reasoning_trace, "Fusing dense + sparse candidates via RRF...")
 
         selected_evidence_ids = [
             uuid.UUID(point.payload["evidence_id"]) for point in fused_points
@@ -171,6 +297,9 @@ class QueryPipeline:
                     ]
                 },
             )
+            self._trace_step(
+                reasoning_trace, "Reranking top-20 candidates via Cohere..."
+            )
             selected_evidence_ids = await self._rerank_fused_candidates(
                 session, query, fused_points
             )
@@ -180,7 +309,298 @@ class QueryPipeline:
 
         if self._llm_client is not None and selected_evidence_ids:
             return await self._generate_and_persist_answer(
-                session, query, selected_evidence_ids
+                session,
+                query,
+                selected_evidence_ids,
+                SIMPLE_SYSTEM_PROMPT,
+                reasoning_trace=reasoning_trace,
+            )
+
+        return None
+
+    async def _retrieve_evidence(
+        self,
+        session,
+        query_text: str,
+        rerank_query: str | None = None,
+        top_n: int = 5,
+    ) -> tuple[list[uuid.UUID], list[dict[str, object]]]:
+        if self._embedding_client is None or self._qdrant_store is None:
+            return [], []
+
+        dense_vector = self._embedding_client.embed_texts([query_text])[0]
+        search_results = await self._qdrant_store.hybrid_search(
+            query_text=query_text,
+            dense_vector=dense_vector,
+            dense_limit=20,
+            sparse_limit=20,
+            fused_limit=20,
+        )
+        fused_points = (
+            search_results.get("fused", [])
+            if isinstance(search_results, dict)
+            else search_results
+        )
+        if not fused_points:
+            return [], []
+
+        rerank_q = rerank_query or query_text
+        documents: list[str] = []
+        evidence_ids: list[uuid.UUID] = []
+        candidates: list[dict[str, object]] = []
+        for point in fused_points:
+            evidence_id = uuid.UUID(point.payload["evidence_id"])
+            evidence = await session.scalar(
+                select(Evidence)
+                .where(Evidence.id == evidence_id)
+                .options(selectinload(Evidence.document))
+            )
+            if evidence is None:
+                continue
+            documents.append(evidence.content)
+            evidence_ids.append(evidence_id)
+            candidates.append(
+                {
+                    "evidence_id": str(evidence_id),
+                    "document_title": evidence.document.title,
+                    "page": evidence.page,
+                    "snippet": evidence.content[:160],
+                }
+            )
+
+        if self._rerank_client is not None:
+            results = await self._rerank_client.rerank(
+                query=rerank_q,
+                documents=documents,
+                top_n=top_n,
+            )
+            selected = [evidence_ids[r.index] for r in results]
+            selected_candidates = [candidates[r.index] for r in results]
+            return selected, selected_candidates
+
+        return evidence_ids[:top_n], candidates[:top_n]
+
+    async def _run_multi_hop_route(
+        self,
+        session,
+        query: Query,
+        sub_queries: list[str],
+        wide_event: dict[str, object] | None = None,
+        reasoning_trace: list[dict[str, object]] | None = None,
+    ) -> dict[str, object] | None:
+        if not sub_queries:
+            sub_queries = [query.query_text]
+        sub_queries = sub_queries[:MAX_SUB_QUERIES]
+
+        all_evidence_ids: list[uuid.UUID] = []
+        intermediate_answers: list[str] = []
+
+        for i, sub_query in enumerate(sub_queries):
+            step_text = (
+                f"Multi-hop step {i + 1}/{len(sub_queries)}: "
+                f"Retrieving for '{sub_query}'..."
+            )
+            await self._publish(
+                query.id,
+                "content_parts",
+                {"parts": [reasoning_part(step_text)]},
+            )
+            self._trace_step(reasoning_trace, step_text)
+
+            evidence_ids, candidates = await self._retrieve_evidence(session, sub_query)
+            all_evidence_ids.extend(evidence_ids)
+            self._trace_retrieval(
+                reasoning_trace, f"Retrieved {len(candidates)} candidates", candidates
+            )
+
+            intermediate = ""
+            if evidence_ids and self._llm_client is not None:
+                evidence_contents: list[str] = []
+                for eid in evidence_ids:
+                    evidence = await session.get(Evidence, eid)
+                    if evidence is not None:
+                        evidence_contents.append(evidence.content)
+                context = ""
+                if intermediate_answers:
+                    context = (
+                        "Previous steps:\n"
+                        + "\n".join(
+                            f"Step {j + 1}: {ans}"
+                            for j, ans in enumerate(intermediate_answers)
+                        )
+                        + "\n\n"
+                    )
+                messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Answer the current sub-question concisely using the provided evidence. "
+                            "If the evidence does not contain the answer, say so."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"{context}"
+                            f"Sub-question: {sub_query}\n"
+                            "Evidence:\n" + "\n".join(evidence_contents)
+                        ),
+                    },
+                ]
+                raw = await self._llm_client.generate(messages)
+                intermediate = raw.strip()
+
+            intermediate_answers.append(intermediate)
+
+            hop_payload = {
+                "hop": i + 1,
+                "sub_query": sub_query,
+                "intermediate_answer": intermediate,
+            }
+            await self._publish(query.id, "hop_progress", hop_payload)
+            self._trace_hop(reasoning_trace, hop_payload)
+
+        seen: set[uuid.UUID] = set()
+        unique_evidence: list[uuid.UUID] = []
+        for eid in all_evidence_ids:
+            if eid not in seen:
+                seen.add(eid)
+                unique_evidence.append(eid)
+
+        if wide_event is not None:
+            wide_event["multi_hop_steps"] = len(sub_queries)
+            wide_event["retrieved_evidence_count"] = len(unique_evidence)
+
+        chain_context = "Chain of reasoning:\n" + "\n".join(
+            f"Step {i + 1}: {ans}" for i, ans in enumerate(intermediate_answers)
+        )
+
+        if self._llm_client is not None and unique_evidence:
+            return await self._generate_and_persist_answer(
+                session,
+                query,
+                unique_evidence,
+                MULTI_HOP_SYSTEM_PROMPT,
+                context_prefix=chain_context,
+                reasoning_trace=reasoning_trace,
+            )
+
+        return None
+
+    async def _run_comparison_route(
+        self,
+        session,
+        query: Query,
+        sub_queries: list[str],
+        wide_event: dict[str, object] | None = None,
+        reasoning_trace: list[dict[str, object]] | None = None,
+    ) -> dict[str, object] | None:
+        if not sub_queries:
+            sub_queries = [query.query_text]
+        sub_queries = sub_queries[:MAX_SUB_QUERIES]
+
+        step_text = (
+            f"Comparison: Retrieving evidence for {len(sub_queries)} entities..."
+        )
+        await self._publish(
+            query.id,
+            "content_parts",
+            {"parts": [reasoning_part(step_text)]},
+        )
+        self._trace_step(reasoning_trace, step_text)
+
+        import asyncio
+
+        tasks = [
+            self._retrieve_evidence(
+                session,
+                sq,
+                rerank_query=query.query_text,
+                top_n=10,
+            )
+            for sq in sub_queries
+        ]
+        results = await asyncio.gather(*tasks)
+
+        seen: set[uuid.UUID] = set()
+        all_evidence_ids: list[uuid.UUID] = []
+        for sq, (ev_ids, cands) in zip(sub_queries, results, strict=True):
+            self._trace_retrieval(
+                reasoning_trace,
+                f"Retrieved candidates for '{sq}'",
+                cands,
+            )
+            for eid in ev_ids:
+                if eid not in seen:
+                    seen.add(eid)
+                    all_evidence_ids.append(eid)
+
+        if wide_event is not None:
+            wide_event["comparison_entities"] = len(sub_queries)
+            wide_event["retrieved_evidence_count"] = len(all_evidence_ids)
+
+        if self._llm_client is not None and all_evidence_ids:
+            return await self._generate_and_persist_answer(
+                session,
+                query,
+                all_evidence_ids,
+                COMPARISON_SYSTEM_PROMPT,
+                reasoning_trace=reasoning_trace,
+            )
+
+        return None
+
+    async def _run_aggregation_route(
+        self,
+        session,
+        query: Query,
+        sub_queries: list[str],
+        wide_event: dict[str, object] | None = None,
+        reasoning_trace: list[dict[str, object]] | None = None,
+    ) -> dict[str, object] | None:
+        if not sub_queries:
+            sub_queries = [query.query_text]
+        sub_queries = sub_queries[:MAX_SUB_QUERIES]
+
+        step_text = (
+            f"Aggregation: Retrieving across {len(sub_queries)} reformulations..."
+        )
+        await self._publish(
+            query.id,
+            "content_parts",
+            {"parts": [reasoning_part(step_text)]},
+        )
+        self._trace_step(reasoning_trace, step_text)
+
+        import asyncio
+
+        tasks = [self._retrieve_evidence(session, sq) for sq in sub_queries]
+        results = await asyncio.gather(*tasks)
+
+        seen: set[uuid.UUID] = set()
+        all_evidence_ids: list[uuid.UUID] = []
+        for sq, (ev_ids, cands) in zip(sub_queries, results, strict=True):
+            self._trace_retrieval(
+                reasoning_trace,
+                f"Retrieved candidates for '{sq}'",
+                cands,
+            )
+            for eid in ev_ids:
+                if eid not in seen:
+                    seen.add(eid)
+                    all_evidence_ids.append(eid)
+
+        if wide_event is not None:
+            wide_event["aggregation_reformulations"] = len(sub_queries)
+            wide_event["retrieved_evidence_count"] = len(all_evidence_ids)
+
+        if self._llm_client is not None and all_evidence_ids:
+            return await self._generate_and_persist_answer(
+                session,
+                query,
+                all_evidence_ids,
+                AGGREGATION_SYSTEM_PROMPT,
+                reasoning_trace=reasoning_trace,
             )
 
         return None
@@ -248,6 +668,9 @@ class QueryPipeline:
         session,
         query: Query,
         selected_evidence_ids: list[uuid.UUID],
+        system_prompt: str | None = None,
+        context_prefix: str | None = None,
+        reasoning_trace: list[dict[str, object]] | None = None,
     ) -> dict[str, object] | None:
         if self._llm_client is None:
             return None
@@ -265,33 +688,18 @@ class QueryPipeline:
                 }
             )
 
+        prompt = system_prompt or SIMPLE_SYSTEM_PROMPT
+
+        user_content = f"Question: {query.query_text}\n"
+        if context_prefix:
+            user_content += f"{context_prefix}\n\n"
+        user_content += "Evidence:\n" + "\n\n".join(
+            f"[ID: {ev['id']}] {ev['content']}" for ev in evidence_payloads
+        )
+
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    "Answer the question using ONLY the provided evidence. "
-                    "If the evidence does not contain the answer, respond with [] (empty array). "
-                    "Respond in JSON format as an array of objects. "
-                    'Each object must have a "text" key with a phrase-level text segment '
-                    'and an "evidence_ids" key with a list of evidence IDs that support that segment. '
-                    "Segment at the phrase level: break the answer into meaningful sub-phrases "
-                    "where each sub-phrase draws on specific evidence. "
-                    'If a segment uses no evidence (e.g. connective text), use an empty array []. '
-                    'Example: '
-                    '[{"text": "This first claim", "evidence_ids": ["uuid1"]}, '
-                    '{"text": " is supported by different evidence.", "evidence_ids": ["uuid2"]}]'
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Question: {query.query_text}\n"
-                    "Evidence:\n"
-                    + "\n\n".join(
-                        f"[ID: {ev['id']}] {ev['content']}" for ev in evidence_payloads
-                    )
-                ),
-            },
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": user_content},
         ]
 
         async for chunk in self._llm_client.generate_stream(messages):
@@ -306,12 +714,57 @@ class QueryPipeline:
                         text_part(accumulated),
                     ]
                 },
+                throttle=False,
             )
+        self._trace_step(reasoning_trace, "Generating Answer...")
 
         parsed = parser.parse_final()
         if not parsed:
             return None
-        return self._persist_segments(session, query, parsed, evidence_payloads)
+        return self._persist_segments(
+            session, query, parsed, evidence_payloads, reasoning_trace
+        )
+
+    def _trace_step(
+        self,
+        reasoning_trace: list[dict[str, object]] | None,
+        text: str,
+    ) -> None:
+        if reasoning_trace is None:
+            return
+        reasoning_trace.append({"type": "step", "text": text})
+
+    def _trace_hop(
+        self,
+        reasoning_trace: list[dict[str, object]] | None,
+        hop: dict[str, object],
+    ) -> None:
+        if reasoning_trace is None:
+            return
+        reasoning_trace.append(
+            {
+                "type": "hop",
+                "hop": hop.get("hop"),
+                "sub_query": hop.get("sub_query"),
+                "intermediate_answer": hop.get("intermediate_answer"),
+            }
+        )
+
+    def _trace_retrieval(
+        self,
+        reasoning_trace: list[dict[str, object]] | None,
+        label: str,
+        candidates: list[dict[str, object]],
+    ) -> None:
+        if reasoning_trace is None:
+            return
+        reasoning_trace.append(
+            {
+                "type": "retrieval",
+                "label": label,
+                "candidates": candidates,
+            }
+        )
 
     def _persist_segments(
         self,
@@ -319,6 +772,7 @@ class QueryPipeline:
         query: Query,
         parsed_segments: list[dict[str, object]],
         evidence_payloads: list[dict[str, object]],
+        reasoning_trace: list[dict[str, object]] | None = None,
     ) -> dict[str, object]:
         valid_ids = {ev["id"] for ev in evidence_payloads}
 
@@ -341,6 +795,7 @@ class QueryPipeline:
             id=uuid.uuid4(),
             query_id=query.id,
             full_text=" ".join(full_text_parts),
+            reasoning_trace=list(reasoning_trace) if reasoning_trace else [],
         )
         session.add(answer)
 
@@ -379,11 +834,43 @@ class QueryPipeline:
             "id": str(answer.id),
             "query_id": str(query.id),
             "full_text": answer.full_text,
+            "reasoning_trace": answer.reasoning_trace,
             "segments": segment_payloads,
             "evidence": evidence_payloads,
         }
 
-    async def _publish(self, query_id, event: str, data: Mapping[str, object]) -> None:
+    async def _publish(
+        self,
+        query_id,
+        event: str,
+        data: Mapping[str, object],
+        throttle: bool = True,
+    ) -> None:
+        if throttle:
+            now = perf_counter()
+            if self._last_publish_at is not None:
+                elapsed = now - self._last_publish_at
+                if elapsed < MIN_EVENT_INTERVAL_S:
+                    await asyncio.sleep(MIN_EVENT_INTERVAL_S - elapsed)
+            self._last_publish_at = perf_counter()
+
         channel = f"query:{query_id}:events"
         message = json.dumps({"event": event, "data": data})
-        await self._redis.publish(channel, message)
+        try:
+            await self._redis.publish(channel, message)
+        except Exception as exc:
+            logger.error(
+                "query_event_publish_failed",
+                extra={
+                    "wide_event": {
+                        "event": "query_event_publish_failed",
+                        "query_id": str(query_id),
+                        "channel": channel,
+                        "published_event": event,
+                        "outcome": "error",
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                    }
+                },
+            )
+            raise

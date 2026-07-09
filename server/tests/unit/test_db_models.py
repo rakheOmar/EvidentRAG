@@ -123,6 +123,10 @@ def test_query_table_columns_match_schema() -> None:
     assert not cols["selected_route"].nullable
     assert cols["selected_route"].default is not None
 
+    assert str(cols["sub_queries"].type) == "JSONB"
+    assert not cols["sub_queries"].nullable
+    assert cols["sub_queries"].default is not None
+
     assert str(cols["status"].type) == "TEXT"
     assert not cols["status"].nullable
     assert cols["status"].default is not None
@@ -139,7 +143,7 @@ def test_query_table_columns_match_schema() -> None:
     status_checks = _check_constraints(table)
     assert any("status" in str(constraint.sqltext) for constraint in status_checks)
 
-    assert len(cols) == 9
+    assert len(cols) == 10
 
 
 def test_answer_table_columns_match_schema() -> None:
@@ -165,10 +169,13 @@ def test_answer_table_columns_match_schema() -> None:
     assert str(cols["metadata"].type) == "JSONB"
     assert not cols["metadata"].nullable
 
+    assert str(cols["reasoning_trace"].type) == "JSONB"
+    assert not cols["reasoning_trace"].nullable
+
     assert str(cols["created_at"].type) == "TIMESTAMP"
     assert not cols["created_at"].nullable
 
-    assert len(cols) == 7
+    assert len(cols) == 8
 
 
 def test_segment_table_columns_match_schema() -> None:

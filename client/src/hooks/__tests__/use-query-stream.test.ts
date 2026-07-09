@@ -87,7 +87,10 @@ describe("useQueryStream", () => {
     expect(eventSource.url).toBe("/api/v1/queries/q-001/events");
 
     act(() => {
-      eventSource.emit("route_selected", { route: "simple" });
+      eventSource.emit("route_selected", {
+        route: "simple",
+        sub_queries: [],
+      });
       eventSource.emit("retrieving", { status: "retrieving" });
       eventSource.emit("generating", { sentence: "Sentence one." });
       eventSource.emit("generating", { sentence: "Sentence two." });
@@ -113,6 +116,7 @@ describe("useQueryStream", () => {
         phase: "done",
         queryId: "q-001",
         route: "simple",
+        subQueries: [],
         streamedSentences: ["Sentence one.", "Sentence two."],
       });
     });
@@ -142,6 +146,7 @@ describe("useQueryStream", () => {
         phase: "error",
         queryId: "q-002",
         route: null,
+        subQueries: [],
         streamedSentences: [],
       });
     });

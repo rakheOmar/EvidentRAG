@@ -101,6 +101,9 @@ class Query(Base):
     selected_route: Mapped[str] = mapped_column(
         Text, nullable=False, default="simple", server_default="simple"
     )
+    sub_queries: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
     status: Mapped[str] = mapped_column(
         Text, nullable=False, default="pending", server_default="pending"
     )
@@ -150,6 +153,9 @@ class Answer(Base):
         unique=True,
     )
     full_text: Mapped[str] = mapped_column(Text, nullable=False)
+    reasoning_trace: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
     model_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(Text, nullable=True)
     extra: Mapped[dict] = mapped_column(
@@ -178,16 +184,12 @@ class Segment(Base):
     )
     segment_index: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
-    evidence_ids: Mapped[list] = mapped_column(
-        JSONB, nullable=False, default=list
-    )
+    evidence_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
 
     answer: Mapped[Answer] = relationship(back_populates="segments")
 
     __table_args__ = (
-        UniqueConstraint(
-            "answer_id", "segment_index", name="uq_segments_answer_index"
-        ),
+        UniqueConstraint("answer_id", "segment_index", name="uq_segments_answer_index"),
     )
 
 

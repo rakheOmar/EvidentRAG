@@ -20,10 +20,26 @@ function toMessageStatus(
 export function convertEvidentMessage(
   message: EvidentChatMessage
 ): ThreadMessageLike {
+  const customMetadata = {
+    generating: message.generating,
+    hopProgress: message.hopProgress,
+    reasoningTrace: message.reasoningTrace,
+    route: message.route,
+    subQueries: message.subQueries,
+  };
+  const hasCustomMetadata = Object.values(customMetadata).some(
+    (value) => value !== undefined
+  );
+
   return {
     content: message.contentParts as ThreadMessageLike["content"],
     createdAt: message.createdAt,
     id: message.id,
+    ...(hasCustomMetadata && {
+      metadata: {
+        custom: customMetadata,
+      },
+    }),
     role: message.role,
     ...(message.role === "assistant" && {
       status: toMessageStatus(message.status),

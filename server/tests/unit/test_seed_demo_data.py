@@ -54,11 +54,39 @@ class _FakeSession:
 
 
 class _FakeSessionFactory:
-    def __init__(self, session: _FakeSession) -> None:
+    def __init__(self, session: _FakeSession, bind: object | None = None) -> None:
         self._session = session
+        self.kw = {"bind": bind} if bind is not None else {}
 
     def __call__(self) -> _FakeSession:
         return self._session
+
+
+class _FakeConnection:
+    def __init__(self) -> None:
+        self.callbacks: list[object] = []
+
+    async def run_sync(self, callback) -> None:
+        self.callbacks.append(callback)
+
+
+class _FakeBeginContext:
+    def __init__(self, connection: _FakeConnection) -> None:
+        self._connection = connection
+
+    async def __aenter__(self) -> _FakeConnection:
+        return self._connection
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
+class _FakeEngine:
+    def __init__(self) -> None:
+        self.connection = _FakeConnection()
+
+    def begin(self) -> _FakeBeginContext:
+        return _FakeBeginContext(self.connection)
 
 
 class _FakeEmbeddingClient:
@@ -153,7 +181,8 @@ async def test_seed_demo_data_loads_demo_document(tmp_path: Path) -> None:
     )
 
     session = _FakeSession()
-    session_factory = _FakeSessionFactory(session)
+    engine = _FakeEngine()
+    session_factory = _FakeSessionFactory(session, bind=engine)
     embedding_client = _FakeEmbeddingClient()
     qdrant_store = _FakeQdrantStore()
 
@@ -166,6 +195,7 @@ async def test_seed_demo_data_loads_demo_document(tmp_path: Path) -> None:
 
     assert seeded_count == 1
     assert qdrant_store.reset_called is True
+    assert len(engine.connection.callbacks) == 2
     assert session.committed is True
     assert session.rolled_back is False
     assert len(session.documents) == 1
@@ -209,7 +239,9 @@ async def test_seed_demo_data_loads_demo_document(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_seed_demo_data_clears_sql_rows_before_reseeding(tmp_path: Path) -> None:
+async def test_seed_demo_data_rebuilds_sql_schema_before_reseeding(
+    tmp_path: Path,
+) -> None:
     seed_dir = tmp_path / "demo-corpus"
     seed_dir.mkdir()
     (seed_dir / "attention-is-all-you-need.json").write_text(
@@ -242,7 +274,8 @@ async def test_seed_demo_data_clears_sql_rows_before_reseeding(tmp_path: Path) -
     )
 
     session = _FakeSession()
-    session_factory = _FakeSessionFactory(session)
+    engine = _FakeEngine()
+    session_factory = _FakeSessionFactory(session, bind=engine)
     embedding_client = _FakeEmbeddingClient()
     qdrant_store = _FakeQdrantStore()
 
@@ -254,11 +287,8 @@ async def test_seed_demo_data_clears_sql_rows_before_reseeding(tmp_path: Path) -
     )
 
     assert seeded_count == 1
-    assert session.executed_statements
-    assert (
-        str(session.executed_statements[0])
-        == "TRUNCATE TABLE evidence, documents RESTART IDENTITY CASCADE"
-    )
+    assert session.executed_statements == []
+    assert len(engine.connection.callbacks) == 2
     assert qdrant_store.reset_called is True
     assert len(session.documents) == 1
     assert len(session.evidence) == 1
@@ -300,7 +330,8 @@ async def test_seed_demo_data_rolls_back_when_embedding_fails(tmp_path: Path) ->
     )
 
     session = _FakeSession()
-    session_factory = _FakeSessionFactory(session)
+    engine = _FakeEngine()
+    session_factory = _FakeSessionFactory(session, bind=engine)
     qdrant_store = _FakeQdrantStore()
 
     with pytest.raises(RuntimeError, match="embedding failed"):
@@ -311,11 +342,12 @@ async def test_seed_demo_data_rolls_back_when_embedding_fails(tmp_path: Path) ->
             seed_dir=seed_dir,
         )
 
-    assert session.committed is True
+    assert session.committed is False
     assert session.rolled_back is True
     assert qdrant_store.points is None
     assert qdrant_store.reset_called is True
-    assert "TRUNCATE" in str(session.executed_statements[0])
+    assert session.executed_statements == []
+    assert len(engine.connection.callbacks) == 2
 
 
 @pytest.mark.asyncio
@@ -376,7 +408,8 @@ async def test_seed_demo_data_batches_embedding_requests(
     monkeypatch.setattr("app.seed.seed_demo_data.EMBEDDING_BATCH_SIZE", 2)
 
     session = _FakeSession()
-    session_factory = _FakeSessionFactory(session)
+    engine = _FakeEngine()
+    session_factory = _FakeSessionFactory(session, bind=engine)
     embedding_client = _FakeEmbeddingClient()
     qdrant_store = _FakeQdrantStore()
 
@@ -461,7 +494,8 @@ async def test_seed_demo_data_skips_bad_evidence_chunk_on_400(
     monkeypatch.setattr("app.seed.seed_demo_data.EMBEDDING_BATCH_SIZE", 3)
 
     session = _FakeSession()
-    session_factory = _FakeSessionFactory(session)
+    engine = _FakeEngine()
+    session_factory = _FakeSessionFactory(session, bind=engine)
     embedding_client = _BadChunkEmbeddingClient()
     qdrant_store = _FakeQdrantStore()
 

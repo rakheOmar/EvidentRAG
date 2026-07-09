@@ -31,6 +31,12 @@ router = APIRouter(prefix="/api/v1/queries", tags=["queries"])
 logger = logging.getLogger(__name__)
 
 
+def _normalize_query(query: Query) -> Query:
+    if query.sub_queries is None:
+        query.sub_queries = []
+    return query
+
+
 async def _build_answer_response(session, query_id: UUID) -> AnswerResponse | None:
     answer = await session.scalar(
         select(Answer)
@@ -49,9 +55,18 @@ async def _build_answer_response(session, query_id: UUID) -> AnswerResponse | No
             try:
                 parsed_eid = UUID(eid) if not isinstance(eid, UUID) else eid
             except (ValueError, AttributeError) as exc:
-                logger.warning(
-                    "Skipping non-UUID evidence_id %r in segment %s: %s",
-                    eid, seg.id, exc,
+                logger.info(
+                    "answer_segment_evidence_id_skipped",
+                    extra={
+                        "wide_event": {
+                            "event": "answer_segment_evidence_id_skipped",
+                            "segment_id": str(seg.id),
+                            "raw_evidence_id": str(eid),
+                            "error_type": type(exc).__name__,
+                            "error_message": str(exc),
+                            "outcome": "skipped",
+                        }
+                    },
                 )
                 continue
             resolved_evidence.append(parsed_eid)
@@ -95,6 +110,7 @@ async def _build_answer_response(session, query_id: UUID) -> AnswerResponse | No
         id=answer.id,
         query_id=answer.query_id,
         full_text=answer.full_text,
+        reasoning_trace=answer.reasoning_trace or [],
         segments=segments,
         evidence=list(evidence_by_id.values()),
         content_parts=answer_content_parts(answer.full_text, evidence_dicts),
@@ -136,7 +152,7 @@ async def _query_events_stream(request: Request, query_id: UUID) -> AsyncIterato
 @router.post("", response_model=QueryResponse, status_code=status.HTTP_201_CREATED)
 async def create_query(payload: QueryCreate, request: Request) -> Query:
     async with request.app.state.session_factory() as session:
-        query = Query(query_text=payload.query_text)
+        query = Query(query_text=payload.query_text, sub_queries=[])
         session.add(query)
         await session.commit()
         await session.refresh(query)
@@ -150,7 +166,7 @@ async def create_query(payload: QueryCreate, request: Request) -> Query:
     if job_queue is not None:
         await job_queue.enqueue_job("run_query_pipeline", str(query.id))
 
-    return query
+    return _normalize_query(query)
 
 
 @router.get("", response_model=list[QueryResponse])
@@ -161,7 +177,7 @@ async def list_queries(
         result = await session.execute(
             select(Query).order_by(Query.created_at).offset(offset).limit(limit)
         )
-        return list(result.scalars())
+        return [_normalize_query(query) for query in result.scalars()]
 
 
 @router.get("/{query_id}", response_model=QueryResponse)
@@ -170,7 +186,7 @@ async def get_query(query_id: UUID, request: Request) -> Query:
         query = await session.get(Query, query_id)
         if query is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-        return query
+        return _normalize_query(query)
 
 
 @router.get("/{query_id}/answer", response_model=PendingAnswerResponse | AnswerResponse)

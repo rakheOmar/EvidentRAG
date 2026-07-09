@@ -26,6 +26,51 @@ class LLMClient:
             timeout=httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0),
         )
 
+    async def generate(
+        self,
+        messages: list[dict],
+        model: str | None = None,
+    ) -> str:
+        started_at = perf_counter()
+        model = model or self._utility_model
+
+        wide_event: dict[str, object] = {
+            "event": "llm_generate",
+            "model": model,
+            "prompt_messages": len(messages),
+        }
+
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+        }
+
+        try:
+            response = await self._client.post(
+                f"{self._api_base}/chat/completions",
+                json=payload,
+                headers=headers,
+            )
+            response.raise_for_status()
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            wide_event["response_length"] = len(content)
+            wide_event["outcome"] = "success"
+            return content
+        except Exception as exc:
+            wide_event["outcome"] = "error"
+            wide_event["error_type"] = type(exc).__name__
+            wide_event["error_message"] = str(exc)
+            raise
+        finally:
+            wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
+            logger.info("llm_generate", extra={"wide_event": wide_event})
+
     async def generate_stream(
         self,
         messages: list[dict],

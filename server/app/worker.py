@@ -7,6 +7,7 @@ from arq.connections import RedisSettings
 from dotenv import load_dotenv
 from redis.asyncio import Redis
 
+from app.application.query_pipeline.arag_router import AragRouter
 from app.application.query_pipeline.query_pipeline import QueryPipeline
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -35,6 +36,7 @@ async def startup(ctx: dict) -> None:
         llm_client = LLMClient(settings.llm)
         rerank_client = RerankClient(settings.reranker)
         redis = Redis.from_url(settings.redis.url)
+        arag_router = AragRouter(llm_client=llm_client)
 
         await qdrant_store.ensure_collection()
 
@@ -45,6 +47,7 @@ async def startup(ctx: dict) -> None:
         ctx["llm_client"] = llm_client
         ctx["rerank_client"] = rerank_client
         ctx["redis"] = redis
+        ctx["arag_router"] = arag_router
 
         wide_event["outcome"] = "success"
     except Exception as exc:
@@ -96,6 +99,7 @@ async def run_query_pipeline(ctx: dict, query_id) -> None:
             qdrant_store=ctx["qdrant_store"],
             rerank_client=ctx["rerank_client"],
             llm_client=ctx["llm_client"],
+            arag_router=ctx.get("arag_router"),
         )
         await pipeline.run(query_id)
         wide_event["outcome"] = "success"
