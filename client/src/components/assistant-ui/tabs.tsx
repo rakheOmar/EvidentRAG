@@ -57,7 +57,7 @@ const tabsListVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
 );
 
 const tabsActiveIndicatorVariants = cva(
@@ -76,7 +76,7 @@ const tabsActiveIndicatorVariants = cva(
     defaultVariants: {
       variant: "default",
     },
-  }
+  },
 );
 
 function TabsList({
@@ -110,7 +110,7 @@ function TabsList({
         triggerRefs.current.delete(value);
       }
     },
-    []
+    [],
   );
 
   useEffect(() => {
@@ -133,7 +133,7 @@ function TabsList({
 
     const updateActiveFromDOM = () => {
       const activeElement = listElement.querySelector(
-        '[data-state="active"]'
+        '[data-state="active"]',
       ) as HTMLElement | null;
       if (activeElement) {
         setActiveStyle({
@@ -157,7 +157,7 @@ function TabsList({
 
   const contextValue = useMemo(
     () => ({ registerTrigger, setHoveredValue }),
-    [registerTrigger]
+    [registerTrigger],
   );
 
   return (
@@ -165,7 +165,7 @@ function TabsList({
       <TabsPrimitive.List
         className={cn(
           tabsListVariants({ variant: resolvedVariant, size: resolvedSize }),
-          className
+          className,
         )}
         data-size={resolvedSize}
         data-slot="tabs-list"
@@ -237,7 +237,7 @@ function TabsTrigger({
         "group-data-[size=sm]/tabs-list:h-[calc(100%-8px)] group-data-[size=sm]/tabs-list:px-2 group-data-[size=sm]/tabs-list:py-0.5 group-data-[size=sm]/tabs-list:text-xs",
         "group-data-[size=default]/tabs-list:h-[calc(100%-8px)] group-data-[size=default]/tabs-list:px-3 group-data-[size=default]/tabs-list:py-1 group-data-[size=default]/tabs-list:text-sm",
         "group-data-[size=lg]/tabs-list:h-[calc(100%-8px)] group-data-[size=lg]/tabs-list:px-4 group-data-[size=lg]/tabs-list:py-1.5 group-data-[size=lg]/tabs-list:text-sm",
-        className
+        className,
       )}
       data-slot="tabs-trigger"
       data-value={value}

@@ -13,7 +13,7 @@ export function getMessageSegments(messageId: string): Segment[] | null {
 export function updateSegmentRating(
   messageId: string,
   traceId: string,
-  rating: Segment["rating"]
+  rating: Segment["rating"],
 ) {
   const segments = store.get(messageId);
   if (!segments) {
@@ -23,7 +23,7 @@ export function updateSegmentRating(
   store.set(
     messageId,
     segments.map((segment) =>
-      segment.id === traceId ? { ...segment, rating } : segment
-    )
+      segment.id === traceId ? { ...segment, rating } : segment,
+    ),
   );
 }

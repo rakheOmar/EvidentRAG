@@ -27,7 +27,7 @@ function QuoteBlockIcon({
     <QuoteIcon
       className={cn(
         "mt-0.5 size-3 shrink-0 text-muted-foreground/60",
-        className
+        className,
       )}
       data-slot="quote-block-icon"
       {...props}
@@ -40,7 +40,7 @@ function QuoteBlockText({ className, ...props }: ComponentProps<"p">) {
     <p
       className={cn(
         "line-clamp-2 min-w-0 text-muted-foreground/80 text-sm italic",
-        className
+        className,
       )}
       data-slot="quote-block-text"
       {...props}
@@ -68,7 +68,7 @@ const QuoteBlockImpl: QuoteMessagePartComponent = ({ text }) => (
 );
 
 const QuoteBlock = memo(
-  QuoteBlockImpl
+  QuoteBlockImpl,
 ) as unknown as QuoteMessagePartComponent & {
   Root: typeof QuoteBlockRoot;
   Icon: typeof QuoteBlockIcon;
@@ -88,7 +88,7 @@ function SelectionToolbarRoot({
     <SelectionToolbarPrimitive.Root
       className={cn(
         "flex items-center gap-1 rounded-lg border bg-popover px-1 py-1 shadow-md",
-        className
+        className,
       )}
       data-slot="selection-toolbar"
       {...props}
@@ -105,7 +105,7 @@ function SelectionToolbarQuote({
     <SelectionToolbarPrimitive.Quote
       className={cn(
         "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-popover-foreground text-sm transition-colors hover:bg-accent",
-        className
+        className,
       )}
       data-slot="selection-toolbar-quote"
       {...props}
@@ -143,7 +143,7 @@ const SelectionToolbarImpl: FC<ComponentProps<typeof SelectionToolbarRoot>> = ({
 );
 
 const SelectionToolbar = memo(
-  SelectionToolbarImpl
+  SelectionToolbarImpl,
 ) as unknown as typeof SelectionToolbarImpl & {
   Root: typeof SelectionToolbarRoot;
   Quote: typeof SelectionToolbarQuote;
@@ -161,7 +161,7 @@ function ComposerQuotePreviewRoot({
     <ComposerPrimitive.Quote
       className={cn(
         "mx-3 mt-2 flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2",
-        className
+        className,
       )}
       data-slot="composer-quote"
       {...props}
@@ -177,7 +177,7 @@ function ComposerQuotePreviewIcon({
     <QuoteIcon
       className={cn(
         "mt-0.5 size-3.5 shrink-0 text-muted-foreground/70",
-        className
+        className,
       )}
       data-slot="composer-quote-icon"
       {...props}
@@ -193,7 +193,7 @@ function ComposerQuotePreviewText({
     <ComposerPrimitive.QuoteText
       className={cn(
         "line-clamp-2 min-w-0 flex-1 text-muted-foreground text-sm",
-        className
+        className,
       )}
       data-slot="composer-quote-text"
       {...props}
@@ -254,7 +254,7 @@ const ComposerQuotePreviewImpl: FC<
 );
 
 const ComposerQuotePreview = memo(
-  ComposerQuotePreviewImpl
+  ComposerQuotePreviewImpl,
 ) as unknown as typeof ComposerQuotePreviewImpl & {
   Root: typeof ComposerQuotePreviewRoot;
   Icon: typeof ComposerQuotePreviewIcon;

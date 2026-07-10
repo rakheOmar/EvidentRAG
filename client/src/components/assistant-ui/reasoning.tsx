@@ -101,14 +101,14 @@ function ReasoningRoot({
       }
       controlledOnOpenChange?.(open);
     },
-    [lockScroll, isControlled, controlledOnOpenChange]
+    [lockScroll, isControlled, controlledOnOpenChange],
   );
 
   return (
     <Collapsible
       className={cn(
         "group/reasoning-root",
-        reasoningVariants({ variant, className })
+        reasoningVariants({ variant, className }),
       )}
       data-slot="reasoning-root"
       data-variant={variant}
@@ -143,7 +143,7 @@ function ReasoningFade({
           "group-data-[variant=muted]/reasoning-root:bg-[linear-gradient(to_bottom,hsl(var(--muted)/0.5),transparent)]",
           "fade-in-0 animate-in",
           "duration-(--animation-duration)",
-          className
+          className,
         )}
         data-slot="reasoning-fade"
         {...props}
@@ -159,7 +159,7 @@ function ReasoningFade({
         "group-data-[variant=muted]/reasoning-root:bg-[linear-gradient(to_top,hsl(var(--muted)/0.5),transparent)]",
         "fade-in-0 animate-in",
         "duration-(--animation-duration)",
-        className
+        className,
       )}
       data-slot="reasoning-fade"
       {...props}
@@ -182,7 +182,7 @@ function ReasoningTrigger({
     <CollapsibleTrigger
       className={cn(
         "aui-reasoning-trigger group/trigger flex max-w-[75%] origin-left items-center gap-2 py-1.5 text-muted-foreground text-sm transition-[color,scale] hover:text-foreground active:scale-[0.98]",
-        className
+        className,
       )}
       data-slot="reasoning-trigger"
       {...props}
@@ -211,7 +211,7 @@ function ReasoningTrigger({
           "aui-reasoning-trigger-chevron mt-0.5 size-4 shrink-0",
           "transition-transform duration-(--animation-duration) ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
           "group-data-[state=closed]/trigger:-rotate-90",
-          "group-data-[state=open]/trigger:rotate-0"
+          "group-data-[state=open]/trigger:rotate-0",
         )}
         data-slot="reasoning-trigger-chevron"
       />
@@ -237,7 +237,7 @@ function ReasoningContent({
         "data-[state=closed]:pointer-events-none",
         "data-[state=open]:duration-(--animation-duration)",
         "data-[state=closed]:duration-(--animation-duration)",
-        className
+        className,
       )}
       data-slot="reasoning-content"
       {...props}
@@ -292,7 +292,7 @@ function ReasoningText({
         "group-data-[state=closed]/collapsible-content:blur-out-[2px]",
         "group-data-[state=open]/collapsible-content:duration-(--animation-duration)",
         "group-data-[state=closed]/collapsible-content:duration-(--animation-duration)",
-        className
+        className,
       )}
       data-slot="reasoning-text"
       ref={scrollRef}
@@ -338,7 +338,7 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({
 };
 
 const Reasoning = memo(
-  ReasoningImpl
+  ReasoningImpl,
 ) as unknown as ReasoningMessagePartComponent & {
   Root: typeof ReasoningRoot;
   Trigger: typeof ReasoningTrigger;

@@ -65,7 +65,7 @@ function ToolGroupRoot({
       }
       controlledOnOpenChange?.(open);
     },
-    [lockScroll, isControlled, controlledOnOpenChange]
+    [lockScroll, isControlled, controlledOnOpenChange],
   );
 
   return (
@@ -73,7 +73,7 @@ function ToolGroupRoot({
       className={cn(
         toolGroupVariants({ variant }),
         "group/tool-group-root",
-        className
+        className,
       )}
       data-slot="tool-group-root"
       data-variant={variant ?? "outline"}
@@ -110,7 +110,7 @@ function ToolGroupTrigger({
         "group-data-[variant=ghost]/tool-group-root:py-1.5 group-data-[variant=ghost]/tool-group-root:text-muted-foreground group-data-[variant=ghost]/tool-group-root:hover:text-foreground",
         "group-data-[variant=outline]/tool-group-root:w-full group-data-[variant=outline]/tool-group-root:px-4",
         "group-data-[variant=muted]/tool-group-root:w-full group-data-[variant=muted]/tool-group-root:px-4",
-        className
+        className,
       )}
       data-slot="tool-group-trigger"
       {...props}
@@ -126,7 +126,7 @@ function ToolGroupTrigger({
           "aui-tool-group-trigger-label-wrapper relative inline-block text-start font-medium leading-none",
           "group-data-[variant=ghost]/tool-group-root:font-normal",
           "group-data-[variant=outline]/tool-group-root:grow",
-          "group-data-[variant=muted]/tool-group-root:grow"
+          "group-data-[variant=muted]/tool-group-root:grow",
         )}
         data-slot="tool-group-trigger-label"
       >
@@ -146,7 +146,7 @@ function ToolGroupTrigger({
           "aui-tool-group-trigger-chevron size-3 shrink-0",
           "transition-transform duration-(--animation-duration) ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
           "group-data-[state=closed]/trigger:-rotate-90",
-          "group-data-[state=open]/trigger:rotate-0"
+          "group-data-[state=open]/trigger:rotate-0",
         )}
         data-slot="tool-group-trigger-chevron"
       />
@@ -170,7 +170,7 @@ function ToolGroupContent({
         "data-[state=closed]:pointer-events-none",
         "data-[state=open]:duration-(--animation-duration)",
         "data-[state=closed]:duration-(--animation-duration)",
-        className
+        className,
       )}
       data-slot="tool-group-content"
       {...props}
@@ -186,7 +186,7 @@ function ToolGroupContent({
           "[&>*:nth-child(2)]:[animation-delay:40ms]",
           "[&>*:nth-child(3)]:[animation-delay:80ms]",
           "[&>*:nth-child(4)]:[animation-delay:120ms]",
-          "[&>*:nth-child(n+5)]:[animation-delay:160ms]"
+          "[&>*:nth-child(n+5)]:[animation-delay:160ms]",
         )}
       >
         {children}

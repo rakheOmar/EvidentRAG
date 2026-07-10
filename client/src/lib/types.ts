@@ -68,12 +68,20 @@ export type ReasoningTraceEntry =
 
 export interface AnswerDetail {
   content_parts?: ThreadAssistantMessagePart[];
+  context_usage?: ContextUsage | null;
   evidence: Evidence[];
   full_text: string;
   id: string;
   message_id: string;
   reasoning_trace?: ReasoningTraceEntry[];
   segments: Segment[];
+}
+
+export interface ContextUsage {
+  completion_tokens: number;
+  estimated: boolean;
+  prompt_tokens: number;
+  total_tokens: number;
 }
 
 export interface ThreadMessage {
@@ -137,6 +145,7 @@ export interface SentenceTraceFeedbackResponse {
 
 export interface EvidentChatMessage {
   contentParts: ThreadAssistantMessagePart[];
+  contextUsage?: ContextUsage;
   createdAt: Date;
   generating?: boolean;
   hopProgress?: HopProgressEvent[];

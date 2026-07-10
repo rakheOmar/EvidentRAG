@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import TypedDict, cast
 
+import httpx
+
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
@@ -31,13 +33,30 @@ from app.infrastructure.db.models import (
     Segment,
     Thread,
 )
+from app.infrastructure.llm.context_manager import ContextManager
 
 logger = logging.getLogger(__name__)
+
+
+def _candidate_rows(by_id, evidence_ids: list[uuid.UUID]) -> list[dict[str, object]]:
+    return [
+        {
+            "evidence_id": str(evidence_id),
+            "document_title": by_id[evidence_id].document.title,
+            "page": by_id[evidence_id].page,
+            "snippet": by_id[evidence_id].content[:160],
+        }
+        for evidence_id in evidence_ids
+    ]
 
 
 class NonRetryablePipelineError(Exception):
     """Raised for conditions that cannot succeed on retry (e.g. the target
     message no longer exists). The worker should not re-enqueue these."""
+
+
+class AnswerGenerationError(NonRetryablePipelineError):
+    """Raised when the model cannot produce a usable structured answer."""
 
 
 class ConversationContext(TypedDict):
@@ -161,6 +180,9 @@ class QueryPipeline:
         self._qdrant_store = qdrant_store
         self._rerank_client = rerank_client
         self._llm_client = llm_client
+        self._context_manager = getattr(
+            llm_client, "context_manager", ContextManager("unknown")
+        )
         self._arag_router = arag_router
         self._last_publish_at: float | None = None
         self._last_erm_metadata: dict[uuid.UUID, dict[str, object]] = {}
@@ -284,6 +306,11 @@ class QueryPipeline:
                         reasoning_trace,
                     )
 
+                if done_payload is None and self._llm_client is not None:
+                    raise AnswerGenerationError(
+                        "The answer model returned no usable answer. Please retry."
+                    )
+
                 wide_event["outcome"] = "success"
             except Exception as exc:
                 await self._mark_message_failed(
@@ -333,6 +360,7 @@ class QueryPipeline:
                         "reasoning_trace": done_payload["reasoning_trace"],
                         "segments": done_payload["segments"],
                         "evidence": done_payload["evidence"],
+                        "context_usage": done_payload["context_usage"],
                         "full_text": done_payload["full_text"],
                         "id": done_payload["id"],
                         "error": False,
@@ -547,6 +575,30 @@ class QueryPipeline:
         if wide_event is not None:
             wide_event["retrieval_count"] = len(fused_points)
 
+        trace_evidence_ids = [
+            uuid.UUID(point.payload["evidence_id"]) for point in fused_points[:5]
+        ]
+        if trace_evidence_ids and reasoning_trace is not None:
+            trace_rows = (
+                await session.scalars(
+                    select(Evidence)
+                    .where(Evidence.id.in_(trace_evidence_ids))
+                    .options(selectinload(Evidence.document))
+                )
+            ).all()
+            trace_by_id = {row.id: row for row in trace_rows}
+            trace_candidates = [
+                candidate
+                for evidence_id in trace_evidence_ids
+                if evidence_id in trace_by_id
+                for candidate in _candidate_rows(trace_by_id, [evidence_id])
+            ]
+            self._trace_retrieval(
+                reasoning_trace,
+                f"Retrieved {len(trace_candidates)} candidates",
+                trace_candidates,
+            )
+
         await self._publish(
             message.id,
             "content_parts",
@@ -597,6 +649,7 @@ class QueryPipeline:
         query_text: str,
         rerank_query: str | None = None,
         top_n: int = 5,
+        rerank: bool = True,
     ) -> tuple[
         list[uuid.UUID], list[dict[str, object]], dict[uuid.UUID, dict[str, object]]
     ]:
@@ -643,12 +696,28 @@ class QueryPipeline:
                 }
             )
 
-        if self._rerank_client is not None:
-            results = await self._rerank_client.rerank(
-                query=rerank_q,
-                documents=documents,
-                top_n=top_n,
-            )
+        if self._rerank_client is not None and rerank:
+            try:
+                results = await self._rerank_client.rerank(
+                    query=rerank_q,
+                    documents=documents,
+                    top_n=top_n,
+                )
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code not in {408, 429, 500, 502, 503, 504}:
+                    raise
+                logger.warning(
+                    "rerank_fallback_to_fused",
+                    extra={
+                        "wide_event": {
+                            "event": "rerank_fallback_to_fused",
+                            "query": rerank_q,
+                            "status_code": exc.response.status_code,
+                            "outcome": "degraded",
+                        }
+                    },
+                )
+                return evidence_ids[:top_n], candidates[:top_n], {}
             ranked = await self._apply_erm_to_ranked_results(
                 session,
                 query_embedding=dense_vector,
@@ -665,6 +734,67 @@ class QueryPipeline:
             return selected, selected_candidates, evidence_metadata
 
         return evidence_ids[:top_n], candidates[:top_n], {}
+
+    async def _rerank_evidence_ids(
+        self,
+        session,
+        query_text: str,
+        evidence_ids: list[uuid.UUID],
+        top_n: int,
+    ) -> tuple[
+        list[uuid.UUID], list[dict[str, object]], dict[uuid.UUID, dict[str, object]]
+    ]:
+        if self._rerank_client is None:
+            return evidence_ids[:top_n], [], {}
+
+        rows = await session.scalars(
+            select(Evidence)
+            .where(Evidence.id.in_(evidence_ids))
+            .options(selectinload(Evidence.document))
+        )
+        by_id = {row.id: row for row in rows}
+        ordered_ids = [
+            evidence_id for evidence_id in evidence_ids if evidence_id in by_id
+        ]
+        documents = [by_id[evidence_id].content for evidence_id in ordered_ids]
+        try:
+            results = await self._rerank_client.rerank(
+                query=query_text,
+                documents=documents,
+                top_n=top_n,
+            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code not in {408, 429, 500, 502, 503, 504}:
+                raise
+            logger.warning(
+                "rerank_fallback_to_fused",
+                extra={
+                    "wide_event": {
+                        "event": "rerank_fallback_to_fused",
+                        "query": query_text,
+                        "status_code": exc.response.status_code,
+                        "outcome": "degraded",
+                    }
+                },
+            )
+            selected_ids = ordered_ids[:top_n]
+            return selected_ids, _candidate_rows(by_id, selected_ids), {}
+
+        ranked = await self._apply_erm_to_ranked_results(
+            session,
+            query_embedding=self._embedding_client.embed_texts([query_text])[0]
+            if self._embedding_client is not None
+            else [],
+            evidence_ids=ordered_ids,
+            results=results,
+        )
+        selected_ids = [item["evidence_id"] for item in ranked[:top_n]]
+        metadata = {
+            item["evidence_id"]: item["metadata"]
+            for item in ranked[:top_n]
+            if item["metadata"]
+        }
+        return selected_ids, _candidate_rows(by_id, selected_ids), metadata
 
     async def _run_multi_hop_route(
         self,
@@ -814,7 +944,8 @@ class QueryPipeline:
                 session,
                 sq,
                 rerank_query=query_text,
-                top_n=10,
+                top_n=20,
+                rerank=False,
             )
             for sq in sub_queries
         ]
@@ -834,6 +965,24 @@ class QueryPipeline:
                 if eid not in seen:
                     seen.add(eid)
                     all_evidence_ids.append(eid)
+
+        if self._rerank_client is not None and all_evidence_ids:
+            await self._publish(
+                message.id,
+                "content_parts",
+                {"parts": [reasoning_part("Ranking merged evidence...")]},
+            )
+            self._trace_step(reasoning_trace, "Ranking merged evidence...")
+            (
+                all_evidence_ids,
+                merged_candidates,
+                evidence_metadata_by_id,
+            ) = await self._rerank_evidence_ids(
+                session, query_text, all_evidence_ids, top_n=10
+            )
+            self._trace_retrieval(
+                reasoning_trace, "Reranked merged candidates", merged_candidates
+            )
 
         if wide_event is not None:
             wide_event["comparison_entities"] = len(sub_queries)
@@ -879,7 +1028,10 @@ class QueryPipeline:
 
         import asyncio
 
-        tasks = [self._retrieve_evidence(session, sq) for sq in sub_queries]
+        tasks = [
+            self._retrieve_evidence(session, sq, top_n=20, rerank=False)
+            for sq in sub_queries
+        ]
         results = await asyncio.gather(*tasks)
 
         seen: set[uuid.UUID] = set()
@@ -896,6 +1048,24 @@ class QueryPipeline:
                 if eid not in seen:
                     seen.add(eid)
                     all_evidence_ids.append(eid)
+
+        if self._rerank_client is not None and all_evidence_ids:
+            await self._publish(
+                message.id,
+                "content_parts",
+                {"parts": [reasoning_part("Ranking merged evidence...")]},
+            )
+            self._trace_step(reasoning_trace, "Ranking merged evidence...")
+            (
+                all_evidence_ids,
+                merged_candidates,
+                evidence_metadata_by_id,
+            ) = await self._rerank_evidence_ids(
+                session, query_text, all_evidence_ids, top_n=10
+            )
+            self._trace_retrieval(
+                reasoning_trace, "Reranked merged candidates", merged_candidates
+            )
 
         if wide_event is not None:
             wide_event["aggregation_reformulations"] = len(sub_queries)
@@ -999,11 +1169,41 @@ class QueryPipeline:
             documents.append(evidence.content)
             evidence_ids.append(evidence_id)
 
-        results = await self._rerank_client.rerank(
-            query=query_text,
-            documents=documents,
-            top_n=5,
-        )
+        try:
+            results = await self._rerank_client.rerank(
+                query=query_text,
+                documents=documents,
+                top_n=5,
+            )
+        except httpx.TimeoutException as exc:
+            logger.warning(
+                "rerank_fallback_to_fused",
+                extra={
+                    "wide_event": {
+                        "event": "rerank_fallback_to_fused",
+                        "reason": "timeout",
+                        "error_type": type(exc).__name__,
+                        "outcome": "degraded",
+                    }
+                },
+            )
+            return evidence_ids[:5]
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code not in {408, 429, 500, 502, 503, 504}:
+                raise
+            logger.warning(
+                "rerank_fallback_to_fused",
+                extra={
+                    "wide_event": {
+                        "event": "rerank_fallback_to_fused",
+                        "reason": "upstream_status",
+                        "status_code": exc.response.status_code,
+                        "outcome": "degraded",
+                    }
+                },
+            )
+            return evidence_ids[:5]
+
         ranked = await self._apply_erm_to_ranked_results(
             session,
             query_embedding=query_embedding,
@@ -1076,7 +1276,10 @@ class QueryPipeline:
             {"role": "user", "content": user_content},
         ]
 
+        usage_messages = messages
+        usage_completion = ""
         async for chunk in self._llm_client.generate_stream(messages):
+            usage_completion += chunk
             parser.feed(chunk)
             accumulated = parser.get_accumulated_text()
             await self._publish(
@@ -1094,9 +1297,53 @@ class QueryPipeline:
 
         parsed = parser.parse_final()
         if not parsed:
-            return None
+            retry_prompt = (
+                prompt
+                + " Previous output could not be parsed. Return ONLY a valid JSON "
+                + "array of objects with exactly the keys text and evidence_ids."
+            )
+            retry_parser = JsonStreamParser()
+            await self._publish(
+                message.id,
+                "content_parts",
+                {"parts": [reasoning_part("Formatting the answer...")]},
+                throttle=False,
+            )
+            retry_messages = [
+                {"role": "system", "content": retry_prompt},
+                {"role": "user", "content": user_content},
+            ]
+            usage_messages = retry_messages
+            usage_completion = ""
+            async for chunk in self._llm_client.generate_stream(retry_messages):
+                usage_completion += chunk
+                retry_parser.feed(chunk)
+                await self._publish(
+                    message.id,
+                    "content_parts",
+                    {
+                        "parts": [
+                            reasoning_part("Formatting the answer..."),
+                            text_part(retry_parser.get_accumulated_text()),
+                        ]
+                    },
+                    throttle=False,
+                )
+            parsed = retry_parser.parse_final()
+            if not parsed:
+                raise AnswerGenerationError(
+                    "The answer model returned unusable structured output. Please retry."
+                )
         return self._persist_segments(
-            session, message, parsed, evidence_payloads, reasoning_trace
+            session,
+            message,
+            parsed,
+            evidence_payloads,
+            reasoning_trace,
+            self._context_manager.measure(
+                usage_messages,
+                usage_completion,
+            ).as_dict(),
         )
 
     async def _generate_and_persist_context_answer(
@@ -1120,7 +1367,9 @@ class QueryPipeline:
             },
         ]
 
+        usage_completion = ""
         async for chunk in self._llm_client.generate_stream(messages):
+            usage_completion += chunk
             parser.feed(chunk)
             accumulated = parser.get_accumulated_text()
             await self._publish(
@@ -1139,7 +1388,17 @@ class QueryPipeline:
         parsed = parser.parse_final()
         if not parsed:
             return None
-        return self._persist_segments(session, message, parsed, [], reasoning_trace)
+        return self._persist_segments(
+            session,
+            message,
+            parsed,
+            [],
+            reasoning_trace,
+            self._context_manager.measure(
+                messages,
+                usage_completion,
+            ).as_dict(),
+        )
 
     def _trace_step(
         self,
@@ -1231,6 +1490,7 @@ class QueryPipeline:
         parsed_segments: list[dict[str, object]],
         evidence_payloads: list[dict[str, object]],
         reasoning_trace: list[dict[str, object]] | None = None,
+        context_usage: dict[str, object] | None = None,
     ) -> dict[str, object]:
         valid_ids = {ev["id"] for ev in evidence_payloads}
 
@@ -1293,6 +1553,7 @@ class QueryPipeline:
             )
         answer.extra = {
             **(answer.extra or {}),
+            "context_usage": context_usage or {},
             "evidence_metadata": {
                 str(ev["id"]): {
                     key: value
@@ -1310,6 +1571,7 @@ class QueryPipeline:
             "reasoning_trace": answer.reasoning_trace,
             "segments": segment_payloads,
             "evidence": evidence_payloads,
+            "context_usage": context_usage or {},
         }
 
     async def _publish(

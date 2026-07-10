@@ -36,7 +36,7 @@ function SourceIcon({
       <span
         className={cn(
           "flex size-3 shrink-0 items-center justify-center rounded-sm bg-muted font-medium text-[10px]",
-          className
+          className,
         )}
         data-slot="source-icon-fallback"
         {...props}
@@ -73,7 +73,7 @@ function DocumentSourceIcon({ className, ...props }: ComponentProps<"span">) {
     <span
       className={cn(
         "flex size-3 shrink-0 items-center justify-center text-muted-foreground",
-        className
+        className,
       )}
       data-slot="source-document-icon"
       {...props}
@@ -102,7 +102,7 @@ function Source({
       asChild
       className={cn(
         "cursor-pointer outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-        className
+        className,
       )}
       size={size}
       variant={variant}

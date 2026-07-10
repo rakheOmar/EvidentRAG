@@ -36,7 +36,7 @@ const badgeVariants = cva(
       variant: "outline",
       size: "default",
     },
-  }
+  },
 );
 
 export type BadgeProps = ComponentProps<"span"> &

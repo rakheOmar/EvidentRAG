@@ -76,7 +76,7 @@ function parsePatch(patch: string): ParsedFile[] {
 
 function computeDiff(
   oldContent: string,
-  newContent: string
+  newContent: string,
 ): { lines: ParsedLine[]; additions: number; deletions: number } {
   const changes = diffLines(oldContent, newContent);
   const lines: ParsedLine[] = [];
@@ -161,7 +161,7 @@ const diffViewerVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
 );
 
 const diffLineVariants = cva("flex", {
@@ -276,7 +276,7 @@ function DiffViewerHeader({
     <div
       className={cn(
         "flex items-center gap-2 border-b bg-muted px-4 py-2 text-muted-foreground",
-        className
+        className,
       )}
       data-slot="diff-viewer-header"
       {...props}
@@ -337,7 +337,7 @@ function DiffViewerLine({
       <span
         className={cn(
           "w-4 shrink-0 select-none text-center",
-          diffLineTextVariants({ type: line.type })
+          diffLineTextVariants({ type: line.type }),
         )}
         data-slot="diff-viewer-indicator"
       >
@@ -346,7 +346,7 @@ function DiffViewerLine({
       <span
         className={cn(
           "flex-1 whitespace-pre-wrap break-all",
-          diffLineTextVariants({ type: line.type })
+          diffLineTextVariants({ type: line.type }),
         )}
         data-slot="diff-viewer-content"
       >
@@ -378,7 +378,7 @@ function DiffViewerSplitLine({
       <div
         className={cn(
           "flex w-1/2 border-e",
-          diffLineVariants({ type: left?.type ?? "empty" })
+          diffLineVariants({ type: left?.type ?? "empty" }),
         )}
         data-slot="diff-viewer-split-left"
         data-type={left?.type ?? "empty"}
@@ -391,7 +391,7 @@ function DiffViewerSplitLine({
         <span
           className={cn(
             "w-4 shrink-0 select-none text-center",
-            diffLineTextVariants({ type: left?.type ?? "empty" })
+            diffLineTextVariants({ type: left?.type ?? "empty" }),
           )}
         >
           {left ? (left.type === "del" ? "-" : " ") : ""}
@@ -399,7 +399,7 @@ function DiffViewerSplitLine({
         <span
           className={cn(
             "flex-1 whitespace-pre-wrap break-all",
-            diffLineTextVariants({ type: left?.type ?? "empty" })
+            diffLineTextVariants({ type: left?.type ?? "empty" }),
           )}
         >
           {left?.content ?? ""}
@@ -408,7 +408,7 @@ function DiffViewerSplitLine({
       <div
         className={cn(
           "flex w-1/2",
-          diffLineVariants({ type: right?.type ?? "empty" })
+          diffLineVariants({ type: right?.type ?? "empty" }),
         )}
         data-slot="diff-viewer-split-right"
         data-type={right?.type ?? "empty"}
@@ -421,7 +421,7 @@ function DiffViewerSplitLine({
         <span
           className={cn(
             "w-4 shrink-0 select-none text-center",
-            diffLineTextVariants({ type: right?.type ?? "empty" })
+            diffLineTextVariants({ type: right?.type ?? "empty" }),
           )}
         >
           {right ? (right.type === "add" ? "+" : " ") : ""}
@@ -429,7 +429,7 @@ function DiffViewerSplitLine({
         <span
           className={cn(
             "flex-1 whitespace-pre-wrap break-all",
-            diffLineTextVariants({ type: right?.type ?? "empty" })
+            diffLineTextVariants({ type: right?.type ?? "empty" }),
           )}
         >
           {right?.content ?? ""}
@@ -473,7 +473,7 @@ function DiffViewer({
     if (oldFile && newFile) {
       const { lines, additions, deletions } = computeDiff(
         oldFile.content,
-        newFile.content
+        newFile.content,
       );
       return [
         {

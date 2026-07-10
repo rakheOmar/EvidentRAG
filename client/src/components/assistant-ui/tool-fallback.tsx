@@ -61,14 +61,14 @@ function ToolFallbackRoot({
       }
       controlledOnOpenChange?.(open);
     },
-    [lockScroll, isControlled, controlledOnOpenChange]
+    [lockScroll, isControlled, controlledOnOpenChange],
   );
 
   return (
     <Collapsible
       className={cn(
         "aui-tool-fallback-root group/tool-fallback-root w-full",
-        className
+        className,
       )}
       data-slot="tool-fallback-root"
       onOpenChange={handleOpenChange}
@@ -122,7 +122,7 @@ function ToolFallbackDuration({
     <span
       className={cn(
         "aui-tool-fallback-duration text-muted-foreground text-xs tabular-nums",
-        className
+        className,
       )}
       data-slot="tool-fallback-duration"
       {...props}
@@ -153,7 +153,7 @@ function ToolFallbackTrigger({
     <CollapsibleTrigger
       className={cn(
         "aui-tool-fallback-trigger group/trigger flex w-fit origin-left items-center gap-2 py-1.5 text-muted-foreground text-sm transition-[color,scale] hover:text-foreground active:scale-[0.98]",
-        className
+        className,
       )}
       data-slot="tool-fallback-trigger"
       {...props}
@@ -162,14 +162,14 @@ function ToolFallbackTrigger({
         className={cn(
           "aui-tool-fallback-trigger-icon size-4 shrink-0",
           isCancelled && "text-muted-foreground",
-          isRunning && "animate-spin [animation-duration:0.6s]"
+          isRunning && "animate-spin [animation-duration:0.6s]",
         )}
         data-slot="tool-fallback-trigger-icon"
       />
       <span
         className={cn(
           "aui-tool-fallback-trigger-label-wrapper relative inline-block text-start leading-none",
-          isCancelled && "text-muted-foreground line-through"
+          isCancelled && "text-muted-foreground line-through",
         )}
         data-slot="tool-fallback-trigger-label"
       >
@@ -192,7 +192,7 @@ function ToolFallbackTrigger({
           "aui-tool-fallback-trigger-chevron size-4 shrink-0",
           "transition-transform duration-(--animation-duration) ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
           "group-data-[state=closed]/trigger:-rotate-90",
-          "group-data-[state=open]/trigger:rotate-0"
+          "group-data-[state=open]/trigger:rotate-0",
         )}
         data-slot="tool-fallback-trigger-chevron"
       />
@@ -216,7 +216,7 @@ function ToolFallbackContent({
         "data-[state=closed]:pointer-events-none",
         "data-[state=open]:duration-(--animation-duration)",
         "data-[state=closed]:duration-(--animation-duration)",
-        className
+        className,
       )}
       data-slot="tool-fallback-content"
       {...props}
@@ -226,7 +226,7 @@ function ToolFallbackContent({
           "flex flex-col gap-2 ps-6 pt-1 pb-2 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none",
           "group-data-[state=open]/collapsible-content:fade-in-0 group-data-[state=open]/collapsible-content:slide-in-from-top-1 group-data-[state=open]/collapsible-content:animate-in group-data-[state=open]/collapsible-content:blur-in-[2px]",
           "group-data-[state=closed]/collapsible-content:fade-out-0 group-data-[state=closed]/collapsible-content:slide-out-to-top-1 group-data-[state=closed]/collapsible-content:animate-out group-data-[state=closed]/collapsible-content:blur-out-[2px]",
-          "group-data-[state=closed]/collapsible-content:duration-(--animation-duration) group-data-[state=open]/collapsible-content:duration-(--animation-duration)"
+          "group-data-[state=closed]/collapsible-content:duration-(--animation-duration) group-data-[state=open]/collapsible-content:duration-(--animation-duration)",
         )}
       >
         {children}
@@ -378,7 +378,7 @@ function ToolFallbackApproval({
   // always preserves a refusal path.
   const declaredOptions = respondToApproval ? approval?.options : undefined;
   const options = declaredOptions?.filter((o) =>
-    Object.hasOwn(APPROVAL_OPTION_DEFAULT_LABELS, o.kind)
+    Object.hasOwn(APPROVAL_OPTION_DEFAULT_LABELS, o.kind),
   );
 
   const respond = (approved: boolean) => {
@@ -430,7 +430,7 @@ function ToolFallbackApproval({
       <div
         className={cn(
           "aui-tool-fallback-approval-confirm flex flex-col gap-2 pt-1",
-          className
+          className,
         )}
         data-slot="tool-fallback-approval-confirm"
         {...props}
@@ -484,7 +484,7 @@ function ToolFallbackApproval({
       <div
         className={cn(
           "aui-tool-fallback-approval flex flex-wrap items-center gap-2 pt-1",
-          className
+          className,
         )}
         data-slot="tool-fallback-approval"
         {...props}
@@ -520,7 +520,7 @@ function ToolFallbackApproval({
     <div
       className={cn(
         "aui-tool-fallback-approval flex items-center gap-2 pt-1",
-        className
+        className,
       )}
       data-slot="tool-fallback-approval"
       {...props}
@@ -596,7 +596,7 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
 };
 
 const ToolFallback = memo(
-  ToolFallbackImpl
+  ToolFallbackImpl,
 ) as unknown as ToolCallMessagePartComponent & {
   Root: typeof ToolFallbackRoot;
   Trigger: typeof ToolFallbackTrigger;

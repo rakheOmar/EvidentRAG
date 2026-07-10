@@ -71,7 +71,7 @@ export const SyntaxHighlighter: FC<HighlighterProps> = ({
   const aui = useAui();
   const hasPart = aui.part.source !== null;
   const isStreaming = useAuiState(
-    (s) => hasPart && s.part.status.type === "running"
+    (s) => hasPart && s.part.status.type === "running",
   );
   const trimmed = code.trim();
 
@@ -80,7 +80,7 @@ export const SyntaxHighlighter: FC<HighlighterProps> = ({
       className={cn(
         containerClassName,
         isStreaming && "aui-shiki-streaming",
-        className
+        className,
       )}
       style={style}
     >

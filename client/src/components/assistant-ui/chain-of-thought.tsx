@@ -1,8 +1,8 @@
 "use client";
 
-import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { ArrowDown01Icon, Brain02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import { createContext, memo, useContext, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -161,7 +161,10 @@ export const ChainOfThoughtStep = memo(
         <div className="relative flex flex-col items-center">
           <div className="relative z-10 flex size-5 items-center justify-center rounded-full bg-background text-muted-foreground">
             {icon ?? (
-              <div className="size-1.5 rounded-full bg-current/60" aria-hidden />
+              <div
+                className="size-1.5 rounded-full bg-current/60"
+                aria-hidden
+              />
             )}
           </div>
           <div className="absolute inset-y-0 -bottom-3 left-1/2 w-px origin-top bg-border/40 animate-line-grow duration-300 ease-out" />

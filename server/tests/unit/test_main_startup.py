@@ -57,11 +57,11 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
             captured["embedding_settings"] = settings
 
     class FakeLLMClient:
-        def __init__(self, settings) -> None:
+        def __init__(self, settings, scheduler=None) -> None:
             captured["llm_settings"] = settings
 
     class FakeRerankClient:
-        def __init__(self, settings) -> None:
+        def __init__(self, settings, scheduler=None) -> None:
             captured["reranker_settings"] = settings
 
     class FakeJobQueue:
@@ -221,7 +221,7 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
             captured["ensure_collection_called"] = True
 
     class FakeRerankClient:
-        def __init__(self, settings) -> None:
+        def __init__(self, settings, scheduler=None) -> None:
             captured["reranker_settings"] = settings
 
     class FakeJobQueue:
@@ -233,7 +233,7 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
             captured["embedding_settings"] = settings
 
     class FakeLLMClient:
-        def __init__(self, settings) -> None:
+        def __init__(self, settings, scheduler=None) -> None:
             captured["llm_settings"] = settings
 
     settings = Settings(

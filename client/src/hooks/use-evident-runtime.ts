@@ -33,11 +33,12 @@ function getMessageText(message: AppendMessage): string {
   return message.content
     .filter((part) => part.type === "text")
     .map((part) => part.text)
-    .join(" ");
+    .join(" ")
+    .trim();
 }
 
 function toAssistantStatus(
-  message: ThreadMessage
+  message: ThreadMessage,
 ): EvidentChatMessage["status"] {
   if (message.role !== "assistant") {
     return "complete";
@@ -55,8 +56,7 @@ function toRuntimeMessage(message: ThreadMessage): EvidentChatMessage {
   const answer = message.answer ?? null;
   const contentParts: ThreadAssistantMessagePart[] =
     message.role === "assistant"
-      ? // biome-ignore lint/suspicious/noUnnecessaryConditions: AnswerDetail.content_parts is optional, so the ?? fallback is required (false positive from Biome's module-graph panic)
-        (answer?.content_parts?.filter((part) => part.type !== "source") ??
+      ? (answer?.content_parts?.filter((part) => part.type !== "source") ??
         (answer ? [{ text: answer.full_text, type: "text" }] : []))
       : [{ text: message.content_text, type: "text" }];
 
@@ -71,7 +71,7 @@ function toRuntimeMessage(message: ThreadMessage): EvidentChatMessage {
   const hopProgress = reasoningTrace
     .filter(
       (t): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
-        t.type === "hop"
+        t.type === "hop",
     )
     .map((t) => ({
       hop: t.hop,
@@ -81,6 +81,7 @@ function toRuntimeMessage(message: ThreadMessage): EvidentChatMessage {
 
   return {
     contentParts,
+    contextUsage: answer?.context_usage ?? undefined,
     createdAt: new Date(message.created_at),
     hopProgress,
     id: message.id,
@@ -97,7 +98,7 @@ function toRuntimeMessage(message: ThreadMessage): EvidentChatMessage {
 function replacePendingMessages(
   current: EvidentChatMessage[],
   response: ThreadTurnResponse,
-  queryText: string
+  queryText: string,
 ) {
   const next = [...current];
   if (next.length >= 2) {
@@ -122,7 +123,7 @@ function replacePendingMessages(
       status: "running",
       subQueries: response.assistant_message.sub_queries,
       threadId: response.thread.id,
-    }
+    },
   );
   return next;
 }
@@ -151,7 +152,7 @@ export function useEvidentRuntime() {
     (nextMessages: readonly EvidentChatMessage[]) => {
       setMessages([...nextMessages]);
     },
-    []
+    [],
   );
 
   const onSwitchToNewThread = useCallback(() => {
@@ -168,7 +169,7 @@ export function useEvidentRuntime() {
     (threadId: string) => {
       navigate(`/chat/${threadId}`);
     },
-    [navigate]
+    [navigate],
   );
 
   const onDeleteThread = useCallback(async (_threadId: string) => {
@@ -202,6 +203,9 @@ export function useEvidentRuntime() {
   const onNew = useCallback(
     async (message: AppendMessage) => {
       const queryText = getMessageText(message);
+      if (!queryText) {
+        return;
+      }
       const optimisticUserId = crypto.randomUUID();
       const optimisticAssistantId = crypto.randomUUID();
 
@@ -236,7 +240,7 @@ export function useEvidentRuntime() {
       setCurrentThreadId(response.thread.id);
       loadedThreadIdRef.current = response.thread.id;
       setMessages((current) =>
-        replacePendingMessages(current, response, queryText)
+        replacePendingMessages(current, response, queryText),
       );
       if (routeThreadId !== response.thread.id) {
         navigate(`/chat/${response.thread.id}`);
@@ -245,17 +249,17 @@ export function useEvidentRuntime() {
       const assistantMessageId = response.assistant_message.id;
       const threadId = response.thread.id;
       const eventSource = new EventSource(
-        `/api/v1/threads/${threadId}/messages/${assistantMessageId}/events`
+        `/api/v1/threads/${threadId}/messages/${assistantMessageId}/events`,
       );
       eventSourceRef.current = eventSource;
 
       const updateAssistantMessage = (
-        updater: (message: EvidentChatMessage) => EvidentChatMessage
+        updater: (message: EvidentChatMessage) => EvidentChatMessage,
       ) => {
         setMessages((current) =>
           current.map((entry) =>
-            entry.id === assistantMessageId ? updater(entry) : entry
-          )
+            entry.id === assistantMessageId ? updater(entry) : entry,
+          ),
         );
       };
 
@@ -269,7 +273,7 @@ export function useEvidentRuntime() {
             route: payload.route,
             subQueries: payload.sub_queries,
           }));
-        }
+        },
       );
 
       eventSource.addEventListener(
@@ -293,7 +297,7 @@ export function useEvidentRuntime() {
               reasoningTrace: exists ? trace : [...trace, hopEntry],
             };
           });
-        }
+        },
       );
 
       eventSource.addEventListener(
@@ -322,7 +326,7 @@ export function useEvidentRuntime() {
               status: "running",
             };
           });
-        }
+        },
       );
 
       eventSource.addEventListener("done", (event: MessageEvent<string>) => {
@@ -341,18 +345,19 @@ export function useEvidentRuntime() {
             setMessageEvidence(assistantMessageId, payload.evidence);
           }
           const displayParts = payload.content_parts.filter(
-            (p) => p.type !== "source"
+            (p) => p.type !== "source",
           );
           updateAssistantMessage((entry) => ({
             ...entry,
             contentParts: displayParts,
+            contextUsage: payload.context_usage ?? entry.contextUsage,
             hopProgress:
               entry.hopProgress && entry.hopProgress.length > 0
                 ? entry.hopProgress
                 : (payload.reasoning_trace ?? [])
                     .filter(
                       (t): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
-                        t.type === "hop"
+                        t.type === "hop",
                     )
                     .map((t) => ({
                       hop: t.hop,
@@ -382,7 +387,7 @@ export function useEvidentRuntime() {
         setIsRunning(false);
       });
     },
-    [currentThreadId, navigate, queryClient, routeThreadId]
+    [currentThreadId, navigate, queryClient, routeThreadId],
   );
 
   const adapter = useMemo<ExternalStoreAdapter<EvidentChatMessage>>(
@@ -422,7 +427,7 @@ export function useEvidentRuntime() {
       onSwitchToNewThread,
       onSwitchToThread,
       setRuntimeMessages,
-    ]
+    ],
   );
 
   const runtime = useExternalStoreRuntime(adapter);

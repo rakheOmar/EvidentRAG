@@ -1,9 +1,12 @@
 "use client";
 
 import { useAuiState } from "@assistant-ui/react";
+import { useQuery } from "@tanstack/react-query";
 import { PanelLeftIcon, ShareIcon } from "lucide-react";
 import { type FC, memo } from "react";
+import { ContextDisplayRing } from "@/components/assistant-ui/context-display";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { fetchModelContext } from "@/lib/api";
 import { MobileSidebar } from "./chat-sidebar";
 
 const ThreadTitle: FC = () => {
@@ -26,6 +29,12 @@ const Header = memo(function Header({
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
 }) {
+  const { data: modelContext } = useQuery({
+    queryFn: fetchModelContext,
+    queryKey: ["model-context"],
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 px-4">
       <MobileSidebar />
@@ -40,8 +49,13 @@ const Header = memo(function Header({
         <PanelLeftIcon className="size-4" />
       </TooltipIconButton>
       <ThreadTitle />
+      <ContextDisplayRing
+        className="ml-auto"
+        modelContextWindow={modelContext?.context_window ?? 128_000}
+        side="bottom"
+      />
       <TooltipIconButton
-        className="ml-auto size-8"
+        className="size-8"
         disabled
         side="bottom"
         size="icon"

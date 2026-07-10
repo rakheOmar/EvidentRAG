@@ -33,7 +33,7 @@ const fileVariants = cva(
       variant: "outline",
       size: "default",
     },
-  }
+  },
 );
 
 function getMimeTypeIcon(mimeType: string): FC<{ className?: string }> {
@@ -175,7 +175,7 @@ function FileDownload({
     <a
       className={cn(
         "shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-        className
+        className,
       )}
       data-slot="file-download"
       download={filename || "download"}

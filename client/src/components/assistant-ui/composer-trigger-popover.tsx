@@ -67,7 +67,7 @@ type ComposerTriggerPopoverProps = ComposerTriggerPopoverBaseProps &
 function resolveIcon(
   iconKey: string | undefined,
   iconMap: Record<string, IconComponent> | undefined,
-  fallback: IconComponent
+  fallback: IconComponent,
 ): IconComponent {
   if (iconKey && iconMap?.[iconKey]) {
     return iconMap[iconKey]!;
@@ -208,7 +208,7 @@ const ComposerTriggerPopoverImpl: FC<ComposerTriggerPopoverProps> = ({
   ) {
     warnedRef.current = true;
     console.warn(
-      "[assistant-ui] ComposerTriggerPopover requires exactly one of `directive` or `action` props."
+      "[assistant-ui] ComposerTriggerPopover requires exactly one of `directive` or `action` props.",
     );
   }
 
@@ -216,7 +216,7 @@ const ComposerTriggerPopoverImpl: FC<ComposerTriggerPopoverProps> = ({
     <ComposerPrimitive.Unstable_TriggerPopover
       className={cn(
         "aui-composer-trigger-popover absolute start-0 bottom-full z-50 mb-2 w-64 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-lg",
-        className
+        className,
       )}
       data-slot="composer-trigger-popover"
       {...props}
@@ -251,5 +251,5 @@ const ComposerTriggerPopoverImpl: FC<ComposerTriggerPopoverProps> = ({
 ComposerTriggerPopoverImpl.displayName = "ComposerTriggerPopover";
 
 export const ComposerTriggerPopover = memo(
-  ComposerTriggerPopoverImpl
+  ComposerTriggerPopoverImpl,
 ) as FC<ComposerTriggerPopoverProps>;
