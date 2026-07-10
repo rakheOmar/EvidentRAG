@@ -21,7 +21,7 @@ const canAnimate = () => {
       typeof CSS.registerProperty === "function" &&
       CSS.supports(
         "transform",
-        "translateY(clamp(-1lh, calc((mod(7.5, 10) - 5) * 1lh), 1lh))"
+        "translateY(clamp(-1lh, calc((mod(7.5, 10) - 5) * 1lh), 1lh))",
       );
     if (supportsRoll) {
       try {
@@ -43,7 +43,7 @@ const canAnimate = () => {
 const formatterCache = new Map<string, Intl.NumberFormat>();
 const getFormatter = (
   locales: Intl.LocalesArgument,
-  format: Intl.NumberFormatOptions | undefined
+  format: Intl.NumberFormatOptions | undefined,
 ) => {
   const key = `${String(locales)}\u0000${JSON.stringify(format)}`;
   let formatter = formatterCache.get(key);
@@ -63,7 +63,7 @@ const toParts = (
   value: number,
   formatter: Intl.NumberFormat,
   prefix: string | undefined,
-  suffix: string | undefined
+  suffix: string | undefined,
 ): Part[] => {
   type Atom =
     | { kind: "integer"; digit: number }
@@ -207,7 +207,7 @@ function NumberRollPart({ part, dir }: { part: RenderedPart; dir: number }) {
         part.entered &&
           "starting:translate-y-(--aui-number-roll-shift) starting:grid-cols-[0fr] starting:opacity-0",
         part.exiting &&
-          "pointer-events-none translate-y-[calc(var(--aui-number-roll-shift)*-1)] grid-cols-[0fr] opacity-0"
+          "pointer-events-none translate-y-[calc(var(--aui-number-roll-shift)*-1)] grid-cols-[0fr] opacity-0",
       )}
       data-slot="number-roll-part"
       style={
@@ -272,7 +272,7 @@ function NumberRoll({
   const formatter = getFormatter(locales, format);
   const parts = useMemo(
     () => toParts(value, formatter, prefix, suffix),
-    [value, formatter, prefix, suffix]
+    [value, formatter, prefix, suffix],
   );
   const formatted = `${prefix ?? ""}${formatter.format(value)}${suffix ?? ""}`;
 
@@ -310,7 +310,7 @@ function NumberRoll({
       timers.clear();
     }
     const exiting = new Set(
-      display.rendered.filter((part) => part.exiting).map((part) => part.key)
+      display.rendered.filter((part) => part.exiting).map((part) => part.key),
     );
     for (const [key, timer] of timers) {
       if (!exiting.has(key)) {
@@ -329,10 +329,10 @@ function NumberRoll({
           setDisplay((current) => ({
             ...current,
             rendered: current.rendered.filter(
-              (part) => !(part.exiting && part.key === key)
+              (part) => !(part.exiting && part.key === key),
             ),
           }));
-        }, duration)
+        }, duration),
       );
     }
   }, [display.rendered, duration]);

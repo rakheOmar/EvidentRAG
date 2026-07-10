@@ -13,11 +13,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type VoiceOrbState =
-  | "idle"
-  | "connecting"
-  | "listening"
-  | "speaking"
-  | "muted";
+  "idle" | "connecting" | "listening" | "speaking" | "muted";
 
 export type VoiceOrbVariant = "default" | "blue" | "violet" | "emerald";
 
@@ -232,7 +228,7 @@ void main() {
 function createShader(
   gl: WebGL2RenderingContext,
   type: number,
-  source: string
+  source: string,
 ): WebGLShader | null {
   const shader = gl.createShader(type);
   if (!shader) {
@@ -277,7 +273,7 @@ function initWebGL(canvas: HTMLCanvasElement) {
   gl.bufferData(
     gl.ARRAY_BUFFER,
     new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
-    gl.STATIC_DRAW
+    gl.STATIC_DRAW,
   );
   const loc = gl.getAttribLocation(program, "a_position");
   gl.enableVertexAttribArray(loc);
@@ -314,7 +310,7 @@ export type VoiceOrbProps = {
 };
 
 export function deriveVoiceOrbState(
-  voiceState: ReturnType<typeof useVoiceState>
+  voiceState: ReturnType<typeof useVoiceState>,
 ): VoiceOrbState {
   if (!voiceState) {
     return "idle";
@@ -453,7 +449,7 @@ export const VoiceOrb: FC<VoiceOrbProps> = memo(
         ref={canvasRef}
       />
     );
-  }
+  },
 );
 
 VoiceOrb.displayName = "VoiceOrb";
@@ -462,7 +458,7 @@ export const VoiceControl: FC<{ className?: string }> = ({ className }) => (
   <div
     className={cn(
       "aui-voice-control flex items-center gap-2 border-b px-4 py-2",
-      className
+      className,
     )}
   >
     <VoiceStatusDot />
@@ -500,7 +496,7 @@ export const VoiceStatusDot: FC = () => {
         state === "connecting" && "animate-pulse bg-amber-500",
         state === "listening" && "bg-green-500",
         state === "speaking" && "bg-green-500",
-        state === "muted" && "bg-destructive"
+        state === "muted" && "bg-destructive",
       )}
     />
   );

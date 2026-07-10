@@ -17,6 +17,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { ContextUsage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const formatTokenCount = (tokens: number): string => {
@@ -31,7 +32,7 @@ const formatTokenCount = (tokens: number): string => {
 
 const getUsagePercent = (
   totalTokens: number | undefined,
-  modelContextWindow: number
+  modelContextWindow: number,
 ): number => {
   if (!totalTokens) {
     return 0;
@@ -73,7 +74,38 @@ const getBarColor = (percent: number): string => {
   return "bg-emerald-500";
 };
 
+function useServerThreadUsage():
+  { estimated: boolean; usage: ThreadTokenUsage } | undefined {
+  const messages = useAuiState((s) => s.thread.messages);
+
+  return useMemo(() => {
+    for (const message of [...messages].reverse()) {
+      const custom = message.metadata?.custom;
+      const contextUsage =
+        typeof custom === "object" &&
+        custom !== null &&
+        "contextUsage" in custom
+          ? custom.contextUsage
+          : undefined;
+      if (!contextUsage || typeof contextUsage !== "object") {
+        continue;
+      }
+      const usage = contextUsage as ContextUsage;
+      return {
+        estimated: usage.estimated,
+        usage: {
+          inputTokens: usage.prompt_tokens,
+          outputTokens: usage.completion_tokens,
+          totalTokens: usage.total_tokens,
+        },
+      };
+    }
+    return undefined;
+  }, [messages]);
+}
+
 type ContextDisplayContextValue = {
+  estimated: boolean;
   usage: ThreadTokenUsage | undefined;
   totalTokens: number;
   percent: number;
@@ -81,7 +113,7 @@ type ContextDisplayContextValue = {
 };
 
 const ContextDisplayContext = createContext<ContextDisplayContextValue | null>(
-  null
+  null,
 );
 
 function useContextDisplay(): ContextDisplayContextValue {
@@ -109,10 +141,12 @@ function ContextDisplayRootBase({
   modelContextWindow,
   children,
   usage,
+  estimated,
 }: {
   modelContextWindow: number;
   children: ReactNode;
   usage: ThreadTokenUsage | undefined;
+  estimated: boolean;
 }) {
   const threadId = useAuiState((s) => s.threadListItem.id);
   const rawTokens = usage?.totalTokens ?? 0;
@@ -147,11 +181,12 @@ function ContextDisplayRootBase({
   const contextValue = useMemo(
     () => ({
       usage: tokenState.usage,
+      estimated,
       totalTokens,
       percent,
       modelContextWindow,
     }),
-    [tokenState.usage, totalTokens, percent, modelContextWindow]
+    [estimated, tokenState.usage, totalTokens, percent, modelContextWindow],
   );
 
   return (
@@ -168,11 +203,15 @@ function ContextDisplayRootInternal({
   modelContextWindow: number;
   children: ReactNode;
 }) {
-  const usage = useThreadTokenUsage();
+  const runtimeUsage = useThreadTokenUsage();
+  const serverUsage = useServerThreadUsage();
   return (
     <ContextDisplayRootBase
       modelContextWindow={modelContextWindow}
-      usage={usage}
+      usage={runtimeUsage ?? serverUsage?.usage}
+      estimated={
+        runtimeUsage === undefined && (serverUsage?.estimated ?? false)
+      }
     >
       {children}
     </ContextDisplayRootBase>
@@ -185,6 +224,7 @@ function ContextDisplayRoot(props: ContextDisplayRootProps) {
       <ContextDisplayRootBase
         modelContextWindow={props.modelContextWindow}
         usage={props.usage}
+        estimated={false}
       >
         {props.children}
       </ContextDisplayRootBase>
@@ -208,7 +248,7 @@ function ContextDisplayTrigger({
         <button
           className={cn(
             "inline-flex items-center rounded-md transition-colors",
-            className
+            className,
           )}
           data-slot="context-display-trigger"
           type="button"
@@ -228,14 +268,14 @@ function ContextDisplayContent({
   side?: "top" | "bottom" | "left" | "right" | undefined;
   className?: string;
 }) {
-  const { usage, totalTokens, percent, modelContextWindow } =
+  const { estimated, usage, totalTokens, percent, modelContextWindow } =
     useContextDisplay();
 
   return (
     <TooltipContent
       className={cn(
         "[&_span>svg]:hidden! rounded-lg border bg-popover px-3 py-2 text-popover-foreground shadow-md",
-        className
+        className,
       )}
       data-slot="context-display-popover"
       side={side}
@@ -243,9 +283,18 @@ function ContextDisplayContent({
     >
       <div className="grid min-w-40 gap-1.5 text-xs">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-muted-foreground">Usage</span>
-          <span className="font-mono tabular-nums">{Math.round(percent)}%</span>
+          <span className="text-muted-foreground">
+            {estimated ? "Estimated usage" : usage ? "Usage" : "Usage status"}
+          </span>
+          <span className="font-mono tabular-nums">
+            {usage ? `${Math.round(percent)}%` : "Unavailable"}
+          </span>
         </div>
+        {!usage && (
+          <p className="text-muted-foreground text-[11px] leading-4">
+            Tracking starts with new responses.
+          </p>
+        )}
         {usage?.inputTokens !== undefined && (
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">Input</span>
@@ -320,7 +369,7 @@ function RingVisual() {
       <circle
         className={cn(
           "transition-[stroke-dashoffset,stroke] duration-300",
-          getStrokeColor(percent)
+          getStrokeColor(percent),
         )}
         cx={RING_SIZE / 2}
         cy={RING_SIZE / 2}
@@ -337,6 +386,24 @@ function RingVisual() {
   );
 }
 
+function RingTrigger() {
+  const { estimated, usage } = useContextDisplay();
+  return (
+    <ContextDisplayTrigger
+      aria-label={
+        estimated
+          ? "Estimated context usage"
+          : usage
+            ? "Context usage"
+            : "Context usage unavailable"
+      }
+      className="p-1"
+    >
+      <RingVisual />
+    </ContextDisplayTrigger>
+  );
+}
+
 const ContextDisplayRing: FC<PresetProps> = ({
   modelContextWindow,
   className,
@@ -344,12 +411,9 @@ const ContextDisplayRing: FC<PresetProps> = ({
   usage,
 }) => (
   <ContextDisplayRoot modelContextWindow={modelContextWindow} usage={usage}>
-    <ContextDisplayTrigger
-      aria-label="Context usage"
-      className={cn("p-1", className)}
-    >
-      <RingVisual />
-    </ContextDisplayTrigger>
+    <div className={className}>
+      <RingTrigger />
+    </div>
     <ContextDisplayContent side={side} />
   </ContextDisplayRoot>
 );
@@ -363,7 +427,7 @@ function BarVisual() {
         <div
           className={cn(
             "h-full rounded-full transition-all duration-300",
-            getBarColor(percent)
+            getBarColor(percent),
           )}
           style={{ width: `${percent}%` }}
         />
@@ -413,7 +477,7 @@ const ContextDisplayText: FC<PresetProps> = ({
       aria-label="Context usage"
       className={cn(
         "px-2 py-1 font-mono text-muted-foreground text-xs tabular-nums hover:bg-accent hover:text-accent-foreground",
-        className
+        className,
       )}
     >
       <TextVisual />

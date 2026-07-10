@@ -32,7 +32,7 @@ const selectTriggerVariants = cva(
       variant: "outline",
       size: "default",
     },
-  }
+  },
 );
 
 const SelectTrigger = ({
@@ -64,7 +64,7 @@ const SelectScrollUpButton = ({
   <SelectPrimitive.ScrollUpButton
     className={cn(
       "flex cursor-default items-center justify-center py-1",
-      className
+      className,
     )}
     data-slot="select-scroll-up-button"
     {...props}
@@ -80,7 +80,7 @@ const SelectScrollDownButton = ({
   <SelectPrimitive.ScrollDownButton
     className={cn(
       "flex cursor-default items-center justify-center py-1",
-      className
+      className,
     )}
     data-slot="select-scroll-down-button"
     {...props}
@@ -104,7 +104,7 @@ const SelectContent = ({
         "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
         position === "popper" &&
           "data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1 rtl:data-[side=left]:translate-x-1 rtl:data-[side=right]:-translate-x-1",
-        className
+        className,
       )}
       data-slot="select-content"
       position={position}
@@ -115,7 +115,7 @@ const SelectContent = ({
       <SelectPrimitive.Viewport
         className={cn(
           position === "popper" &&
-            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
+            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1",
         )}
       >
         {children}
@@ -147,7 +147,7 @@ const SelectItem = ({
       "focus:bg-accent focus:text-accent-foreground",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-      className
+      className,
     )}
     data-slot="select-item"
     {...props}
@@ -179,11 +179,10 @@ export interface SelectOption {
   value: string;
 }
 
-export interface SelectProps
-  extends Pick<
-    ComponentPropsWithoutRef<typeof SelectPrimitive.Root>,
-    "value" | "onValueChange" | "disabled"
-  > {
+export interface SelectProps extends Pick<
+  ComponentPropsWithoutRef<typeof SelectPrimitive.Root>,
+  "value" | "onValueChange" | "disabled"
+> {
   className?: string;
   onValueChange: (value: string) => void;
   options: readonly SelectOption[];
@@ -203,7 +202,7 @@ function Select({ options, placeholder, className, ...props }: SelectProps) {
           "focus-visible:ring-2 focus-visible:ring-ring/50",
           "disabled:cursor-not-allowed disabled:opacity-50",
           !selectedOption && placeholder && "italic opacity-70",
-          className
+          className,
         )}
       >
         <span>{selectedOption?.label ?? placeholder}</span>

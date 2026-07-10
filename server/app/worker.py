@@ -18,6 +18,7 @@ from app.infrastructure.embeddings.embedding import EmbeddingClient
 from app.infrastructure.llm.llm import LLMClient
 from app.infrastructure.qdrant.client import QdrantStore
 from app.infrastructure.reranker.reranker import RerankClient
+from app.infrastructure.ai.scheduler import AIRequestScheduler
 
 settings = get_settings()
 configure_logging(settings)
@@ -33,11 +34,27 @@ async def startup(ctx: dict) -> None:
         engine = create_engine(settings.db)
         session_factory = create_session_factory(engine)
         qdrant_store = QdrantStore(settings.qdrant)
-        embedding_client = EmbeddingClient(settings.embeddings)
-        llm_client = LLMClient(settings.llm)
-        rerank_client = RerankClient(settings.reranker)
         redis = Redis.from_url(settings.redis.url)
+        scheduler = AIRequestScheduler(redis, settings.rate_limits)
+        embedding_client = EmbeddingClient(settings.embeddings)
+        llm_client = LLMClient(settings.llm, scheduler=scheduler)
+        rerank_client = RerankClient(settings.reranker, scheduler=scheduler)
         arag_router = AragRouter(llm_client=llm_client)
+
+        try:
+            llm_client.set_model_catalog(await llm_client.list_models())
+        except Exception as exc:
+            logger.warning(
+                "worker_model_catalog_load_failed",
+                extra={
+                    "wide_event": {
+                        "event": "worker_model_catalog_load_failed",
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                        "outcome": "degraded",
+                    }
+                },
+            )
 
         await qdrant_store.ensure_collection()
 

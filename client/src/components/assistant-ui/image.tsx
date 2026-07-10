@@ -60,7 +60,7 @@ const mimeFromImage = (image: string): string | undefined =>
   image.match(/^data:([^;,]+)/)?.[1];
 
 const downloadImagePart = (
-  part: Pick<ImageMessagePart, "image" | "filename">
+  part: Pick<ImageMessagePart, "image" | "filename">,
 ): void => {
   if (typeof document === "undefined") {
     return;
@@ -85,7 +85,7 @@ const downloadImagePart = (
 };
 
 const copyImagePart = async (
-  part: Pick<ImageMessagePart, "image">
+  part: Pick<ImageMessagePart, "image">,
 ): Promise<void> => {
   if (
     typeof navigator === "undefined" ||
@@ -121,7 +121,7 @@ const imageVariants = cva(
       variant: "outline",
       size: "default",
     },
-  }
+  },
 );
 
 export type ImageRootProps = React.ComponentProps<"div"> &
@@ -203,7 +203,7 @@ function ImagePreview({
           className={cn(
             "block h-auto w-full object-contain",
             !loaded && "invisible",
-            className
+            className,
           )}
           onError={(e) => {
             if (typeof src === "string") {
@@ -239,7 +239,7 @@ function ImageFilename({
     <span
       className={cn(
         "block truncate px-2 py-1.5 text-muted-foreground text-xs",
-        className
+        className,
       )}
       data-slot="image-filename"
       {...props}
@@ -324,7 +324,7 @@ function ImageZoom({ src, alt = "Image preview", children }: ImageZoomProps) {
               src={src}
             />
           </div>,
-          document.body
+          document.body,
         )}
     </>
   );
@@ -335,7 +335,7 @@ function ImageGenerating({ className }: { className?: string }) {
     <div
       className={cn(
         "flex min-h-32 items-center justify-center bg-muted/50 p-4",
-        className
+        className,
       )}
       data-slot="image-generating"
     >
@@ -356,7 +356,7 @@ function ImageContentFilterError({
     <div
       className={cn(
         "flex min-h-32 flex-col items-center justify-center gap-2 bg-muted/50 p-4 text-center",
-        className
+        className,
       )}
       data-slot="image-content-filter-error"
     >

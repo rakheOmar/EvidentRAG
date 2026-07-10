@@ -48,13 +48,27 @@ def test_parse_final_handles_trailing_text() -> None:
     assert parser.parse_final() == [{"text": "First.", "evidence_ids": ["e1"]}]
 
 
-def test_parse_final_returns_empty_for_non_json_output() -> None:
+def test_parse_final_wraps_plain_text_output() -> None:
     from app.application.query_pipeline.json_stream_parser import JsonStreamParser
 
     parser = JsonStreamParser()
     parser.feed("BERT and attention are closely related concepts.")
 
-    assert parser.parse_final() == []
+    assert parser.parse_final() == [
+        {
+            "text": "BERT and attention are closely related concepts.",
+            "evidence_ids": [],
+        }
+    ]
+
+
+def test_parse_final_accepts_answer_object_envelope() -> None:
+    from app.application.query_pipeline.json_stream_parser import JsonStreamParser
+
+    parser = JsonStreamParser()
+    parser.feed('{"answer":"A concise answer."}')
+
+    assert parser.parse_final() == [{"text": "A concise answer.", "evidence_ids": []}]
 
 
 def test_ignores_incomplete_segment_until_it_closes() -> None:

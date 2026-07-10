@@ -52,6 +52,7 @@ class AnswerResponse(BaseModel):
     segments: list[SegmentResponse]
     evidence: list[EvidenceResponse]
     content_parts: list[dict[str, object]] | None = None
+    context_usage: dict[str, object] | None = None
 
 
 class MessageResponse(BaseModel):

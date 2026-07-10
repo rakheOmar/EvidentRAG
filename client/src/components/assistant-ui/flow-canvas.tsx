@@ -191,7 +191,7 @@ export function FlowCanvas({
             >
               {edge.label.text}
             </span>
-          )
+          ),
       )}
     </div>
   );

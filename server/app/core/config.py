@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import os
@@ -109,6 +109,19 @@ class RedisSettings:
 
 
 @dataclass(frozen=True)
+class RateLimitSettings:
+    retry_window_seconds: float
+    generation_requests_per_minute: int
+    utility_requests_per_minute: int
+    embedding_requests_per_minute: int
+    rerank_requests_per_minute: int
+    generation_concurrency: int
+    utility_concurrency: int
+    embedding_concurrency: int
+    rerank_concurrency: int
+
+
+@dataclass(frozen=True)
 class Settings:
     app: AppSettings
     log: LogSettings
@@ -119,6 +132,19 @@ class Settings:
     db: DatabaseSettings
     qdrant: QdrantSettings
     redis: RedisSettings
+    rate_limits: RateLimitSettings = field(
+        default_factory=lambda: RateLimitSettings(
+            retry_window_seconds=60.0,
+            generation_requests_per_minute=20,
+            utility_requests_per_minute=60,
+            embedding_requests_per_minute=60,
+            rerank_requests_per_minute=10,
+            generation_concurrency=2,
+            utility_concurrency=4,
+            embedding_concurrency=4,
+            rerank_concurrency=2,
+        )
+    )
 
 
 def get_settings() -> Settings:
@@ -178,5 +204,24 @@ def get_settings() -> Settings:
         ),
         redis=RedisSettings(
             url=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+        ),
+        rate_limits=RateLimitSettings(
+            retry_window_seconds=float(os.getenv("AI_RETRY_WINDOW_SECONDS", "60")),
+            generation_requests_per_minute=int(
+                os.getenv("LLM_GENERATION_REQUESTS_PER_MINUTE", "20")
+            ),
+            utility_requests_per_minute=int(
+                os.getenv("LLM_UTILITY_REQUESTS_PER_MINUTE", "60")
+            ),
+            embedding_requests_per_minute=int(
+                os.getenv("EMBEDDING_REQUESTS_PER_MINUTE", "60")
+            ),
+            rerank_requests_per_minute=int(
+                os.getenv("RERANK_REQUESTS_PER_MINUTE", "10")
+            ),
+            generation_concurrency=int(os.getenv("LLM_GENERATION_CONCURRENCY", "2")),
+            utility_concurrency=int(os.getenv("LLM_UTILITY_CONCURRENCY", "4")),
+            embedding_concurrency=int(os.getenv("EMBEDDING_CONCURRENCY", "4")),
+            rerank_concurrency=int(os.getenv("RERANK_CONCURRENCY", "2")),
         ),
     )

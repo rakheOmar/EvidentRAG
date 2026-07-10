@@ -60,7 +60,7 @@ export type ModelOption = {
 };
 
 function getModelEfforts(
-  model: ModelOption | undefined
+  model: ModelOption | undefined,
 ): readonly ModelSelectorEffortOption[] | undefined {
   if (!model?.efforts) {
     return;
@@ -70,7 +70,7 @@ function getModelEfforts(
 
 function resolveEffort(
   efforts: readonly ModelSelectorEffortOption[] | undefined,
-  effort: string | undefined
+  effort: string | undefined,
 ): string | undefined {
   if (effort === undefined) {
     return;
@@ -86,11 +86,11 @@ function resolveEffort(
 export function resolveModelEffort(
   models: readonly ModelOption[],
   modelId: string | undefined,
-  effort: string | undefined
+  effort: string | undefined,
 ): string | undefined {
   return resolveEffort(
     getModelEfforts(models.find((m) => m.id === modelId)),
-    effort
+    effort,
   );
 }
 
@@ -119,7 +119,7 @@ function useControllableState<T>({
       }
       onChangeRef.current?.(next);
     },
-    [isControlled]
+    [isControlled],
   );
   return [value, setValue] as const;
 }
@@ -139,14 +139,14 @@ type ModelSelectorContextValue = {
 };
 
 const ModelSelectorContext = createContext<ModelSelectorContextValue | null>(
-  null
+  null,
 );
 
 function useModelSelectorContext() {
   const ctx = useContext(ModelSelectorContext);
   if (!ctx) {
     throw new Error(
-      "ModelSelector sub-components must be used within ModelSelector.Root"
+      "ModelSelector sub-components must be used within ModelSelector.Root",
     );
   }
   return ctx;
@@ -233,7 +233,7 @@ function ModelSelectorRoot({
       activeEffort,
       setEffort,
       setOpen,
-    ]
+    ],
   );
 
   return (
@@ -265,7 +265,7 @@ export const modelSelectorTriggerVariants = cva(
       variant: "outline",
       size: "default",
     },
-  }
+  },
 );
 
 export type ModelSelectorTriggerProps = ComponentPropsWithoutRef<
@@ -401,7 +401,7 @@ function ModelSelectorContent({
       align={align}
       className={cn(
         "w-72 min-w-(--radix-popover-trigger-width) overflow-hidden rounded-xl bg-popover/95 p-0 shadow-lg backdrop-blur-sm",
-        className
+        className,
       )}
       data-slot="model-selector-content"
       sideOffset={sideOffset}
@@ -457,7 +457,7 @@ function ModelSelectorList({
     <CommandList
       className={cn(
         "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-        className
+        className,
       )}
       data-slot="model-selector-list"
       {...props}
@@ -577,7 +577,7 @@ function ModelSelectorEffort({
     <fieldset
       className={cn(
         "flex items-center justify-between gap-3 border-t px-3 py-2",
-        className
+        className,
       )}
       data-slot="model-selector-effort"
       onKeyDown={(e) => {
@@ -614,7 +614,7 @@ function ModelSelectorEffort({
           <RadioGroupItem
             className={cn(
               "rounded-md px-2 py-1 text-muted-foreground text-xs outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
-              "data-checked:bg-accent data-checked:font-medium data-checked:text-accent-foreground"
+              "data-checked:bg-accent data-checked:font-medium data-checked:text-accent-foreground",
             )}
             key={option.id}
             value={option.id}
@@ -694,7 +694,7 @@ type ModelSelectorComponent = typeof ModelSelectorImpl & {
 };
 
 const ModelSelector = memo(
-  ModelSelectorImpl
+  ModelSelectorImpl,
 ) as unknown as ModelSelectorComponent;
 
 ModelSelector.displayName = "ModelSelector";

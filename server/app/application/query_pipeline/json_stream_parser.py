@@ -116,9 +116,32 @@ class JsonStreamParser:
             return []
         result = self._extract_first_json_value(self._buffer)
         if result is None:
+            segments = self.get_segments()
+            if segments:
+                return segments
+
+            raw = self._buffer.strip()
+            if not raw.startswith(("[", "{")):
+                raw = self._LEADING_CODE_FENCE_PATTERN.sub("", raw, count=1)
+                raw = self._TRAILING_CODE_FENCE_PATTERN.sub("", raw).strip()
+                if raw:
+                    return [{"text": raw, "evidence_ids": []}]
             return []
         if isinstance(result, list):
             return result
         if isinstance(result, dict):
+            segments = result.get("segments")
+            if isinstance(segments, list):
+                return segments
+            answer = result.get("answer") or result.get("content")
+            if isinstance(answer, str) and answer.strip():
+                return [{"text": answer, "evidence_ids": []}]
+            if isinstance(result.get("text"), str):
+                return [
+                    {
+                        "text": result["text"],
+                        "evidence_ids": result.get("evidence_ids", []),
+                    }
+                ]
             return [result]
         return []

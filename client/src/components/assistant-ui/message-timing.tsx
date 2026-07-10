@@ -56,7 +56,7 @@ export const MessageTiming: FC<{
             aria-label="Message timing"
             className={cn(
               "flex items-center rounded-md p-1 font-mono text-muted-foreground text-xs tabular-nums transition-colors hover:bg-accent hover:text-accent-foreground",
-              className
+              className,
             )}
             data-slot="message-timing-trigger"
             type="button"

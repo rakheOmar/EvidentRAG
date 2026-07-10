@@ -275,6 +275,25 @@ describe("useEvidentRuntime", () => {
     });
   });
 
+  it("trims the submitted prompt before displaying or sending it", async () => {
+    createThreadMock.mockResolvedValue(makeTurnResponse());
+
+    const { result } = renderHook(() => useEvidentRuntime(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.adapter.onNew(
+        makeAppendMessage("  What is BERT?  \n")
+      );
+    });
+
+    expect(createThreadMock).toHaveBeenCalledWith("What is BERT?");
+    expect(result.current.messages[0]?.contentParts).toEqual([
+      { text: "What is BERT?", type: "text" },
+    ]);
+  });
+
   it("appends a follow-up to the active thread", async () => {
     createThreadMock.mockResolvedValue(makeTurnResponse());
     appendThreadMessageMock.mockResolvedValue(

@@ -14,7 +14,7 @@ function FlowRoot({ className, children, llm: _llm, ...props }: FlowRootProps) {
     <div
       className={cn(
         "aui-flow-root not-prose my-6 overflow-x-auto overflow-y-hidden",
-        className
+        className,
       )}
       data-slot="flow-root"
       {...props}
@@ -38,7 +38,7 @@ function FlowRow({ className, ...props }: FlowRowProps) {
     <div
       className={cn(
         "aui-flow-row flex items-center justify-center gap-3",
-        className
+        className,
       )}
       data-slot="flow-row"
       {...props}
@@ -53,7 +53,7 @@ function FlowColumn({ className, ...props }: FlowColumnProps) {
     <div
       className={cn(
         "aui-flow-column flex flex-col items-center gap-3",
-        className
+        className,
       )}
       data-slot="flow-column"
       {...props}
@@ -70,7 +70,7 @@ function FlowGroup({ className, flowId, ...props }: FlowGroupProps) {
     <div
       className={cn(
         "aui-flow-group relative rounded-xl border border-border border-dashed p-4",
-        className
+        className,
       )}
       data-flow-id={flowId}
       data-slot="flow-group"
@@ -86,7 +86,7 @@ function FlowGroupLabel({ className, ...props }: FlowGroupLabelProps) {
     <span
       className={cn(
         "aui-flow-group-label absolute -top-2 left-3 bg-background px-1.5 font-medium text-[10px] text-muted-foreground uppercase tracking-widest",
-        className
+        className,
       )}
       data-slot="flow-group-label"
       {...props}
@@ -114,7 +114,7 @@ const flowNodeVariants = cva(
       variant: "box",
       tone: "default",
     },
-  }
+  },
 );
 
 export type FlowNodeProps = ComponentProps<"span"> &
@@ -205,7 +205,7 @@ function FlowArrow({
       <div
         className={cn(
           "aui-flow-arrow relative flex justify-center text-muted-foreground/70",
-          className
+          className,
         )}
         data-direction={direction}
         data-slot="flow-arrow"
@@ -241,7 +241,7 @@ function FlowArrow({
     <div
       className={cn(
         "aui-flow-arrow flex flex-col items-center gap-1 text-muted-foreground/70",
-        className
+        className,
       )}
       data-direction={direction}
       data-slot="flow-arrow"

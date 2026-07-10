@@ -22,7 +22,12 @@ from app.api.schemas.threads import (
 )
 from app.api.sse.sse import redis_pubsub_stream, sse_event
 from app.application.query_pipeline.content_parts import answer_content_parts
-from app.infrastructure.db.models import Answer, Evidence, Message, Thread
+from app.infrastructure.db.models import (
+    Answer,
+    Evidence,
+    Message,
+    Thread,
+)
 
 router = APIRouter(prefix="/api/v1/threads", tags=["threads"])
 
@@ -144,6 +149,11 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
         segments=segments,
         evidence=list(evidence_by_id.values()),
         content_parts=answer_content_parts(answer.full_text, evidence_dicts),
+        context_usage=(
+            answer.extra.get("context_usage")
+            if isinstance(answer.extra, dict)
+            else None
+        ),
     )
 
 

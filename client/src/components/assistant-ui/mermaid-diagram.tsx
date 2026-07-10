@@ -52,7 +52,7 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
         .replace(/id="([^"]+)"/g, 'id="$1-zoom"')
         .replace(/url\(#([^)]+)\)/g, "url(#$1-zoom)")
         .replace(/(href|xlink:href)="#([^"]+)"/g, '$1="#$2-zoom"'),
-    [svg]
+    [svg],
   );
 
   useEffect(() => {
@@ -78,7 +78,7 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
         return;
       }
       const focusables = overlayRef.current?.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
       if (!focusables?.length) {
         return;
@@ -141,10 +141,10 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
       zoomBy(
         Math.exp(-e.deltaY * 0.0015),
         e.clientX - rect.left,
-        e.clientY - rect.top
+        e.clientY - rect.top,
       );
     },
-    [zoomBy]
+    [zoomBy],
   );
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
@@ -259,7 +259,7 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
               </button>
             </div>
           </div>,
-          document.body
+          document.body,
         )}
     </div>
   );
@@ -294,7 +294,7 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
   const aui = useAui();
   const hasPart = aui.part.source !== null;
   const isComplete = useAuiState(
-    (s) => !hasPart || s.part.status.type !== "running"
+    (s) => !hasPart || s.part.status.type !== "running",
   );
 
   const result = useMemo(() => {
@@ -327,7 +327,7 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
         aria-label="Rendering diagram"
         className={cn(
           "aui-mermaid-skeleton flex h-32 animate-pulse items-center justify-center gap-3 rounded-b-lg bg-muted p-4",
-          className
+          className,
         )}
         data-slot="mermaid-skeleton"
       >
@@ -345,7 +345,7 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
       <div
         className={cn(
           "aui-mermaid-fallback rounded-b-lg bg-muted/75",
-          className
+          className,
         )}
         data-slot="mermaid-fallback"
       >
@@ -362,7 +362,7 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
       <div
         className={cn(
           "aui-mermaid-diagram rounded-b-lg bg-muted p-2 [&_svg]:mx-auto",
-          className
+          className,
         )}
         dangerouslySetInnerHTML={{ __html: result.svg }}
         data-slot="mermaid-diagram"
@@ -372,7 +372,7 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
 };
 
 const MermaidDiagram = memo(
-  MermaidDiagramImpl
+  MermaidDiagramImpl,
 ) as unknown as FC<MermaidDiagramProps> & {
   Zoom: typeof MermaidZoom;
 };

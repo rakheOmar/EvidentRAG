@@ -5,7 +5,6 @@ import {
   ActionBarPrimitive,
   type AssistantState,
   AuiIf,
-  BranchPickerPrimitive,
   ComposerPrimitive,
   ErrorPrimitive,
   groupPartByType,
@@ -16,8 +15,6 @@ import {
   useAuiState,
 } from "@assistant-ui/react";
 import {
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
   Copy01Icon,
   CopyCheckIcon,
   Download01Icon,
@@ -595,14 +592,13 @@ const SentenceFeedbackPopover: FC = () => {
     <Popover>
       <PopoverTrigger
         render={
-          <span className="inline-flex data-[state=open]:[&>button]:bg-accent">
-            <TooltipIconButton
-              aria-label="Rate evidence"
-              tooltip="Rate evidence"
-            >
-              <HugeiconsIcon icon={HugeThumbsUpIcon} strokeWidth={1.8} />
-            </TooltipIconButton>
-          </span>
+          <TooltipIconButton
+            aria-label="Rate evidence"
+            className="data-[state=open]:bg-accent"
+            tooltip="Rate evidence"
+          >
+            <HugeiconsIcon icon={HugeThumbsUpIcon} strokeWidth={1.8} />
+          </TooltipIconButton>
         }
       />
       <PopoverContent
@@ -628,58 +624,58 @@ const SentenceFeedbackPopover: FC = () => {
               className="rounded-xl border border-border/60 bg-background/40 p-3"
               key={segment.id}
             >
-                <div className="flex items-start gap-2">
-                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium tabular-nums text-[10px] text-muted-foreground">
-                    {index + 1}
-                  </span>
-                  <p className="min-w-0 flex-1 text-pretty text-xs leading-5">
-                    {segment.text}
-                  </p>
-                </div>
-                <div className="mt-2 flex items-center justify-end gap-1">
-                  <Button
-                    aria-label={`Helpful sentence ${index + 1}`}
-                    className={cn(
-                      "h-7 rounded-full px-2.5 text-xs transition-[transform,background-color,color] duration-150 active:scale-[0.96]",
-                      segment.rating === "up" &&
-                        "bg-emerald-500/12 text-emerald-700 hover:bg-emerald-500/18 dark:text-emerald-300",
-                    )}
-                    data-icon="inline-start"
-                    disabled={pendingTraceId === segment.id}
-                    onClick={() => void handleFeedback(segment.id, "up")}
-                    size="xs"
-                    type="button"
-                    variant={segment.rating === "up" ? "secondary" : "ghost"}
-                  >
-                    <HugeiconsIcon
-                      icon={HugeThumbsUpIcon}
-                      className="size-3.5"
-                      strokeWidth={1.8}
-                    />
-                    Helpful
-                  </Button>
-                  <Button
-                    aria-label={`Off target sentence ${index + 1}`}
-                    className={cn(
-                      "h-7 rounded-full px-2.5 text-xs transition-[transform,background-color,color] duration-150 active:scale-[0.96]",
-                      segment.rating === "down" &&
-                        "bg-rose-500/12 text-rose-700 hover:bg-rose-500/18 dark:text-rose-300",
-                    )}
-                    data-icon="inline-start"
-                    disabled={pendingTraceId === segment.id}
-                    onClick={() => void handleFeedback(segment.id, "down")}
-                    size="xs"
-                    type="button"
-                    variant={segment.rating === "down" ? "secondary" : "ghost"}
-                  >
-                    <HugeiconsIcon
-                      icon={HugeThumbsDownIcon}
-                      className="size-3.5"
-                      strokeWidth={1.8}
-                    />
-                    Off target
-                  </Button>
-                </div>
+              <div className="flex items-start gap-2">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium tabular-nums text-[10px] text-muted-foreground">
+                  {index + 1}
+                </span>
+                <p className="min-w-0 flex-1 text-pretty text-xs leading-5">
+                  {segment.text}
+                </p>
+              </div>
+              <div className="mt-2 flex items-center justify-end gap-1">
+                <Button
+                  aria-label={`Helpful sentence ${index + 1}`}
+                  className={cn(
+                    "h-7 rounded-full px-2.5 text-xs transition-[transform,background-color,color] duration-150 active:scale-[0.96]",
+                    segment.rating === "up" &&
+                      "bg-emerald-500/12 text-emerald-700 hover:bg-emerald-500/18 dark:text-emerald-300",
+                  )}
+                  data-icon="inline-start"
+                  disabled={pendingTraceId === segment.id}
+                  onClick={() => void handleFeedback(segment.id, "up")}
+                  size="xs"
+                  type="button"
+                  variant={segment.rating === "up" ? "secondary" : "ghost"}
+                >
+                  <HugeiconsIcon
+                    icon={HugeThumbsUpIcon}
+                    className="size-3.5"
+                    strokeWidth={1.8}
+                  />
+                  Helpful
+                </Button>
+                <Button
+                  aria-label={`Off target sentence ${index + 1}`}
+                  className={cn(
+                    "h-7 rounded-full px-2.5 text-xs transition-[transform,background-color,color] duration-150 active:scale-[0.96]",
+                    segment.rating === "down" &&
+                      "bg-rose-500/12 text-rose-700 hover:bg-rose-500/18 dark:text-rose-300",
+                  )}
+                  data-icon="inline-start"
+                  disabled={pendingTraceId === segment.id}
+                  onClick={() => void handleFeedback(segment.id, "down")}
+                  size="xs"
+                  type="button"
+                  variant={segment.rating === "down" ? "secondary" : "ghost"}
+                >
+                  <HugeiconsIcon
+                    icon={HugeThumbsDownIcon}
+                    className="size-3.5"
+                    strokeWidth={1.8}
+                  />
+                  Off target
+                </Button>
+              </div>
             </div>
           ))}
         </div>
@@ -799,44 +795,6 @@ const AssistantMessage: FC = () => {
               />
               {formatRouteLabel(route)}
             </Badge>
-
-            {route === "multi_hop" &&
-            (subQueries.length > 0 || hopProgress.length > 0) ? (
-              <Accordion
-                className="w-full"
-                defaultValue={["multi-hop-details"]}
-                multiple
-              >
-                <AccordionItem value="multi-hop-details">
-                  <AccordionTrigger className="py-1 font-medium text-muted-foreground text-xs">
-                    Multi-hop steps
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-3 rounded-xl border border-border/60 bg-muted/30 p-3">
-                      {subQueries.map((subQuery, index) => {
-                        const progress = hopProgress.find(
-                          (hop) => hop.hop === index + 1,
-                        );
-
-                        return (
-                          <div key={subQuery} className="space-y-1">
-                            <p className="font-medium text-[11px] uppercase tracking-wide text-muted-foreground">
-                              Step {index + 1}
-                            </p>
-                            <p className="text-sm">{subQuery}</p>
-                            {progress?.intermediate_answer ? (
-                              <p className="text-muted-foreground text-sm">
-                                {progress.intermediate_answer}
-                              </p>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            ) : null}
           </div>
         ) : null}
 
@@ -896,6 +854,69 @@ const AssistantMessage: FC = () => {
                 })}
               </ChainOfThoughtContent>
             </ChainOfThought>
+          </div>
+        ) : null}
+
+        {route === "multi_hop" &&
+        (subQueries.length > 0 || hopProgress.length > 0) ? (
+          <div className="mb-3">
+            <Accordion
+              className="w-full max-w-2xl"
+              defaultValue={["multi-hop-details"]}
+              multiple
+            >
+              <AccordionItem value="multi-hop-details">
+                <AccordionTrigger className="group flex w-fit items-center gap-2 rounded-lg px-1.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:bg-muted/40 hover:text-foreground">
+                  <HugeiconsIcon
+                    className="size-3.5"
+                    icon={HugeGitBranchIcon}
+                    strokeWidth={1.8}
+                  />
+                  <span>Multi-hop path</span>
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[10px] tabular-nums">
+                    {Math.max(subQueries.length, hopProgress.length)} steps
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pt-1">
+                  <div className="ml-2.5 border-border/70 border-s ps-4">
+                    {Array.from({
+                      length: Math.max(subQueries.length, hopProgress.length),
+                    }).map((_, index) => {
+                      const progress = hopProgress.find(
+                        (hop) => hop.hop === index + 1,
+                      );
+                      const subQuery = subQueries[index] ?? progress?.sub_query;
+                      const hopNumber = progress?.hop ?? index + 1;
+                      const key = progress
+                        ? `hop-${progress.hop}`
+                        : subQuery
+                          ? `query-${subQuery}`
+                          : `hop-${hopNumber}`;
+
+                      return (
+                        <div
+                          className="relative space-y-1 pb-4 last:pb-1"
+                          key={key}
+                        >
+                          <span className="absolute left-[-1.3rem] top-0.5 flex size-4 items-center justify-center rounded-full border border-border bg-background font-mono text-[9px] text-muted-foreground">
+                            {hopNumber}
+                          </span>
+                          <p className="text-xs leading-5 text-foreground">
+                            {subQuery ?? "Retrieving the next evidence set"}
+                          </p>
+                          {progress?.intermediate_answer ? (
+                            <MarkdownText
+                              className="text-muted-foreground text-xs leading-5"
+                              content={progress.intermediate_answer}
+                            />
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
         ) : null}
 
@@ -964,7 +985,6 @@ const AssistantMessage: FC = () => {
         className={cn("ms-2 flex items-center gap-0.5", ACTION_BAR_HEIGHT)}
         data-slot="aui_assistant-message-footer"
       >
-        <BranchPicker />
         <AssistantActionBar />
       </div>
     </MessagePrimitive.Root>
@@ -973,7 +993,7 @@ const AssistantMessage: FC = () => {
 
 const AssistantActionBar: FC = () => (
   <ActionBarPrimitive.Root
-    autohide="not-last"
+    autohide="never"
     className="aui-assistant-action-bar-root fade-in col-start-3 row-start-2 -ms-1 flex animate-in gap-1 text-muted-foreground duration-200"
     hideWhenRunning
   >
@@ -1041,11 +1061,6 @@ const UserMessage: FC = () => (
         <UserActionBar />
       </div>
     </div>
-
-    <BranchPicker
-      className="col-span-full col-start-1 row-start-3 -me-1 justify-end"
-      data-slot="aui_user-branch-picker"
-    />
   </MessagePrimitive.Root>
 );
 
@@ -1087,32 +1102,4 @@ const EditComposer: FC = () => (
       </div>
     </ComposerPrimitive.Root>
   </MessagePrimitive.Root>
-);
-
-const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
-  className,
-  ...rest
-}) => (
-  <BranchPickerPrimitive.Root
-    className={cn(
-      "aui-branch-picker-root -ms-2 me-2 inline-flex items-center text-muted-foreground text-xs",
-      className,
-    )}
-    hideWhenSingleBranch
-    {...rest}
-  >
-    <BranchPickerPrimitive.Previous asChild>
-      <TooltipIconButton tooltip="Previous">
-        <HugeiconsIcon icon={ArrowLeft01Icon} />
-      </TooltipIconButton>
-    </BranchPickerPrimitive.Previous>
-    <span className="aui-branch-picker-state font-medium">
-      <BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count />
-    </span>
-    <BranchPickerPrimitive.Next asChild>
-      <TooltipIconButton tooltip="Next">
-        <HugeiconsIcon icon={ArrowRight01Icon} />
-      </TooltipIconButton>
-    </BranchPickerPrimitive.Next>
-  </BranchPickerPrimitive.Root>
 );

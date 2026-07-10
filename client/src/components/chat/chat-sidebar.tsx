@@ -33,18 +33,18 @@ const Sidebar: FC<{ collapsed?: boolean }> = ({ collapsed }) => (
   <aside
     className={cn(
       "flex h-full flex-col overflow-hidden transition-[width] duration-200",
-      collapsed ? "w-12" : "w-65",
+      collapsed ? "w-12" : "w-65"
     )}
   >
     <div
       className={cn(
         "mt-2 flex h-12 shrink-0 items-center justify-center transition-[padding] duration-200",
-        collapsed ? "px-0" : "px-6",
+        collapsed ? "px-0" : "px-6"
       )}
     >
       {collapsed ? (
         <img
-          alt=""
+          alt="EvidentRAG"
           className="size-6 object-contain"
           height={24}
           src="/brand/icon-transparent.png"
@@ -63,7 +63,7 @@ const Sidebar: FC<{ collapsed?: boolean }> = ({ collapsed }) => (
     <ThreadListRoot
       className={cn(
         "relative flex-1 overflow-y-auto transition-[padding,width] duration-200",
-        collapsed ? "w-12 px-2 pt-1" : "w-65 p-3",
+        collapsed ? "w-12 px-2 pt-1" : "w-65 p-3"
       )}
     >
       {collapsed ? (
@@ -91,7 +91,7 @@ const Sidebar: FC<{ collapsed?: boolean }> = ({ collapsed }) => (
           "transition-[opacity,transform] duration-150",
           collapsed
             ? "pointer-events-none opacity-0 delay-50"
-            : "translate-x-0 opacity-100",
+            : "translate-x-0 opacity-100"
         )}
         inert={collapsed}
       />

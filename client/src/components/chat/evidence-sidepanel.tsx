@@ -48,11 +48,11 @@ const EvidenceAccordionItem: FC<{ item: EvidencePanelData }> = ({ item }) => (
             {item.document_title}
           </span>
         ) : null}
-        {item.page === null ? null : (
+        {typeof item.page === "number" && Number.isFinite(item.page) ? (
           <span className="shrink-0 text-sidebar-foreground/50 text-xs">
             p. {item.page}
           </span>
-        )}
+        ) : null}
       </div>
     </AccordionTrigger>
     <AccordionContent>

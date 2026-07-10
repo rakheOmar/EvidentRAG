@@ -14,7 +14,13 @@ import {
   PlusIcon,
   XIcon,
 } from "lucide-react";
-import { type FC, type PropsWithChildren, type ReactElement, useEffect, useState } from "react";
+import {
+  type FC,
+  type PropsWithChildren,
+  type ReactElement,
+  useEffect,
+  useState,
+} from "react";
 import { useShallow } from "zustand/shallow";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -66,7 +72,7 @@ const useAttachmentSrc = () => {
         return {};
       }
       return { src };
-    })
+    }),
   );
 
   return useFileSrc(file) ?? src;
@@ -85,7 +91,7 @@ const AttachmentPreview: FC<AttachmentPreviewProps> = ({ src }) => {
         "block h-auto max-h-[80vh] w-auto max-w-full object-contain",
         isLoaded
           ? "aui-attachment-preview-image-loaded"
-          : "aui-attachment-preview-image-loading invisible"
+          : "aui-attachment-preview-image-loading invisible",
       )}
       onLoad={() => setIsLoaded(true)}
       src={src}
@@ -160,7 +166,7 @@ const AttachmentUI: FC = () => {
       : s.attachment.status.type === "incomplete" &&
           s.attachment.status.reason === "error"
         ? "error"
-        : undefined
+        : undefined,
   );
   const isUploading = uploadState === "uploading";
   const isError = uploadState === "error";
@@ -172,7 +178,7 @@ const AttachmentUI: FC = () => {
           "aui-attachment-root relative",
           isImage &&
             !isComposer &&
-            "aui-attachment-root-message only:*:first:size-24"
+            "aui-attachment-root-message only:*:first:size-24",
         )}
       >
         <AttachmentPreviewDialog>
@@ -184,7 +190,7 @@ const AttachmentUI: FC = () => {
                 }`}
                 className={cn(
                   "aui-attachment-tile relative size-14 cursor-pointer overflow-hidden rounded-[calc(var(--composer-radius)-var(--composer-padding))] border bg-muted transition-opacity hover:opacity-75",
-                  isError && "border-destructive"
+                  isError && "border-destructive",
                 )}
                 type="button"
               >

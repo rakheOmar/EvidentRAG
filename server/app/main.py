@@ -9,6 +9,7 @@ from redis.asyncio import Redis
 from app.api.middleware.access_logging import AccessLoggingMiddleware
 from app.api.middleware.request_context import RequestContextMiddleware
 from app.api.routes.health import router as health_router
+from app.api.routes.models import router as models_router
 from app.api.routes.sentence_traces import router as sentence_traces_router
 from app.api.routes.threads import router as threads_router
 from app.frontend import mount_frontend
@@ -22,6 +23,7 @@ from app.infrastructure.embeddings.embedding import EmbeddingClient
 from app.infrastructure.llm.llm import LLMClient
 from app.infrastructure.qdrant.client import QdrantStore
 from app.infrastructure.reranker.reranker import RerankClient
+from app.infrastructure.ai.scheduler import AIRequestScheduler
 from app.seed.seed_demo_data import seed_demo_data
 
 
@@ -111,11 +113,31 @@ async def lifespan(app: FastAPI):
         engine = create_engine(settings.db)
         session_factory = create_session_factory(engine)
         qdrant_store = QdrantStore(settings.qdrant)
-        embedding_client = EmbeddingClient(settings.embeddings)
-        llm_client = LLMClient(settings.llm)
-        rerank_client = RerankClient(settings.reranker)
         redis = Redis.from_url(settings.redis.url)
+        scheduler = AIRequestScheduler(redis, settings.rate_limits)
+        embedding_client = EmbeddingClient(settings.embeddings)
+        llm_client = LLMClient(settings.llm, scheduler=scheduler)
+        rerank_client = RerankClient(settings.reranker, scheduler=scheduler)
         job_queue = ArqRedis.from_url(settings.redis.url)
+
+        try:
+            model_catalog = await llm_client.list_models()
+        except Exception as exc:
+            model_catalog = []
+            logger.warning(
+                "model_catalog_load_failed",
+                extra={
+                    "wide_event": {
+                        "event": "model_catalog_load_failed",
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                        "outcome": "degraded",
+                    }
+                },
+            )
+        set_model_catalog = getattr(llm_client, "set_model_catalog", None)
+        if callable(set_model_catalog):
+            set_model_catalog(model_catalog)
 
         app.state.settings = settings
         app.state.engine = engine
@@ -123,6 +145,8 @@ async def lifespan(app: FastAPI):
         app.state.qdrant_store = qdrant_store
         app.state.embedding_client = embedding_client
         app.state.llm_client = llm_client
+        app.state.context_manager = getattr(llm_client, "context_manager", None)
+        app.state.model_catalog = model_catalog
         app.state.rerank_client = rerank_client
         app.state.redis = redis
         app.state.job_queue = job_queue
@@ -198,6 +222,7 @@ app = FastAPI(title=settings.app.app_name, lifespan=lifespan)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(AccessLoggingMiddleware)
 app.include_router(health_router)
+app.include_router(models_router)
 app.include_router(sentence_traces_router)
 app.include_router(threads_router)
 mount_frontend(app, settings)

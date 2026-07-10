@@ -76,6 +76,26 @@ function EvidenceHarness() {
   );
 }
 
+function MissingPageEvidenceHarness() {
+  return (
+    <EvidenceSidepanel
+      activeEvidenceId={null}
+      evidence={[
+        {
+          content: "Evidence without page metadata",
+          context_header: null,
+          document_slug: "doc-1",
+          document_title: "Document One",
+          id: "ev-1",
+          page: null,
+        },
+      ]}
+      onClose={noop}
+      open
+    />
+  );
+}
+
 describe("EvidenceSidepanel", () => {
   it("preserves the current message id when switching evidence items", () => {
     render(
@@ -122,5 +142,15 @@ describe("EvidenceSidepanel", () => {
 
     expect(screen.getByTestId("selected-message")).toHaveTextContent("none");
     expect(screen.getByTestId("selected-evidence")).toHaveTextContent("none");
+  });
+
+  it("does not show a page prefix when page metadata is missing", () => {
+    render(
+      <EvidencePanelProvider>
+        <MissingPageEvidenceHarness />
+      </EvidencePanelProvider>
+    );
+
+    expect(screen.queryByText("p.")).not.toBeInTheDocument();
   });
 });

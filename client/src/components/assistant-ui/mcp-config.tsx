@@ -135,7 +135,7 @@ const ServerCard: FC = () => (
   <McpServerPrimitive.Root
     className={cn(
       "aui-mcp-server-card flex flex-col gap-2 rounded-lg border p-3",
-      "data-[connection-state=error]:border-destructive/40"
+      "data-[connection-state=error]:border-destructive/40",
     )}
   >
     <div className="flex items-center gap-3">
@@ -243,7 +243,7 @@ const ServerActions: FC = () => (
     <McpServerPrimitive.OAuthLink
       className={cn(
         buttonVariants({ variant: "default", size: "sm" }),
-        "aui-mcp-server-authorize h-8 gap-2 text-xs"
+        "aui-mcp-server-authorize h-8 gap-2 text-xs",
       )}
     >
       Authorize
@@ -297,7 +297,7 @@ const AddServerForm: FC<{ onClose: () => void }> = ({ onClose }) => {
               // the shadcn <Input> look.
               "empty:hidden [&_input]:flex [&_input]:h-9 [&_input]:w-full [&_input]:rounded-md [&_input]:border [&_input]:border-input [&_input]:bg-transparent [&_input]:px-3 [&_input]:py-1 [&_input]:text-sm [&_input]:shadow-xs [&_input]:outline-none [&_input]:transition-[color,box-shadow]",
               "[&_input:focus-visible]:border-ring [&_input:focus-visible]:ring-[3px] [&_input:focus-visible]:ring-ring/50",
-              "[&_input::placeholder]:text-muted-foreground"
+              "[&_input::placeholder]:text-muted-foreground",
             )}
           >
             <McpAddFormPrimitive.AuthFields />

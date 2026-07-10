@@ -85,10 +85,10 @@ export function FlowExpand({ className, children, ...props }: FlowExpandProps) {
       zoomBy(
         Math.exp(-event.deltaY * 0.0015),
         event.clientX - rect.left,
-        event.clientY - rect.top
+        event.clientY - rect.top,
       );
     },
-    [zoomBy]
+    [zoomBy],
   );
 
   const onPointerDown = useCallback((event: PointerEvent) => {
@@ -135,7 +135,7 @@ export function FlowExpand({ className, children, ...props }: FlowExpandProps) {
               aria-label="Expand diagram"
               className={cn(
                 flowControlButtonClass,
-                "aui-flow-expand-trigger absolute end-2 top-2 opacity-0 focus-visible:opacity-100 group-hover/flow:opacity-100"
+                "aui-flow-expand-trigger absolute end-2 top-2 opacity-0 focus-visible:opacity-100 group-hover/flow:opacity-100",
               )}
               size="icon-sm"
               title="Expand diagram"

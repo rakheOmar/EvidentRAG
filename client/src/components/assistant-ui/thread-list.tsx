@@ -63,7 +63,7 @@ const DAY_IN_MS = 86_400_000;
 
 const dateGroupLabel = (
   date: Date | undefined,
-  startOfToday: number
+  startOfToday: number,
 ): string => {
   if (!date || date.getTime() >= startOfToday) {
     return "Today";
@@ -91,7 +91,7 @@ const ThreadListItemGroups: FC = () => {
     const startOfToday = new Date(
       now.getFullYear(),
       now.getMonth(),
-      now.getDate()
+      now.getDate(),
     ).getTime();
     const time = (index: number) =>
       dates[index]?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -147,7 +147,7 @@ export const ThreadListNew = forwardRef<
     <Button
       className={cn(
         "h-8 justify-start gap-2 rounded-md px-2.5 font-normal text-sm hover:bg-muted data-active:bg-muted",
-        className
+        className,
       )}
       data-slot="aui_thread-list-new"
       ref={ref}

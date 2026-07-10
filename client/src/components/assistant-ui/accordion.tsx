@@ -17,7 +17,7 @@ const accordionVariants = cva(
       },
     },
     defaultVariants: { variant: "default" },
-  }
+  },
 );
 
 function Accordion({
@@ -47,7 +47,7 @@ function AccordionItem({
         "group-data-[variant=default]/accordion:border-b group-data-[variant=default]/accordion:last:border-b-0",
         "group-data-[variant=outline]/accordion:border-b group-data-[variant=outline]/accordion:last:border-b-0",
         "group-data-[variant=ghost]/accordion:rounded-lg group-data-[variant=ghost]/accordion:data-[state=open]:bg-muted/50",
-        className
+        className,
       )}
       data-slot="accordion-item"
       {...props}
@@ -68,7 +68,7 @@ function AccordionTrigger({
           "group-data-[variant=default]/accordion:py-4 group-data-[variant=default]/accordion:focus-visible:ring-2 group-data-[variant=default]/accordion:focus-visible:ring-ring/50 group-data-[variant=default]/accordion:hover:underline",
           "group-data-[variant=outline]/accordion:px-4 group-data-[variant=outline]/accordion:py-3 group-data-[variant=outline]/accordion:focus-visible:ring-2 group-data-[variant=outline]/accordion:focus-visible:ring-ring/50 group-data-[variant=outline]/accordion:focus-visible:ring-inset group-data-[variant=outline]/accordion:hover:bg-muted/50",
           "group-data-[variant=ghost]/accordion:rounded-lg group-data-[variant=ghost]/accordion:px-4 group-data-[variant=ghost]/accordion:py-2 group-data-[variant=ghost]/accordion:focus-visible:ring-2 group-data-[variant=ghost]/accordion:focus-visible:ring-ring/50 group-data-[variant=ghost]/accordion:hover:bg-muted/50",
-          className
+          className,
         )}
         data-slot="accordion-trigger"
         {...props}
@@ -96,7 +96,7 @@ function AccordionContent({
           "group-data-[variant=default]/accordion:pb-4",
           "group-data-[variant=outline]/accordion:border-t group-data-[variant=outline]/accordion:px-4 group-data-[variant=outline]/accordion:py-3",
           "group-data-[variant=ghost]/accordion:px-4 group-data-[variant=ghost]/accordion:py-3",
-          className
+          className,
         )}
       >
         {children}

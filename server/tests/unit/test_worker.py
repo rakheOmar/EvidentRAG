@@ -169,7 +169,7 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
             captured["embedding_client_instance"] = self
 
     class FakeLLMClient:
-        def __init__(self, actual_settings) -> None:
+        def __init__(self, actual_settings, scheduler=None) -> None:
             captured["llm_settings"] = actual_settings
             captured["llm_client_instance"] = self
 
@@ -179,7 +179,7 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
             captured["arag_router_instance"] = self
 
     class FakeRerankClient:
-        def __init__(self, actual_settings) -> None:
+        def __init__(self, actual_settings, scheduler=None) -> None:
             captured["reranker_settings"] = actual_settings
             captured["rerank_client_instance"] = self
 
