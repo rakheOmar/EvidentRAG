@@ -11,6 +11,7 @@ import {
   createThread,
   fetchThread,
   fetchThreads,
+  putSentenceTraceFeedback,
 } from "../api";
 
 const createThreadErrorMessage = /POST \/api\/v1\/threads failed: 400/;
@@ -202,6 +203,29 @@ describe("fetchThread", () => {
     const [url, init] = getFirstCall(fetchMock);
     expect(url).toBe("/api/v1/threads/thread-001");
     expect(init?.method).toBe("GET");
+    expect(result).toEqual(expected);
+  });
+});
+
+describe("putSentenceTraceFeedback", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("PUTs the rating to /api/v1/sentence-traces/{id}/feedback", async () => {
+    const expected = { rating: "up", trace_id: "trace-001" };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(stubJson(expected, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await putSentenceTraceFeedback("trace-001", "up");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = getFirstCall(fetchMock);
+    expect(url).toBe("/api/v1/sentence-traces/trace-001/feedback");
+    expect(init?.method).toBe("PUT");
+    expect(JSON.parse(init?.body as string)).toEqual({ rating: "up" });
     expect(result).toEqual(expected);
   });
 });

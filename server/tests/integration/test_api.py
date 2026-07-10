@@ -3,17 +3,20 @@ from __future__ import annotations
 import json
 import uuid
 
+from app.application.query_pipeline.erm import hash_query_embedding
 from app.infrastructure.db.models import (
     Answer,
     Document,
     Evidence,
+    ErmQueryEmbedding,
+    ErmScore,
     Message,
     Segment,
 )
 
 
 def _sse_done_event(
-    answer_id: str, thread_id: str, message_id: str, evidence_id: str
+    answer_id: str, thread_id: str, message_id: str, evidence_id: str, segment_id: str
 ) -> str:
     data = {
         "id": answer_id,
@@ -23,9 +26,11 @@ def _sse_done_event(
         "reasoning_trace": [],
         "segments": [
             {
+                "id": segment_id,
                 "segment_index": 0,
                 "text": "This is the completed answer.",
                 "evidence_ids": [evidence_id],
+                "rating": None,
             }
         ],
         "evidence": [
@@ -36,6 +41,8 @@ def _sse_done_event(
                 "document_title": "Evidence Doc",
                 "document_slug": f"evidence-doc-{thread_id[-8:]}",
                 "page": 1,
+                "erm_state": None,
+                "erm_multiplier": None,
             }
         ],
         "content_parts": [
@@ -111,6 +118,7 @@ def _create_answer_graph(client, *, thread_id: str, message_id: str) -> dict[str
             return {
                 "answer_id": str(answer.id),
                 "evidence_id": str(evidence.id),
+                "segment_id": str(segment.id),
             }
 
     return client.portal.call(_persist)
@@ -211,7 +219,13 @@ def test_get_message_events_replays_done_for_completed_message(client) -> None:
     assert response.status_code == 200
     actual_payload = _parse_sse_done_event(body.decode("utf-8"))
     expected_payload = _parse_sse_done_event(
-        _sse_done_event(graph["answer_id"], thread_id, message_id, graph["evidence_id"])
+        _sse_done_event(
+            graph["answer_id"],
+            thread_id,
+            message_id,
+            graph["evidence_id"],
+            graph["segment_id"],
+        )
     )
     assert actual_payload["id"] == expected_payload["id"]
     assert actual_payload["thread_id"] == expected_payload["thread_id"]
@@ -220,6 +234,120 @@ def test_get_message_events_replays_done_for_completed_message(client) -> None:
     assert actual_payload["segments"] == expected_payload["segments"]
     assert actual_payload["evidence"] == expected_payload["evidence"]
     assert actual_payload["error"] is False
+
+
+def test_put_sentence_trace_feedback_sets_rating_and_updates_erm(client) -> None:
+    class FakeEmbeddingClient:
+        def embed_texts(self, texts: list[str]) -> list[list[float]]:
+            assert texts == ["What does EvidentRAG say about citations?"]
+            return [[1.0, 0.0]]
+
+    client.app.state.embedding_client = FakeEmbeddingClient()
+    create_response = client.post(
+        "/api/v1/threads",
+        json={"content": "What does EvidentRAG say about citations?"},
+    )
+    thread_id = create_response.json()["thread"]["id"]
+    message_id = create_response.json()["assistant_message"]["id"]
+    graph = _create_answer_graph(client, thread_id=thread_id, message_id=message_id)
+
+    response = client.put(
+        f"/api/v1/sentence-traces/{graph['segment_id']}/feedback",
+        json={"rating": "up"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"trace_id": graph["segment_id"], "rating": "up"}
+
+    session_factory = client.app.state.session_factory
+
+    async def _assert_persisted() -> None:
+        async with session_factory() as session:
+            segment = await session.get(Segment, uuid.UUID(graph["segment_id"]))
+            assert segment is not None
+            assert segment.rating == "up"
+
+            query_embedding = await session.get(
+                ErmQueryEmbedding,
+                hash_query_embedding([1.0, 0.0]),
+            )
+            assert query_embedding is not None
+
+            score = await session.get(
+                ErmScore,
+                {
+                    "query_embedding_hash": query_embedding.query_embedding_hash,
+                    "evidence_id": uuid.UUID(graph["evidence_id"]),
+                },
+            )
+            assert score is not None
+            assert score.boost_score == 1.0
+            assert score.penalty_score == 0.0
+
+    client.portal.call(_assert_persisted)
+
+
+def test_put_sentence_trace_feedback_overwrites_previous_rating(client) -> None:
+    class FakeEmbeddingClient:
+        def embed_texts(self, texts: list[str]) -> list[list[float]]:
+            return [[1.0, 0.0]]
+
+    client.app.state.embedding_client = FakeEmbeddingClient()
+    create_response = client.post(
+        "/api/v1/threads",
+        json={"content": "What does EvidentRAG say about citations?"},
+    )
+    thread_id = create_response.json()["thread"]["id"]
+    message_id = create_response.json()["assistant_message"]["id"]
+    graph = _create_answer_graph(client, thread_id=thread_id, message_id=message_id)
+
+    client.put(
+        f"/api/v1/sentence-traces/{graph['segment_id']}/feedback",
+        json={"rating": "up"},
+    )
+    response = client.put(
+        f"/api/v1/sentence-traces/{graph['segment_id']}/feedback",
+        json={"rating": "down"},
+    )
+
+    assert response.status_code == 200
+
+    session_factory = client.app.state.session_factory
+
+    async def _assert_persisted() -> None:
+        async with session_factory() as session:
+            score = await session.get(
+                ErmScore,
+                {
+                    "query_embedding_hash": hash_query_embedding([1.0, 0.0]),
+                    "evidence_id": uuid.UUID(graph["evidence_id"]),
+                },
+            )
+            assert score is not None
+            assert score.boost_score == 0.0
+            assert score.penalty_score == 1.0
+
+    client.portal.call(_assert_persisted)
+
+
+def test_put_sentence_trace_feedback_returns_not_found_for_missing_trace(
+    client,
+) -> None:
+    response = client.put(
+        "/api/v1/sentence-traces/00000000-0000-0000-0000-000000000000/feedback",
+        json={"rating": "up"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_put_sentence_trace_feedback_returns_422_for_invalid_rating(client) -> None:
+    response = client.put(
+        "/api/v1/sentence-traces/00000000-0000-0000-0000-000000000000/feedback",
+        json={"rating": "sideways"},
+    )
+
+    assert response.status_code == 422
 
 
 def test_get_thread_returns_not_found_for_missing_thread(client) -> None:

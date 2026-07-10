@@ -568,7 +568,7 @@ async def test_run_seed_demo_data_uses_runtime_dependencies(
         embeddings=object(),
     )
 
-    monkeypatch.setattr("app.seed.seed_demo_data.load_dotenv", lambda: None)
+    monkeypatch.setattr("app.core.config.load_dotenv", lambda *a, **k: None)
     monkeypatch.setattr("app.seed.seed_demo_data.get_settings", lambda: settings)
     monkeypatch.setattr(
         "app.seed.seed_demo_data.configure_logging",

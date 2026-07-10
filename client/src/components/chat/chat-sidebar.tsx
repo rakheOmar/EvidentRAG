@@ -32,14 +32,14 @@ const Logo: FC = () => (
 const Sidebar: FC<{ collapsed?: boolean }> = ({ collapsed }) => (
   <aside
     className={cn(
-      "flex h-full flex-col overflow-hidden transition-all duration-200",
-      collapsed ? "w-12" : "w-65"
+      "flex h-full flex-col overflow-hidden transition-[width] duration-200",
+      collapsed ? "w-12" : "w-65",
     )}
   >
     <div
       className={cn(
-        "mt-2 flex h-12 shrink-0 items-center justify-center transition-all duration-200",
-        collapsed ? "px-0" : "px-6"
+        "mt-2 flex h-12 shrink-0 items-center justify-center transition-[padding] duration-200",
+        collapsed ? "px-0" : "px-6",
       )}
     >
       {collapsed ? (
@@ -63,13 +63,13 @@ const Sidebar: FC<{ collapsed?: boolean }> = ({ collapsed }) => (
     <ThreadListRoot
       className={cn(
         "relative flex-1 overflow-y-auto transition-[padding,width] duration-200",
-        collapsed ? "w-12 px-2 pt-1" : "w-65 p-3"
+        collapsed ? "w-12 px-2 pt-1" : "w-65 p-3",
       )}
     >
       {collapsed ? (
         <ThreadListNew
-          className="w-8 gap-0 overflow-hidden px-2 transition-all duration-200 has-[>svg]:px-2"
-          labelClassName="max-w-0 overflow-hidden opacity-0 transition-all duration-200"
+          className="w-8 gap-0 overflow-hidden px-2 transition-[width,padding,gap] duration-200 has-[>svg]:px-2"
+          labelClassName="max-w-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-200"
           title="New Query"
         />
       ) : (
@@ -77,8 +77,8 @@ const Sidebar: FC<{ collapsed?: boolean }> = ({ collapsed }) => (
           <TooltipTrigger
             render={
               <ThreadListNew
-                className="w-full gap-2 overflow-hidden px-2.5 transition-all duration-200 has-[>svg]:px-2.5"
-                labelClassName="max-w-24 overflow-hidden opacity-100 transition-all duration-200"
+                className="w-full gap-2 overflow-hidden px-2.5 transition-[width,padding,gap] duration-200 has-[>svg]:px-2.5"
+                labelClassName="max-w-24 overflow-hidden opacity-100 transition-[max-width,opacity] duration-200"
               />
             }
           />
@@ -91,7 +91,7 @@ const Sidebar: FC<{ collapsed?: boolean }> = ({ collapsed }) => (
           "transition-[opacity,transform] duration-150",
           collapsed
             ? "pointer-events-none opacity-0 delay-50"
-            : "translate-x-0 opacity-100"
+            : "translate-x-0 opacity-100",
         )}
         inert={collapsed}
       />

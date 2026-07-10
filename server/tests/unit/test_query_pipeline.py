@@ -82,7 +82,9 @@ class _FakeSession:
         if self.expire_identity_after_rollback and hasattr(
             self.assistant_message, "mark_identity_expired"
         ):
-            self.assistant_message.mark_identity_expired()
+            cast(
+                _FragileAssistantMessage, self.assistant_message
+            ).mark_identity_expired()
 
     def add(self, obj: object) -> None:
         self.added_objects.append(obj)
@@ -277,7 +279,9 @@ async def test_query_pipeline_run_marks_running_then_completed_and_publishes_eve
     from app.application.query_pipeline.query_pipeline import QueryPipeline
 
     thread, user_message, assistant_message = _make_thread_messages()
-    session = _FakeSession(thread, user_message, assistant_message)
+    session = _FakeSession(
+        thread, user_message, cast(_AssistantMessageLike, assistant_message)
+    )
     redis = _FakeRedis()
 
     pipeline = QueryPipeline(
@@ -361,7 +365,9 @@ async def test_query_pipeline_answers_conversation_route_from_thread_memory() ->
     assistant_message.created_at = thread.created_at
     assistant_message.updated_at = thread.updated_at
 
-    session = _FakeSession(thread, user_message, assistant_message)
+    session = _FakeSession(
+        thread, user_message, cast(_AssistantMessageLike, assistant_message)
+    )
     session.execute_values = [prior_user, user_message]
     redis = _FakeRedis()
     llm = _FakeStreamingLLM(

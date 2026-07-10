@@ -19,6 +19,8 @@ export interface ThreadSummary {
 
 export interface Segment {
   evidence_ids: string[];
+  id: string;
+  rating: "up" | "down" | null;
   segment_index: number;
   text: string;
 }
@@ -28,6 +30,8 @@ export interface Evidence {
   context_header: string | null;
   document_slug: string | null;
   document_title: string | null;
+  erm_multiplier: number | null;
+  erm_state: "boost" | "penalty" | null;
   id: string;
   page: number | null;
 }
@@ -124,6 +128,11 @@ export interface DoneEventWithContentParts extends AnswerDetail {
 
 export interface ContentPartsEvent {
   parts: ThreadAssistantMessagePart[];
+}
+
+export interface SentenceTraceFeedbackResponse {
+  rating: "up" | "down";
+  trace_id: string;
 }
 
 export interface EvidentChatMessage {

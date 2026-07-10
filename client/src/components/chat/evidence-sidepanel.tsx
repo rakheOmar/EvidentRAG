@@ -9,6 +9,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -25,6 +26,8 @@ export interface EvidencePanelData {
   context_header: string | null;
   document_slug: string | null;
   document_title: string | null;
+  erm_multiplier: number | null;
+  erm_state: "boost" | "penalty" | null;
   id: string;
   page: number | null;
 }
@@ -35,6 +38,56 @@ interface EvidenceSidepanelProps {
   onClose: () => void;
   open: boolean;
 }
+
+const EvidenceAccordionItem: FC<{ item: EvidencePanelData }> = ({ item }) => (
+  <AccordionItem className="min-w-0" value={item.id}>
+    <AccordionTrigger className="min-w-0 px-4 py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        {item.document_title ? (
+          <span className="truncate font-medium text-sm">
+            {item.document_title}
+          </span>
+        ) : null}
+        {item.page === null ? null : (
+          <span className="shrink-0 text-sidebar-foreground/50 text-xs">
+            p. {item.page}
+          </span>
+        )}
+      </div>
+    </AccordionTrigger>
+    <AccordionContent>
+      <div className="min-w-0 space-y-1.5 px-4 pb-3">
+        {item.erm_state ? (
+          <div className="flex items-center gap-2">
+            <Badge
+              className={cn(
+                item.erm_state === "boost"
+                  ? "bg-emerald-500/15 text-emerald-700"
+                  : "bg-rose-500/15 text-rose-700"
+              )}
+              variant="secondary"
+            >
+              {item.erm_state === "boost" ? "ERM boost" : "ERM penalty"}
+            </Badge>
+            {item.erm_multiplier === null ? null : (
+              <span className="text-sidebar-foreground/50 text-xs tabular-nums">
+                x{item.erm_multiplier.toFixed(2)}
+              </span>
+            )}
+          </div>
+        ) : null}
+        {item.context_header ? (
+          <p className="font-medium text-[11px] text-sidebar-foreground/40 uppercase tracking-wider">
+            {item.context_header}
+          </p>
+        ) : null}
+        <p className="wrap-break-word text-foreground/90 text-wrap-pretty text-xs leading-relaxed">
+          {item.content}
+        </p>
+      </div>
+    </AccordionContent>
+  </AccordionItem>
+);
 
 const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
   evidence,
@@ -102,34 +155,7 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
         value={accordionValue}
       >
         {evidence?.map((item) => (
-          <AccordionItem className="min-w-0" key={item.id} value={item.id}>
-            <AccordionTrigger className="min-w-0 px-4 py-2.5">
-              <div className="flex min-w-0 items-center gap-2">
-                {item.document_title ? (
-                  <span className="truncate font-medium text-sm">
-                    {item.document_title}
-                  </span>
-                ) : null}
-                {item.page !== null && (
-                  <span className="shrink-0 text-sidebar-foreground/50 text-xs">
-                    p. {item.page}
-                  </span>
-                )}
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="min-w-0 space-y-1.5 px-4 pb-3">
-                {item.context_header ? (
-                  <p className="font-medium text-[11px] text-sidebar-foreground/40 uppercase tracking-wider">
-                    {item.context_header}
-                  </p>
-                ) : null}
-                <p className="wrap-break-word text-foreground/90 text-xs leading-relaxed">
-                  {item.content}
-                </p>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
+          <EvidenceAccordionItem item={item} key={item.id} />
         ))}
       </Accordion>
     ),
@@ -156,7 +182,7 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
       aria-hidden={!open}
       aria-label="Evidence details"
       className={cn(
-        "flex w-full flex-col overflow-hidden rounded-xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg transition-all duration-300 ease-in-out",
+        "flex w-full flex-col overflow-hidden rounded-xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg transition-[transform,opacity] duration-300 ease-in-out",
         open
           ? "translate-x-0 opacity-100"
           : "pointer-events-none translate-x-8 opacity-0"
@@ -167,7 +193,7 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
         <h2 className="font-medium text-sm">Evidence</h2>
         <Button
           aria-label="Close evidence panel"
-          className="size-6"
+          className="relative size-6 before:absolute before:-inset-2 before:content-[''] active:scale-96"
           onClick={handleClose}
           size="icon"
           variant="ghost"

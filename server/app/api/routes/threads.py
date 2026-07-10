@@ -65,6 +65,11 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
 
     evidence_by_id: dict[UUID, EvidenceResponse] = {}
     segments: list[SegmentResponse] = []
+    evidence_metadata = (
+        answer.extra.get("evidence_metadata", {})
+        if isinstance(answer.extra, dict)
+        else {}
+    )
 
     for seg in sorted(answer.segments, key=lambda item: item.segment_index):
         resolved_evidence: list[UUID] = []
@@ -101,13 +106,21 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
                         document_title=evidence.document.title,
                         document_slug=evidence.document.slug,
                         page=evidence.page,
+                        erm_state=(
+                            evidence_metadata.get(str(parsed_eid), {}) or {}
+                        ).get("erm_state"),
+                        erm_multiplier=(
+                            evidence_metadata.get(str(parsed_eid), {}) or {}
+                        ).get("erm_multiplier"),
                     )
 
         segments.append(
             SegmentResponse(
+                id=seg.id,
                 segment_index=seg.segment_index,
                 text=seg.text,
                 evidence_ids=resolved_evidence,
+                rating=seg.rating,
             )
         )
 

@@ -9,11 +9,11 @@ from redis.asyncio import Redis
 from app.api.middleware.access_logging import AccessLoggingMiddleware
 from app.api.middleware.request_context import RequestContextMiddleware
 from app.api.routes.health import router as health_router
+from app.api.routes.sentence_traces import router as sentence_traces_router
 from app.api.routes.threads import router as threads_router
 from app.frontend import mount_frontend
-from dotenv import load_dotenv
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.telemetry import configure_telemetry
 from app.infrastructure.db.models import Base
@@ -25,11 +25,72 @@ from app.infrastructure.reranker.reranker import RerankClient
 from app.seed.seed_demo_data import seed_demo_data
 
 
-load_dotenv()
 settings = get_settings()
 configure_logging(settings)
 
 logger = logging.getLogger(__name__)
+
+_REDACTED = "***"
+
+
+def _redact(value: str | None) -> str | None:
+    return _REDACTED if value else value
+
+
+def _config_event(settings: Settings) -> dict[str, object]:
+    return {
+        "app": {
+            "app_name": settings.app.app_name,
+            "environment": settings.app.environment,
+            "client_dist_path": settings.app.client_dist_path,
+        },
+        "log": {
+            "level": settings.log.level,
+            "format": settings.log.format,
+        },
+        "otel": {
+            "enabled": settings.otel.enabled,
+            "service_name": settings.otel.service_name,
+            "exporter_otlp_endpoint": settings.otel.exporter_otlp_endpoint,
+            "exporter_otlp_protocol": settings.otel.exporter_otlp_protocol,
+            "excluded_urls": settings.otel.excluded_urls,
+        },
+        "llm": {
+            "api_base": settings.llm.api_base,
+            "api_key": _redact(settings.llm.api_key),
+            "generation_model": settings.llm.generation_model,
+            "utility_model": settings.llm.utility_model,
+        },
+        "embeddings": {
+            "api_base": settings.embeddings.api_base,
+            "api_key": _redact(settings.embeddings.api_key),
+            "seed_demo_data": settings.embeddings.seed_demo_data,
+            "model": settings.embeddings.model,
+            "dimensions": settings.embeddings.dimensions,
+        },
+        "reranker": {
+            "api_base": settings.reranker.api_base,
+            "api_key": _redact(settings.reranker.api_key),
+            "model": settings.reranker.model,
+        },
+        "db": {
+            "host": settings.db.host,
+            "port": settings.db.port,
+            "user": settings.db.user,
+            "password": _redact(settings.db.password),
+            "db": settings.db.db,
+        },
+        "qdrant": {
+            "url": settings.qdrant.url,
+            "evidence_collection": settings.qdrant.evidence_collection,
+        },
+        "redis": {
+            "url": settings.redis.url,
+        },
+    }
+
+
+logger.info("config_loaded", extra={"wide_event": _config_event(settings)})
 
 
 @asynccontextmanager
@@ -75,6 +136,15 @@ async def lifespan(app: FastAPI):
         startup_event["qdrant_collection_ready"] = True
 
         if settings.embeddings.seed_demo_data:
+            logger.info(
+                "seed_demo_data_starting",
+                extra={
+                    "wide_event": {
+                        "event": "seed_demo_data_starting",
+                        "seed_dir": "app/seed/demo-corpus",
+                    }
+                },
+            )
             seeded_count = await seed_demo_data(
                 session_factory=session_factory,
                 qdrant_store=qdrant_store,
@@ -83,19 +153,22 @@ async def lifespan(app: FastAPI):
             startup_event["seeded_documents"] = seeded_count
 
         startup_event["outcome"] = "success"
+        startup_event["duration_ms"] = round(
+            (perf_counter() - startup_started_at) * 1000, 2
+        )
+        logger.info("app_startup", extra={"wide_event": startup_event})
 
         yield
     except Exception as exc:
         startup_event["outcome"] = "error"
         startup_event["error_type"] = type(exc).__name__
         startup_event["error_message"] = str(exc)
-        raise
-    finally:
         startup_event["duration_ms"] = round(
             (perf_counter() - startup_started_at) * 1000, 2
         )
         logger.info("app_startup", extra={"wide_event": startup_event})
-
+        raise
+    finally:
         shutdown_started_at = perf_counter()
         shutdown_event: dict[str, object] = {"event": "app_shutdown"}
         try:
@@ -125,5 +198,6 @@ app = FastAPI(title=settings.app.app_name, lifespan=lifespan)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(AccessLoggingMiddleware)
 app.include_router(health_router)
+app.include_router(sentence_traces_router)
 app.include_router(threads_router)
 mount_frontend(app, settings)

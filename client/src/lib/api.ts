@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type {
+  SentenceTraceFeedbackResponse,
   ThreadDetail,
   ThreadSummary,
   ThreadTurnResponse,
@@ -72,6 +73,25 @@ export async function fetchThread(threadId: string): Promise<ThreadDetail> {
   }
 
   return (await response.json()) as ThreadDetail;
+}
+
+export async function putSentenceTraceFeedback(
+  traceId: string,
+  rating: "up" | "down"
+): Promise<SentenceTraceFeedbackResponse> {
+  const response = await fetch(`/api/v1/sentence-traces/${traceId}/feedback`, {
+    body: JSON.stringify({ rating }),
+    headers: { "Content-Type": "application/json" },
+    method: "PUT",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `PUT /api/v1/sentence-traces/${traceId}/feedback failed: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return (await response.json()) as SentenceTraceFeedbackResponse;
 }
 
 export function useThreadHistory() {

@@ -18,6 +18,10 @@ from app.application.query_pipeline.content_parts import (
     reasoning_part,
     text_part,
 )
+from app.application.query_pipeline.erm import (
+    ErmAdjustment,
+    load_erm_adjustments,
+)
 from app.application.query_pipeline.json_stream_parser import JsonStreamParser
 from app.infrastructure.db.models import (
     Answer,
@@ -40,6 +44,13 @@ class ConversationContext(TypedDict):
     conversation_history: str | None
     context_prefix: str | None
     effective_query_text: str
+
+
+class RankedEvidenceResult(TypedDict):
+    evidence_id: uuid.UUID
+    index: int
+    metadata: dict[str, object] | None
+    score: float
 
 
 SIMPLE_SYSTEM_PROMPT = (
@@ -152,6 +163,7 @@ class QueryPipeline:
         self._llm_client = llm_client
         self._arag_router = arag_router
         self._last_publish_at: float | None = None
+        self._last_erm_metadata: dict[uuid.UUID, dict[str, object]] = {}
 
     async def run(self, message_id) -> None:
         started_at = perf_counter()
@@ -161,6 +173,7 @@ class QueryPipeline:
         }
 
         async with self._session_factory() as session:
+            self._last_erm_metadata = {}
             assistant_message = await session.scalar(
                 select(Message)
                 .options(selectinload(Message.thread))
@@ -558,7 +571,7 @@ class QueryPipeline:
                 reasoning_trace, "Reranking top-20 candidates via Cohere..."
             )
             selected_evidence_ids = await self._rerank_fused_candidates(
-                session, message, query_text, fused_points
+                session, message, query_text, dense_vector, fused_points
             )
 
         if wide_event is not None:
@@ -572,6 +585,7 @@ class QueryPipeline:
                 selected_evidence_ids,
                 SIMPLE_SYSTEM_PROMPT,
                 context_prefix=context_prefix,
+                evidence_metadata=getattr(self, "_last_erm_metadata", None),
                 reasoning_trace=reasoning_trace,
             )
 
@@ -583,9 +597,11 @@ class QueryPipeline:
         query_text: str,
         rerank_query: str | None = None,
         top_n: int = 5,
-    ) -> tuple[list[uuid.UUID], list[dict[str, object]]]:
+    ) -> tuple[
+        list[uuid.UUID], list[dict[str, object]], dict[uuid.UUID, dict[str, object]]
+    ]:
         if self._embedding_client is None or self._qdrant_store is None:
-            return [], []
+            return [], [], {}
 
         dense_vector = self._embedding_client.embed_texts([query_text])[0]
         search_results = await self._qdrant_store.hybrid_search(
@@ -601,7 +617,7 @@ class QueryPipeline:
             else search_results
         )
         if not fused_points:
-            return [], []
+            return [], [], {}
 
         rerank_q = rerank_query or query_text
         documents: list[str] = []
@@ -633,11 +649,22 @@ class QueryPipeline:
                 documents=documents,
                 top_n=top_n,
             )
-            selected = [evidence_ids[r.index] for r in results]
-            selected_candidates = [candidates[r.index] for r in results]
-            return selected, selected_candidates
+            ranked = await self._apply_erm_to_ranked_results(
+                session,
+                query_embedding=dense_vector,
+                evidence_ids=evidence_ids,
+                results=results,
+            )
+            selected = [item["evidence_id"] for item in ranked[:top_n]]
+            selected_candidates = [candidates[item["index"]] for item in ranked[:top_n]]
+            evidence_metadata = {
+                item["evidence_id"]: item["metadata"]
+                for item in ranked[:top_n]
+                if item["metadata"]
+            }
+            return selected, selected_candidates, evidence_metadata
 
-        return evidence_ids[:top_n], candidates[:top_n]
+        return evidence_ids[:top_n], candidates[:top_n], {}
 
     async def _run_multi_hop_route(
         self,
@@ -655,6 +682,7 @@ class QueryPipeline:
 
         all_evidence_ids: list[uuid.UUID] = []
         intermediate_answers: list[str] = []
+        evidence_metadata_by_id: dict[uuid.UUID, dict[str, object]] = {}
 
         for i, sub_query in enumerate(sub_queries):
             step_text = (
@@ -668,8 +696,11 @@ class QueryPipeline:
             )
             self._trace_step(reasoning_trace, step_text)
 
-            evidence_ids, candidates = await self._retrieve_evidence(session, sub_query)
+            evidence_ids, candidates, metadata = await self._retrieve_evidence(
+                session, sub_query
+            )
             all_evidence_ids.extend(evidence_ids)
+            evidence_metadata_by_id.update(metadata)
             self._trace_retrieval(
                 reasoning_trace, f"Retrieved {len(candidates)} candidates", candidates
             )
@@ -746,6 +777,7 @@ class QueryPipeline:
                 context_prefix="\n\n".join(
                     part for part in (context_prefix, chain_context) if part
                 ),
+                evidence_metadata=evidence_metadata_by_id,
                 reasoning_trace=reasoning_trace,
             )
 
@@ -790,12 +822,14 @@ class QueryPipeline:
 
         seen: set[uuid.UUID] = set()
         all_evidence_ids: list[uuid.UUID] = []
-        for sq, (ev_ids, cands) in zip(sub_queries, results, strict=True):
+        evidence_metadata_by_id: dict[uuid.UUID, dict[str, object]] = {}
+        for sq, (ev_ids, cands, metadata) in zip(sub_queries, results, strict=True):
             self._trace_retrieval(
                 reasoning_trace,
                 f"Retrieved candidates for '{sq}'",
                 cands,
             )
+            evidence_metadata_by_id.update(metadata)
             for eid in ev_ids:
                 if eid not in seen:
                     seen.add(eid)
@@ -813,6 +847,7 @@ class QueryPipeline:
                 all_evidence_ids,
                 COMPARISON_SYSTEM_PROMPT,
                 context_prefix=context_prefix,
+                evidence_metadata=evidence_metadata_by_id,
                 reasoning_trace=reasoning_trace,
             )
 
@@ -849,12 +884,14 @@ class QueryPipeline:
 
         seen: set[uuid.UUID] = set()
         all_evidence_ids: list[uuid.UUID] = []
-        for sq, (ev_ids, cands) in zip(sub_queries, results, strict=True):
+        evidence_metadata_by_id: dict[uuid.UUID, dict[str, object]] = {}
+        for sq, (ev_ids, cands, metadata) in zip(sub_queries, results, strict=True):
             self._trace_retrieval(
                 reasoning_trace,
                 f"Retrieved candidates for '{sq}'",
                 cands,
             )
+            evidence_metadata_by_id.update(metadata)
             for eid in ev_ids:
                 if eid not in seen:
                     seen.add(eid)
@@ -872,6 +909,7 @@ class QueryPipeline:
                 all_evidence_ids,
                 AGGREGATION_SYSTEM_PROMPT,
                 context_prefix=context_prefix,
+                evidence_metadata=evidence_metadata_by_id,
                 reasoning_trace=reasoning_trace,
             )
 
@@ -942,7 +980,12 @@ class QueryPipeline:
                 )
 
     async def _rerank_fused_candidates(
-        self, session, message: Message, query_text: str, fused_points
+        self,
+        session,
+        message: Message,
+        query_text: str,
+        query_embedding: list[float],
+        fused_points,
     ) -> list[uuid.UUID]:
         if self._rerank_client is None:
             return []
@@ -961,19 +1004,29 @@ class QueryPipeline:
             documents=documents,
             top_n=5,
         )
+        ranked = await self._apply_erm_to_ranked_results(
+            session,
+            query_embedding=query_embedding,
+            evidence_ids=evidence_ids,
+            results=results,
+        )
 
         selected_evidence_ids: list[uuid.UUID] = []
+        self._last_erm_metadata = {
+            item["evidence_id"]: item["metadata"] for item in ranked if item["metadata"]
+        }
 
         for stage in ("reranked", "selected"):
-            for rank, result in enumerate(results):
-                evidence_id = evidence_ids[result.index]
+            for rank, item in enumerate(ranked):
+                evidence_id = item["evidence_id"]
                 session.add(
                     MessageEvidenceCandidate(
                         message_id=message.id,
                         stage=stage,
                         evidence_id=evidence_id,
                         rank=rank,
-                        score=result.relevance_score,
+                        score=item["score"],
+                        extra=item["metadata"] or {},
                     )
                 )
                 if stage == "selected":
@@ -989,6 +1042,7 @@ class QueryPipeline:
         selected_evidence_ids: list[uuid.UUID],
         system_prompt: str | None = None,
         context_prefix: str | None = None,
+        evidence_metadata: dict[uuid.UUID, dict[str, object]] | None = None,
         reasoning_trace: list[dict[str, object]] | None = None,
     ) -> dict[str, object] | None:
         if self._llm_client is None:
@@ -1004,6 +1058,7 @@ class QueryPipeline:
                 {
                     "id": str(evidence_id),
                     "content": evidence.content,
+                    **(evidence_metadata or {}).get(evidence_id, {}),
                 }
             )
 
@@ -1127,6 +1182,48 @@ class QueryPipeline:
             }
         )
 
+    async def _apply_erm_to_ranked_results(
+        self,
+        session,
+        *,
+        query_embedding: list[float],
+        evidence_ids: list[uuid.UUID],
+        results,
+    ) -> list[RankedEvidenceResult]:
+        adjustments = await load_erm_adjustments(
+            session,
+            query_embedding=query_embedding,
+            evidence_ids=evidence_ids,
+        )
+
+        ranked: list[RankedEvidenceResult] = []
+        for result in results:
+            evidence_id = evidence_ids[result.index]
+            adjustment = adjustments.get(evidence_id)
+            multiplier = adjustment.multiplier if adjustment is not None else 1.0
+            base_score = result.relevance_score
+            ranked.append(
+                {
+                    "evidence_id": evidence_id,
+                    "index": result.index,
+                    "metadata": self._erm_metadata(adjustment),
+                    "score": base_score * multiplier,
+                }
+            )
+
+        ranked.sort(key=lambda item: cast(float, item["score"]), reverse=True)
+        return ranked
+
+    def _erm_metadata(
+        self, adjustment: ErmAdjustment | None
+    ) -> dict[str, object] | None:
+        if adjustment is None or adjustment.state is None:
+            return None
+        return {
+            "erm_multiplier": adjustment.multiplier,
+            "erm_state": adjustment.state,
+        }
+
     def _persist_segments(
         self,
         session,
@@ -1174,9 +1271,10 @@ class QueryPipeline:
                 if citation:
                     resolved.append(citation)
 
+            segment_id = uuid.uuid4()
             session.add(
                 Segment(
-                    id=uuid.uuid4(),
+                    id=segment_id,
                     answer_id=answer.id,
                     segment_index=segment_index,
                     text=text,
@@ -1186,11 +1284,25 @@ class QueryPipeline:
 
             segment_payloads.append(
                 {
+                    "id": str(segment_id),
                     "segment_index": segment_index,
                     "text": text,
                     "evidence_ids": resolved,
+                    "rating": None,
                 }
             )
+        answer.extra = {
+            **(answer.extra or {}),
+            "evidence_metadata": {
+                str(ev["id"]): {
+                    key: value
+                    for key, value in ev.items()
+                    if key in {"erm_multiplier", "erm_state"}
+                }
+                for ev in evidence_payloads
+                if "erm_state" in ev or "erm_multiplier" in ev
+            },
+        }
         return {
             "id": str(answer.id),
             "message_id": str(message.id),

@@ -15,25 +15,32 @@ import {
   type ToolCallMessagePartComponent,
   useAuiState,
 } from "@assistant-ui/react";
-import type { QueryRoute } from "@/lib/types";
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Copy01Icon,
+  CopyCheckIcon,
+  Download01Icon,
+  Flowchart02Icon,
+  GitCompareIcon,
+  GitBranchIcon as HugeGitBranchIcon,
+  MoreHorizontalIcon as HugeMoreHorizontalIcon,
+  SparklesIcon as HugeSparklesIcon,
+  ThumbsDownIcon as HugeThumbsDownIcon,
+  ThumbsUpIcon as HugeThumbsUpIcon,
+  Layers01Icon,
+  Message02Icon,
+  Refresh01Icon,
+  Route01Icon,
+  Search01Icon,
+  Sorting01Icon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  CheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CopyIcon,
-  DownloadIcon,
-  DotIcon,
-  GitBranchIcon,
-  LayersIcon,
   MicIcon,
-  MoreHorizontalIcon,
   PencilIcon,
-  RefreshCwIcon,
-  RouteIcon,
-  SearchIcon,
-  SparklesIcon,
   SquareIcon,
 } from "lucide-react";
 import {
@@ -41,8 +48,9 @@ import {
   createContext,
   type FC,
   type PropsWithChildren,
-  useEffect,
+  useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -51,9 +59,6 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
-import { InlineCitationText } from "@/components/assistant-ui/inline-citations";
-import { MarkdownText } from "@/components/assistant-ui/markdown-text";
-import { Sources } from "@/components/assistant-ui/sources";
 import {
   ChainOfThought,
   ChainOfThoughtContent,
@@ -61,6 +66,9 @@ import {
   ChainOfThoughtSearchResults,
   ChainOfThoughtStep,
 } from "@/components/assistant-ui/chain-of-thought";
+import { InlineCitationText } from "@/components/assistant-ui/inline-citations";
+import { MarkdownText } from "@/components/assistant-ui/markdown-text";
+import { Sources } from "@/components/assistant-ui/sources";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import {
   ToolGroupContent,
@@ -68,6 +76,7 @@ import {
   ToolGroupTrigger,
 } from "@/components/assistant-ui/tool-group";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { useEvidencePanel } from "@/components/chat/evidence-context";
 import {
   Accordion,
   AccordionContent,
@@ -81,8 +90,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { useEvidencePanel } from "@/components/chat/evidence-context";
-import { getMessageSegments } from "@/lib/segments-store";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { putSentenceTraceFeedback } from "@/lib/api";
+import { getMessageSegments, updateSegmentRating } from "@/lib/segments-store";
+import type { QueryRoute } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type MessageMetadataCustom = {
@@ -110,24 +128,47 @@ type MessageMetadataCustom = {
   generating?: boolean;
 };
 
-type ReasoningTraceEntry =
-  NonNullable<MessageMetadataCustom["reasoningTrace"]>[number];
+type ReasoningTraceEntry = NonNullable<
+  MessageMetadataCustom["reasoningTrace"]
+>[number];
 
-type RetrievalCandidateEntry = NonNullable<ReasoningTraceEntry["candidates"]>[number];
+type RetrievalCandidateEntry = NonNullable<
+  ReasoningTraceEntry["candidates"]
+>[number];
 
 function formatRouteLabel(route: QueryRoute): string {
   switch (route) {
     case "multi_hop":
-      return "Multi-hop";
+      return "Multi-step";
     case "comparison":
-      return "Comparison";
+      return "Compare";
     case "aggregation":
-      return "Aggregation";
+      return "Synthesis";
     case "conversation":
-      return "Conversation";
+      return "From chat";
     default:
-      return "Simple";
+      return "Direct";
   }
+}
+
+function formatTraceLabel(text: string): string {
+  const normalized = text.toLowerCase();
+  if (normalized.includes("routing")) return "Choosing the best route";
+  if (normalized.includes("retrieving evidence"))
+    return "Searching your evidence";
+  if (normalized.includes("fusing")) return "Blending search results";
+  if (normalized.includes("reranking")) return "Ranking the strongest passages";
+  if (normalized.includes("generating answer from thread memory")) {
+    return "Writing from thread memory";
+  }
+  if (normalized.includes("reading prior turns"))
+    return "Reading thread memory";
+  if (normalized.includes("generating answer")) return "Writing the answer";
+  if (normalized.includes("comparison:"))
+    return "Comparing the relevant evidence";
+  if (normalized.includes("aggregation:"))
+    return "Synthesizing across the evidence";
+  return text.replace(/\.\.\.$/, "");
 }
 
 function routeBadgeClassName(route: QueryRoute): string {
@@ -145,6 +186,21 @@ function routeBadgeClassName(route: QueryRoute): string {
   }
 }
 
+function routeIcon(route: QueryRoute) {
+  switch (route) {
+    case "multi_hop":
+      return GitCompareIcon;
+    case "comparison":
+      return GitCompareIcon;
+    case "aggregation":
+      return Layers01Icon;
+    case "conversation":
+      return Message02Icon;
+    default:
+      return Route01Icon;
+  }
+}
+
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
 
 /**
@@ -159,11 +215,9 @@ export type ThreadComponents = {
   Welcome?: ComponentType | undefined;
   ToolFallback?: ToolCallMessagePartComponent | undefined;
   ToolGroup?:
-    | ComponentType<PropsWithChildren<{ group: ThreadGroupPart }>>
-    | undefined;
+    ComponentType<PropsWithChildren<{ group: ThreadGroupPart }>> | undefined;
   ReasoningGroup?:
-    | ComponentType<PropsWithChildren<{ group: ThreadGroupPart }>>
-    | undefined;
+    ComponentType<PropsWithChildren<{ group: ThreadGroupPart }>> | undefined;
 };
 
 export type ThreadProps = {
@@ -213,7 +267,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
         <div
           className={cn(
             "mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4",
-            isEmpty && "justify-center"
+            isEmpty && "justify-center",
           )}
         >
           <AuiIf condition={isNewChatView}>
@@ -233,14 +287,16 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
             className={cn(
               "aui-thread-viewport-footer flex flex-col gap-4 overflow-visible bg-background pb-4 md:pb-6",
               !isEmpty &&
-                "sticky bottom-0 mt-auto rounded-t-(--composer-radius)"
+                "sticky bottom-0 mt-auto rounded-t-(--composer-radius)",
             )}
           >
             <ThreadScrollToBottom />
             <Composer />
-            <AuiIf condition={(s) => isNewChatView(s) && s.composer.isEmpty}>
-              <ThreadSuggestions />
-            </AuiIf>
+            <div className={cn(isEmpty && "min-h-10")}>
+              <AuiIf condition={(s) => isNewChatView(s) && s.composer.isEmpty}>
+                <ThreadSuggestions />
+              </AuiIf>
+            </div>
           </ThreadPrimitive.ViewportFooter>
         </div>
       </ThreadPrimitive.Viewport>
@@ -316,7 +372,7 @@ const Composer: FC = () => (
         <ComposerPrimitive.Input
           aria-label="Message input"
           autoFocus
-          className="aui-composer-input max-h-32 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base outline-none placeholder:text-muted-foreground/80"
+          className="aui-composer-input max-h-32 min-h-10 w-full resize-none overflow-y-auto bg-transparent px-2.5 py-1 text-base leading-6 outline-none placeholder:text-muted-foreground/80"
           placeholder="Send a message..."
           rows={1}
         />
@@ -411,7 +467,7 @@ const TextWithCitations: FC = () => {
 
   const selectedEvidenceSet = useMemo(
     () => new Set(selectedEvidenceIds),
-    [selectedEvidenceIds]
+    [selectedEvidenceIds],
   );
 
   const evidenceNumbers = useMemo(() => {
@@ -434,7 +490,7 @@ const TextWithCitations: FC = () => {
     }
 
     return segments.map((seg, index) => {
-      const previousText = index > 0 ? segments[index - 1]?.text ?? "" : "";
+      const previousText = index > 0 ? (segments[index - 1]?.text ?? "") : "";
       const needsLeadingSpace =
         index > 0 &&
         previousText.length > 0 &&
@@ -462,14 +518,15 @@ const TextWithCitations: FC = () => {
               : seg.evidence_ids.some((id) => selectedEvidenceSet.has(id)));
 
           return (
-            <InlineCitationText
-              className={
-                isHighlighted ? "rounded bg-accent/80 shadow-sm" : undefined
-              }
-              key={seg.segment_index}
-            >
-              {seg.text}
-            </InlineCitationText>
+            <span key={seg.segment_index}>
+              <InlineCitationText
+                className={
+                  isHighlighted ? "rounded bg-accent/80 shadow-sm" : undefined
+                }
+              >
+                {seg.text}
+              </InlineCitationText>
+            </span>
           );
         })}
         {evidenceNumbers.size > 0 && (
@@ -507,15 +564,146 @@ const TextWithCitations: FC = () => {
   return <MarkdownText />;
 };
 
+const SentenceFeedbackPopover: FC = () => {
+  const messageId = useAuiState((s) => s.message.id);
+  const segments = getMessageSegments(messageId);
+  const [pendingTraceId, setPendingTraceId] = useState<string | null>(null);
+
+  const rateableSegments = useMemo(
+    () => (segments ?? []).filter((segment) => segment.evidence_ids.length > 0),
+    [segments],
+  );
+
+  const handleFeedback = useCallback(
+    async (traceId: string, rating: "up" | "down") => {
+      setPendingTraceId(traceId);
+      try {
+        await putSentenceTraceFeedback(traceId, rating);
+        updateSegmentRating(messageId, traceId, rating);
+      } finally {
+        setPendingTraceId(null);
+      }
+    },
+    [messageId],
+  );
+
+  if (rateableSegments.length === 0) {
+    return null;
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <span className="inline-flex data-[state=open]:[&>button]:bg-accent">
+            <TooltipIconButton
+              aria-label="Rate evidence"
+              tooltip="Rate evidence"
+            >
+              <HugeiconsIcon icon={HugeThumbsUpIcon} strokeWidth={1.8} />
+            </TooltipIconButton>
+          </span>
+        }
+      />
+      <PopoverContent
+        align="start"
+        className="w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-2xl p-3 shadow-xl"
+        side="top"
+        sideOffset={8}
+      >
+        <PopoverHeader className="px-1">
+          <div className="flex items-center justify-between gap-3">
+            <PopoverTitle>Rate evidence</PopoverTitle>
+            <span className="tabular-nums text-muted-foreground text-xs">
+              {rateableSegments.length} cited
+            </span>
+          </div>
+          <PopoverDescription className="text-xs">
+            Which parts helped answer your question?
+          </PopoverDescription>
+        </PopoverHeader>
+        <div className="max-h-72 space-y-2 overflow-y-auto pe-1">
+          {rateableSegments.map((segment, index) => (
+            <div
+              className="rounded-xl border border-border/60 bg-background/40 p-3"
+              key={segment.id}
+            >
+                <div className="flex items-start gap-2">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium tabular-nums text-[10px] text-muted-foreground">
+                    {index + 1}
+                  </span>
+                  <p className="min-w-0 flex-1 text-pretty text-xs leading-5">
+                    {segment.text}
+                  </p>
+                </div>
+                <div className="mt-2 flex items-center justify-end gap-1">
+                  <Button
+                    aria-label={`Helpful sentence ${index + 1}`}
+                    className={cn(
+                      "h-7 rounded-full px-2.5 text-xs transition-[transform,background-color,color] duration-150 active:scale-[0.96]",
+                      segment.rating === "up" &&
+                        "bg-emerald-500/12 text-emerald-700 hover:bg-emerald-500/18 dark:text-emerald-300",
+                    )}
+                    data-icon="inline-start"
+                    disabled={pendingTraceId === segment.id}
+                    onClick={() => void handleFeedback(segment.id, "up")}
+                    size="xs"
+                    type="button"
+                    variant={segment.rating === "up" ? "secondary" : "ghost"}
+                  >
+                    <HugeiconsIcon
+                      icon={HugeThumbsUpIcon}
+                      className="size-3.5"
+                      strokeWidth={1.8}
+                    />
+                    Helpful
+                  </Button>
+                  <Button
+                    aria-label={`Off target sentence ${index + 1}`}
+                    className={cn(
+                      "h-7 rounded-full px-2.5 text-xs transition-[transform,background-color,color] duration-150 active:scale-[0.96]",
+                      segment.rating === "down" &&
+                        "bg-rose-500/12 text-rose-700 hover:bg-rose-500/18 dark:text-rose-300",
+                    )}
+                    data-icon="inline-start"
+                    disabled={pendingTraceId === segment.id}
+                    onClick={() => void handleFeedback(segment.id, "down")}
+                    size="xs"
+                    type="button"
+                    variant={segment.rating === "down" ? "secondary" : "ghost"}
+                  >
+                    <HugeiconsIcon
+                      icon={HugeThumbsDownIcon}
+                      className="size-3.5"
+                      strokeWidth={1.8}
+                    />
+                    Off target
+                  </Button>
+                </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const stepIcon = (text: string) => {
   const lower = text.toLowerCase();
-  if (lower.includes("routing")) return RouteIcon;
-  if (lower.includes("retriev") || lower.includes("search"))
-    return SearchIcon;
-  if (lower.includes("fus") || lower.includes("rerank") || lower.includes("filter"))
-    return LayersIcon;
-  if (lower.includes("generat")) return SparklesIcon;
-  return DotIcon;
+  if (lower.includes("routing")) return <HugeiconsIcon icon={Route01Icon} />;
+  if (lower.includes("retriev") || lower.includes("search")) {
+    return <HugeiconsIcon icon={Search01Icon} />;
+  }
+  if (lower.includes("rerank")) {
+    return <HugeiconsIcon icon={Sorting01Icon} />;
+  }
+  if (lower.includes("fus") || lower.includes("filter")) {
+    return <HugeiconsIcon icon={Layers01Icon} />;
+  }
+  if (lower.includes("generat")) {
+    return <HugeiconsIcon icon={HugeSparklesIcon} />;
+  }
+  return <HugeiconsIcon icon={Flowchart02Icon} />;
 };
 
 const RetrievalCandidate: FC<{
@@ -540,9 +728,7 @@ const RetrievalCandidate: FC<{
   </Collapsible>
 );
 
-function getReasoningEntryKey(
-  entry: ReasoningTraceEntry
-): string {
+function getReasoningEntryKey(entry: ReasoningTraceEntry): string {
   if (entry.type === "step") {
     return `step-${entry.text ?? ""}`;
   }
@@ -568,7 +754,7 @@ const AssistantMessage: FC = () => {
   const ACTION_BAR_PT = "pt-1.5";
   const ACTION_BAR_HEIGHT = `-mb-7.5 min-h-7.5 ${ACTION_BAR_PT}`;
   const metadata = useAuiState(
-    (s) => s.message.metadata?.custom as MessageMetadataCustom | undefined
+    (s) => s.message.metadata?.custom as MessageMetadataCustom | undefined,
   );
   const isRunning = useAuiState((s) => s.message.status?.type === "running");
   const route = metadata?.route;
@@ -599,12 +785,28 @@ const AssistantMessage: FC = () => {
       >
         {route ? (
           <div className="mb-3 flex flex-col gap-2">
-            <Badge className={routeBadgeClassName(route)} variant="secondary">
+            <Badge
+              className={cn(
+                "fade-in slide-in-from-bottom-1 inline-flex w-fit animate-in gap-1.5 rounded-full px-2.5 py-1 font-medium text-[11px] duration-300",
+                routeBadgeClassName(route),
+              )}
+              variant="secondary"
+            >
+              <HugeiconsIcon
+                icon={routeIcon(route)}
+                size={14}
+                strokeWidth={1.8}
+              />
               {formatRouteLabel(route)}
             </Badge>
 
-            {route === "multi_hop" && (subQueries.length > 0 || hopProgress.length > 0) ? (
-              <Accordion className="w-full" defaultValue={["multi-hop-details"]} multiple>
+            {route === "multi_hop" &&
+            (subQueries.length > 0 || hopProgress.length > 0) ? (
+              <Accordion
+                className="w-full"
+                defaultValue={["multi-hop-details"]}
+                multiple
+              >
                 <AccordionItem value="multi-hop-details">
                   <AccordionTrigger className="py-1 font-medium text-muted-foreground text-xs">
                     Multi-hop steps
@@ -612,7 +814,9 @@ const AssistantMessage: FC = () => {
                   <AccordionContent>
                     <div className="space-y-3 rounded-xl border border-border/60 bg-muted/30 p-3">
                       {subQueries.map((subQuery, index) => {
-                        const progress = hopProgress.find((hop) => hop.hop === index + 1);
+                        const progress = hopProgress.find(
+                          (hop) => hop.hop === index + 1,
+                        );
 
                         return (
                           <div key={subQuery} className="space-y-1">
@@ -639,15 +843,18 @@ const AssistantMessage: FC = () => {
         {reasoningTrace.length > 0 ? (
           <div className="mb-3">
             <ChainOfThought open={cotOpen} onOpenChange={setCotOpen}>
-              <ChainOfThoughtHeader shimmer={isRunning && !generating}>Process trace</ChainOfThoughtHeader>
+              <ChainOfThoughtHeader shimmer={isRunning && !generating}>
+                Process trace
+              </ChainOfThoughtHeader>
               <ChainOfThoughtContent>
-                {reasoningTrace.map((entry) => {
+                {reasoningTrace.map((entry, index) => {
                   if (entry.type === "step") {
                     return (
                       <ChainOfThoughtStep
                         key={getReasoningEntryKey(entry)}
                         icon={stepIcon(entry.text ?? "")}
-                        label={entry.text ?? ""}
+                        index={index}
+                        label={formatTraceLabel(entry.text ?? "")}
                       />
                     );
                   }
@@ -655,7 +862,8 @@ const AssistantMessage: FC = () => {
                     return (
                       <ChainOfThoughtStep
                         key={getReasoningEntryKey(entry)}
-                        icon={GitBranchIcon}
+                        icon={<HugeiconsIcon icon={HugeGitBranchIcon} />}
+                        index={index}
                         label={`Step ${entry.hop}`}
                         description={
                           <>
@@ -671,7 +879,8 @@ const AssistantMessage: FC = () => {
                   return (
                     <ChainOfThoughtStep
                       key={getReasoningEntryKey(entry)}
-                      icon={SearchIcon}
+                      icon={<HugeiconsIcon icon={Search01Icon} />}
+                      index={index}
                       label={entry.label ?? "Retrieval"}
                     >
                       <ChainOfThoughtSearchResults>
@@ -752,7 +961,7 @@ const AssistantMessage: FC = () => {
       </div>
 
       <div
-        className={cn("ms-2 flex items-center", ACTION_BAR_HEIGHT)}
+        className={cn("ms-2 flex items-center gap-0.5", ACTION_BAR_HEIGHT)}
         data-slot="aui_assistant-message-footer"
       >
         <BranchPicker />
@@ -771,16 +980,23 @@ const AssistantActionBar: FC = () => (
     <ActionBarPrimitive.Copy asChild>
       <TooltipIconButton tooltip="Copy">
         <AuiIf condition={(s) => s.message.isCopied}>
-          <CheckIcon className="zoom-in-50 fade-in animate-in duration-200 ease-out" />
+          <HugeiconsIcon
+            className="zoom-in-50 fade-in animate-in duration-200 ease-out"
+            icon={CopyCheckIcon}
+          />
         </AuiIf>
         <AuiIf condition={(s) => !s.message.isCopied}>
-          <CopyIcon className="zoom-in-75 fade-in animate-in duration-150" />
+          <HugeiconsIcon
+            className="zoom-in-75 fade-in animate-in duration-150"
+            icon={Copy01Icon}
+          />
         </AuiIf>
       </TooltipIconButton>
     </ActionBarPrimitive.Copy>
+    <SentenceFeedbackPopover />
     <ActionBarPrimitive.Reload asChild>
-      <TooltipIconButton tooltip="Refresh">
-        <RefreshCwIcon />
+      <TooltipIconButton tooltip="Regenerate">
+        <HugeiconsIcon icon={Refresh01Icon} />
       </TooltipIconButton>
     </ActionBarPrimitive.Reload>
     <ActionBarMorePrimitive.Root>
@@ -789,7 +1005,7 @@ const AssistantActionBar: FC = () => (
           className="data-[state=open]:bg-accent"
           tooltip="More"
         >
-          <MoreHorizontalIcon />
+          <HugeiconsIcon icon={HugeMoreHorizontalIcon} />
         </TooltipIconButton>
       </ActionBarMorePrimitive.Trigger>
       <ActionBarMorePrimitive.Content
@@ -800,7 +1016,7 @@ const AssistantActionBar: FC = () => (
       >
         <ActionBarPrimitive.ExportMarkdown asChild>
           <ActionBarMorePrimitive.Item className="aui-action-bar-more-item flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
-            <DownloadIcon className="size-4" />
+            <HugeiconsIcon className="size-4" icon={Download01Icon} />
             Export as Markdown
           </ActionBarMorePrimitive.Item>
         </ActionBarPrimitive.ExportMarkdown>
@@ -880,14 +1096,14 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
   <BranchPickerPrimitive.Root
     className={cn(
       "aui-branch-picker-root -ms-2 me-2 inline-flex items-center text-muted-foreground text-xs",
-      className
+      className,
     )}
     hideWhenSingleBranch
     {...rest}
   >
     <BranchPickerPrimitive.Previous asChild>
       <TooltipIconButton tooltip="Previous">
-        <ChevronLeftIcon />
+        <HugeiconsIcon icon={ArrowLeft01Icon} />
       </TooltipIconButton>
     </BranchPickerPrimitive.Previous>
     <span className="aui-branch-picker-state font-medium">
@@ -895,7 +1111,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
     </span>
     <BranchPickerPrimitive.Next asChild>
       <TooltipIconButton tooltip="Next">
-        <ChevronRightIcon />
+        <HugeiconsIcon icon={ArrowRight01Icon} />
       </TooltipIconButton>
     </BranchPickerPrimitive.Next>
   </BranchPickerPrimitive.Root>
