@@ -4,7 +4,6 @@ import logging
 from time import perf_counter
 
 from arq.connections import RedisSettings
-from dotenv import load_dotenv
 from redis.asyncio import Redis
 
 from app.application.query_pipeline.arag_router import AragRouter
@@ -20,7 +19,6 @@ from app.infrastructure.llm.llm import LLMClient
 from app.infrastructure.qdrant.client import QdrantStore
 from app.infrastructure.reranker.reranker import RerankClient
 
-load_dotenv()
 settings = get_settings()
 configure_logging(settings)
 

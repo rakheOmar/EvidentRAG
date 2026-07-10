@@ -24,6 +24,7 @@ app = main_module.app
 
 def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
     captured: dict[str, Any] = {}
+    log_records: list[tuple[str, dict[str, Any]]] = []
 
     class FakeConnection:
         async def run_sync(self, callback) -> None:
@@ -156,6 +157,11 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
     monkeypatch.setattr(main_module, "RerankClient", FakeRerankClient)
     monkeypatch.setattr(main_module, "ArqRedis", FakeArqRedis)
     monkeypatch.setattr(main_module, "seed_demo_data", fake_seed_demo_data)
+    monkeypatch.setattr(
+        main_module.logger,
+        "info",
+        lambda message, *args, **kwargs: log_records.append((message, kwargs)),
+    )
 
     with TestClient(app):
         pass
@@ -178,6 +184,11 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
     assert isinstance(app.state.embedding_client, FakeEmbeddingClient)
     assert isinstance(app.state.llm_client, FakeLLMClient)
     assert isinstance(app.state.rerank_client, FakeRerankClient)
+    assert [message for message, _ in log_records[:2]] == [
+        "seed_demo_data_starting",
+        "app_startup",
+    ]
+    assert log_records[1][1]["extra"]["wide_event"]["seeded_documents"] == 1
 
 
 def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:

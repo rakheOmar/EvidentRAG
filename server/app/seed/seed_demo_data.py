@@ -9,7 +9,6 @@ from pathlib import Path
 from time import perf_counter
 
 import httpx
-from dotenv import load_dotenv
 from qdrant_client.http.models import PointStruct
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -150,6 +149,7 @@ async def seed_demo_data(
     }
 
     try:
+        logger.info("seed_demo_data_starting", extra={"wide_event": wide_event})
         await _recreate_schema(session_factory)
         wide_event["schema_recreated"] = True
 
@@ -238,6 +238,17 @@ async def seed_demo_data(
                     await qdrant_store.upsert_points(points)
                     await session.commit()
                     seeded_count += 1
+                    logger.info(
+                        "seed_document_seeded",
+                        extra={
+                            "wide_event": {
+                                "event": "seed_document_seeded",
+                                "slug": document.slug,
+                                "evidence_count": len(embedded_rows),
+                                "outcome": "success",
+                            }
+                        },
+                    )
                 except Exception:
                     await session.rollback()
                     raise
@@ -259,7 +270,6 @@ async def seed_demo_data(
 
 
 async def run_seed_demo_data(seed_dir: Path = DEFAULT_SEED_DIR) -> int:
-    load_dotenv()
     settings = get_settings()
     configure_logging(settings)
 

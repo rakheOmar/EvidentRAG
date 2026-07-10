@@ -1,7 +1,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+
 import os
+from dotenv import load_dotenv
+
+
+_ENV_LOADED = False
+
+
+def load_env() -> None:
+    global _ENV_LOADED
+    if _ENV_LOADED:
+        return
+    _ENV_LOADED = True
+    root = Path(__file__).resolve().parents[3]
+    env_name = ".env.docker" if Path("/.dockerenv").exists() else ".env.local"
+    env_path = root / env_name
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
+    elif (root / ".env").exists():
+        load_dotenv(root / ".env", override=True)
+    else:
+        load_dotenv(override=True)
 
 
 def _get_bool(name: str, default: bool) -> bool:
@@ -100,6 +122,7 @@ class Settings:
 
 
 def get_settings() -> Settings:
+    load_env()
     return Settings(
         app=AppSettings(
             app_name=os.getenv("APP_NAME", "Server Scaffold"),

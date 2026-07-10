@@ -70,7 +70,7 @@ const EvidenceAccordionItem: FC<{ item: EvidencePanelData }> = ({ item }) => (
               {item.erm_state === "boost" ? "ERM boost" : "ERM penalty"}
             </Badge>
             {item.erm_multiplier === null ? null : (
-              <span className="text-sidebar-foreground/50 text-xs">
+              <span className="text-sidebar-foreground/50 text-xs tabular-nums">
                 x{item.erm_multiplier.toFixed(2)}
               </span>
             )}
@@ -81,7 +81,7 @@ const EvidenceAccordionItem: FC<{ item: EvidencePanelData }> = ({ item }) => (
             {item.context_header}
           </p>
         ) : null}
-        <p className="wrap-break-word text-foreground/90 text-xs leading-relaxed">
+        <p className="wrap-break-word text-foreground/90 text-wrap-pretty text-xs leading-relaxed">
           {item.content}
         </p>
       </div>
@@ -182,7 +182,7 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
       aria-hidden={!open}
       aria-label="Evidence details"
       className={cn(
-        "flex w-full flex-col overflow-hidden rounded-xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg transition-all duration-300 ease-in-out",
+        "flex w-full flex-col overflow-hidden rounded-xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg transition-[transform,opacity] duration-300 ease-in-out",
         open
           ? "translate-x-0 opacity-100"
           : "pointer-events-none translate-x-8 opacity-0"
@@ -193,7 +193,7 @@ const EvidenceSidepanel: FC<EvidenceSidepanelProps> = ({
         <h2 className="font-medium text-sm">Evidence</h2>
         <Button
           aria-label="Close evidence panel"
-          className="size-6"
+          className="relative size-6 before:absolute before:-inset-2 before:content-[''] active:scale-96"
           onClick={handleClose}
           size="icon"
           variant="ghost"

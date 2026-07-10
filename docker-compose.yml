@@ -41,7 +41,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - .env.docker
     volumes:
       - ./corpus:/app/corpus:ro
     depends_on:
@@ -58,7 +58,7 @@ services:
       dockerfile: Dockerfile
     command: uv run arq app.worker.WorkerSettings
     env_file:
-      - .env
+      - .env.docker
     volumes:
       - ./corpus:/app/corpus:ro
     depends_on:
