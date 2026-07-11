@@ -3,12 +3,19 @@ from contextlib import asynccontextmanager
 from time import perf_counter
 
 from arq.connections import ArqRedis
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from redis.asyncio import Redis
 
 from app.api.middleware.access_logging import AccessLoggingMiddleware
+from app.api.errors import (
+    http_exception_handler,
+    unhandled_exception_handler,
+    validation_exception_handler,
+)
 from app.api.middleware.request_context import RequestContextMiddleware
 from app.api.routes.health import router as health_router
+from app.api.routes.documents import router as documents_router
 from app.api.routes.models import router as models_router
 from app.api.routes.sentence_traces import router as sentence_traces_router
 from app.api.routes.threads import router as threads_router
@@ -23,6 +30,7 @@ from app.infrastructure.embeddings.embedding import EmbeddingClient
 from app.infrastructure.llm.llm import LLMClient
 from app.infrastructure.qdrant.client import QdrantStore
 from app.infrastructure.reranker.reranker import RerankClient
+from app.infrastructure.storage.local import LocalDocumentStorage
 from app.infrastructure.ai.scheduler import AIRequestScheduler
 from app.seed.seed_demo_data import seed_demo_data
 
@@ -150,6 +158,9 @@ async def lifespan(app: FastAPI):
         app.state.rerank_client = rerank_client
         app.state.redis = redis
         app.state.job_queue = job_queue
+        app.state.document_storage = LocalDocumentStorage(
+            settings.ingestion.storage_path
+        )
         startup_event["runtime_dependencies_initialized"] = True
 
         async with engine.begin() as conn:
@@ -219,9 +230,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.app.app_name, lifespan=lifespan)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(AccessLoggingMiddleware)
 app.include_router(health_router)
+app.include_router(documents_router)
 app.include_router(models_router)
 app.include_router(sentence_traces_router)
 app.include_router(threads_router)

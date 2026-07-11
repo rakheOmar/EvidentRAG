@@ -16,15 +16,18 @@ from app.infrastructure.db.models import Answer, Message, Segment
 router = APIRouter(prefix="/api/v1/sentence-traces", tags=["sentence-traces"])
 
 
-@router.put("/{trace_id}/feedback", response_model=SentenceTraceFeedbackResponse)
-async def put_sentence_trace_feedback(
+@router.put("/{trace_id}/rating", response_model=SentenceTraceFeedbackResponse)
+async def put_sentence_trace_rating(
     trace_id: UUID,
     payload: SentenceTraceFeedbackRequest,
     request: Request,
 ) -> SentenceTraceFeedbackResponse:
     embedding_client = getattr(request.app.state, "embedding_client", None)
     if embedding_client is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"message": "Feedback processing is unavailable"},
+        )
 
     async with request.app.state.session_factory() as session:
         trace = await session.scalar(
@@ -37,7 +40,10 @@ async def put_sentence_trace_feedback(
             .where(Segment.id == trace_id)
         )
         if trace is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"message": "Sentence trace not found"},
+            )
 
         previous_rating = trace.rating
         if previous_rating != payload.rating:
@@ -45,7 +51,10 @@ async def put_sentence_trace_feedback(
             assistant_message = trace.answer.message
             user_message = assistant_message.reply_to_message
             if user_message is None:
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"message": "The trace is not attached to a user message"},
+                )
 
             evidence_ids = [
                 UUID(evidence_id) if not isinstance(evidence_id, UUID) else evidence_id

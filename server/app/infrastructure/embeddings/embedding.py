@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import base64
+from collections.abc import Sequence
 from time import perf_counter
 
 import httpx
@@ -20,12 +22,28 @@ class EmbeddingClient:
         self._dimensions = settings.dimensions
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        return self._embed(texts, "embed_texts")
+
+    def embed_images(self, images: list[bytes]) -> list[list[float]]:
+        inputs = [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": "data:image/png;base64,"
+                    + base64.b64encode(image).decode("ascii")
+                },
+            }
+            for image in images
+        ]
+        return self._embed(inputs, "embed_images")
+
+    def _embed(self, inputs: Sequence[object], event: str) -> list[list[float]]:
         started_at = perf_counter()
 
         wide_event: dict[str, object] = {
-            "event": "embed_texts",
+            "event": event,
             "model": self._model,
-            "batch_size": len(texts),
+            "batch_size": len(inputs),
         }
 
         try:
@@ -35,7 +53,7 @@ class EmbeddingClient:
 
             payload = {
                 "model": self._model,
-                "input": texts,
+                "input": inputs,
                 "dimensions": self._dimensions,
             }
 
@@ -59,4 +77,4 @@ class EmbeddingClient:
             raise
         finally:
             wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-            logger.info("embed_texts", extra={"wide_event": wide_event})
+            logger.info(event, extra={"wide_event": wide_event})

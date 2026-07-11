@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 from time import perf_counter
 
+from arq import func
+from arq.cron import cron
 from arq.connections import RedisSettings
 from redis.asyncio import Redis
 
@@ -19,6 +22,10 @@ from app.infrastructure.llm.llm import LLMClient
 from app.infrastructure.qdrant.client import QdrantStore
 from app.infrastructure.reranker.reranker import RerankClient
 from app.infrastructure.ai.scheduler import AIRequestScheduler
+from app.application.ingestion.pipeline import DocumentIngestionPipeline
+from app.infrastructure.storage.local import LocalDocumentStorage
+from app.infrastructure.db.models import Document, Source
+from sqlalchemy import select
 
 settings = get_settings()
 configure_logging(settings)
@@ -66,6 +73,7 @@ async def startup(ctx: dict) -> None:
         ctx["rerank_client"] = rerank_client
         ctx["redis"] = redis
         ctx["arag_router"] = arag_router
+        ctx["document_storage"] = LocalDocumentStorage(settings.ingestion.storage_path)
 
         wide_event["outcome"] = "success"
     except Exception as exc:
@@ -136,8 +144,73 @@ async def run_message_pipeline(ctx: dict, message_id) -> None:
         logger.info("run_message_pipeline", extra={"wide_event": wide_event})
 
 
+async def run_document_ingestion(ctx: dict, document_id) -> None:
+    pipeline = DocumentIngestionPipeline(
+        session_factory=ctx["session_factory"],
+        redis=ctx["redis"],
+        embedding_client=ctx["embedding_client"],
+        llm_client=ctx["llm_client"],
+        qdrant_store=ctx["qdrant_store"],
+        storage=ctx["document_storage"],
+    )
+    await pipeline.run(str(document_id))
+
+
+async def cleanup_deleted_documents(ctx: dict) -> None:
+    started_at = perf_counter()
+    wide_event: dict[str, object] = {
+        "event": "deleted_document_cleanup",
+        "retention_days": settings.ingestion.audit_retention_days,
+        "deleted_sources": 0,
+        "deleted_documents": 0,
+    }
+    deleted_sources = 0
+    deleted_documents = 0
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            days=settings.ingestion.audit_retention_days
+        )
+        storage = ctx["document_storage"]
+        async with ctx["session_factory"]() as session:
+            sources = await session.scalars(
+                select(Source).where(
+                    Source.deleted_at.is_not(None), Source.deleted_at <= cutoff
+                )
+            )
+            for source in sources:
+                deleted_sources += 1
+                documents = list(
+                    await session.scalars(
+                        select(Document).where(Document.source_id == source.id)
+                    )
+                )
+                for document in documents:
+                    deleted_documents += 1
+                    await ctx["qdrant_store"].delete_document_points(str(document.id))
+                    if document.storage_key:
+                        storage.delete(document.storage_key)
+                    await session.delete(document)
+                await session.delete(source)
+            await session.commit()
+        wide_event["deleted_sources"] = deleted_sources
+        wide_event["deleted_documents"] = deleted_documents
+        wide_event["outcome"] = "success"
+    except Exception as exc:
+        wide_event["outcome"] = "error"
+        wide_event["error_type"] = type(exc).__name__
+        wide_event["error_message"] = str(exc)
+        raise
+    finally:
+        wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
+        logger.info("deleted_document_cleanup", extra={"wide_event": wide_event})
+
+
 class WorkerSettings:
-    functions = [run_message_pipeline]
+    functions = [
+        run_message_pipeline,
+        func(run_document_ingestion, max_tries=settings.ingestion.retry_attempts),
+    ]
+    cron_jobs = [cron(cleanup_deleted_documents, hour=3, minute=0, unique=True)]
     on_startup = staticmethod(startup)
     on_shutdown = staticmethod(shutdown)
     redis_settings = RedisSettings.from_dsn(settings.redis.url)

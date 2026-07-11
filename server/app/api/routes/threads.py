@@ -117,6 +117,9 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
                         erm_multiplier=(
                             evidence_metadata.get(str(parsed_eid), {}) or {}
                         ).get("erm_multiplier"),
+                        kind=(evidence.extra or {}).get("kind", "text"),
+                        asset_key=(evidence.extra or {}).get("asset_key"),
+                        bounding_box=(evidence.extra or {}).get("bounding_box"),
                     )
 
         segments.append(
@@ -318,8 +321,12 @@ async def create_thread(payload: ThreadCreate, request: Request) -> ThreadTurnRe
         await session.refresh(assistant_message)
 
     job_queue = getattr(request.app.state, "job_queue", None)
-    if job_queue is not None:
-        await job_queue.enqueue_job("run_message_pipeline", str(assistant_message.id))
+    if job_queue is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"message": "Message processing is unavailable"},
+        )
+    await job_queue.enqueue_job("run_message_pipeline", str(assistant_message.id))
 
     async with request.app.state.session_factory() as session:
         thread = await session.get(Thread, thread.id)
@@ -336,6 +343,11 @@ async def create_thread(payload: ThreadCreate, request: Request) -> ThreadTurnRe
 async def list_threads(
     request: Request, limit: int = 100, offset: int = 0
 ) -> list[ThreadSummaryResponse]:
+    if not 1 <= limit <= 100 or offset < 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": "limit must be 1..100 and offset must be non-negative"},
+        )
     async with request.app.state.session_factory() as session:
         result = await session.execute(
             select(Thread)
@@ -355,7 +367,10 @@ async def get_thread(thread_id: UUID, request: Request) -> ThreadDetailResponse:
             .where(Thread.id == thread_id)
         )
         if thread is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"message": "Thread not found"},
+            )
 
         ordered_messages = sorted(thread.messages, key=lambda message: message.position)
         return ThreadDetailResponse(
@@ -378,7 +393,10 @@ async def append_message(
     async with request.app.state.session_factory() as session:
         thread = await session.get(Thread, thread_id)
         if thread is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"message": "Thread not found"},
+            )
         user_message, assistant_message = await _create_turn(
             session, thread=thread, content=payload.content
         )
@@ -388,8 +406,12 @@ async def append_message(
         await session.refresh(assistant_message)
 
     job_queue = getattr(request.app.state, "job_queue", None)
-    if job_queue is not None:
-        await job_queue.enqueue_job("run_message_pipeline", str(assistant_message.id))
+    if job_queue is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"message": "Message processing is unavailable"},
+        )
+    await job_queue.enqueue_job("run_message_pipeline", str(assistant_message.id))
 
     async with request.app.state.session_factory() as session:
         thread = await session.get(Thread, thread_id)

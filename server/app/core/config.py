@@ -109,6 +109,14 @@ class RedisSettings:
 
 
 @dataclass(frozen=True)
+class IngestionSettings:
+    storage_path: str
+    max_upload_bytes: int
+    retry_attempts: int
+    audit_retention_days: int
+
+
+@dataclass(frozen=True)
 class RateLimitSettings:
     retry_window_seconds: float
     generation_requests_per_minute: int
@@ -132,6 +140,14 @@ class Settings:
     db: DatabaseSettings
     qdrant: QdrantSettings
     redis: RedisSettings
+    ingestion: IngestionSettings = field(
+        default_factory=lambda: IngestionSettings(
+            storage_path="./data/documents",
+            max_upload_bytes=25 * 1024 * 1024,
+            retry_attempts=3,
+            audit_retention_days=7,
+        )
+    )
     rate_limits: RateLimitSettings = field(
         default_factory=lambda: RateLimitSettings(
             retry_window_seconds=60.0,
@@ -204,6 +220,14 @@ def get_settings() -> Settings:
         ),
         redis=RedisSettings(
             url=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+        ),
+        ingestion=IngestionSettings(
+            storage_path=os.getenv("DOCUMENT_STORAGE_PATH", "./data/documents"),
+            max_upload_bytes=int(
+                os.getenv("MAX_DOCUMENT_UPLOAD_BYTES", str(25 * 1024 * 1024))
+            ),
+            retry_attempts=int(os.getenv("DOCUMENT_INGESTION_RETRY_ATTEMPTS", "3")),
+            audit_retention_days=int(os.getenv("DOCUMENT_AUDIT_RETENTION_DAYS", "7")),
         ),
         rate_limits=RateLimitSettings(
             retry_window_seconds=float(os.getenv("AI_RETRY_WINDOW_SECONDS", "60")),
