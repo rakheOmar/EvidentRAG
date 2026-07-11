@@ -12,6 +12,7 @@ from app.infrastructure.db.models import (
     ErmScore,
     Message,
     Segment,
+    Source,
 )
 
 
@@ -83,7 +84,11 @@ def _create_answer_graph(client, *, thread_id: str, message_id: str) -> dict[str
 
     async def _persist() -> dict[str, str]:
         async with session_factory() as session:
+            source = Source(
+                source_key=f"integration:{slug_suffix}", title="Evidence Doc"
+            )
             document = Document(
+                source=source,
                 title="Evidence Doc",
                 slug=f"evidence-doc-{slug_suffix}",
                 source_path=f"/tmp/evidence-doc-{slug_suffix}.pdf",
@@ -113,7 +118,7 @@ def _create_answer_graph(client, *, thread_id: str, message_id: str) -> dict[str
             message = await session.get(Message, uuid.UUID(message_id))
             if message is not None:
                 message.status = "completed"
-            session.add_all([document, evidence, answer, segment, message])
+            session.add_all([source, document, evidence, answer, segment, message])
             await session.commit()
             return {
                 "answer_id": str(answer.id),

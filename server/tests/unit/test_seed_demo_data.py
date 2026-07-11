@@ -228,7 +228,7 @@ async def test_seed_demo_data_loads_demo_document(tmp_path: Path) -> None:
     assert len(engine.connection.callbacks) == 2
     assert session.committed is True
     assert session.rolled_back is False
-    assert len(session.documents) == 1
+    assert len(session.documents) == 2  # Source plus its Document Version
     assert len(session.evidence) == 2
     assert qdrant_store.points is not None
     assert len(qdrant_store.points) == 2
@@ -239,7 +239,7 @@ async def test_seed_demo_data_loads_demo_document(tmp_path: Path) -> None:
         ]
     ]
 
-    document = session.documents[0]
+    document = session.documents[1]
     assert document.title == "Attention Is All You Need"
     assert document.slug == "attention-is-all-you-need"
     assert document.source_path == "corpus/attention-is-all-you-need.pdf"
@@ -265,6 +265,8 @@ async def test_seed_demo_data_loads_demo_document(tmp_path: Path) -> None:
         "page": 1,
         "chunk_index": 0,
         "context_header": "Passage from Attention Is All You Need, page 1.",
+        "source_id": str(document.source_id),
+        "eligible": True,
     }
 
 
@@ -320,7 +322,7 @@ async def test_seed_demo_data_rebuilds_sql_schema_before_reseeding(
     assert session.executed_statements == []
     assert len(engine.connection.callbacks) == 2
     assert qdrant_store.reset_called is True
-    assert len(session.documents) == 1
+    assert len(session.documents) == 2  # Source plus its Document Version
     assert len(session.evidence) == 1
     assert embedding_client.calls == [["Transformers rely on attention."]]
     assert qdrant_store.points is not None

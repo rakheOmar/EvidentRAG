@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from types import SimpleNamespace
 
 import pytest
 
@@ -223,6 +224,8 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
     assert captured["ensure_collection_called"] is True
     assert captured["arag_router_llm_client"] is captured["llm_client_instance"]
 
+    document_storage = ctx.pop("document_storage")
+    assert document_storage.__class__.__name__ == "LocalDocumentStorage"
     assert ctx == {
         "engine": fake_engine,
         "session_factory": fake_session_factory,
@@ -268,6 +271,91 @@ async def test_worker_shutdown_closes_redis_and_disposes_engine() -> None:
 def test_worker_settings_registers_message_pipeline() -> None:
     from app import worker as worker_module
 
-    assert worker_module.WorkerSettings.functions == [
-        worker_module.run_message_pipeline
-    ]
+    assert (
+        worker_module.WorkerSettings.functions[0] is worker_module.run_message_pipeline
+    )
+    document_function = worker_module.WorkerSettings.functions[1]
+    assert document_function.name == "run_document_ingestion"
+    assert document_function.max_tries == 3
+    assert worker_module.WorkerSettings.cron_jobs[0].name == (
+        "cron:cleanup_deleted_documents"
+    )
+
+
+@pytest.mark.asyncio
+async def test_cleanup_deleted_documents_removes_expired_source_documents(
+    monkeypatch,
+) -> None:
+    from app import worker as worker_module
+
+    source_id = uuid.uuid4()
+    document_id = uuid.uuid4()
+    source = SimpleNamespace(id=source_id)
+    document = SimpleNamespace(
+        id=document_id,
+        source_id=source_id,
+        storage_key="documents/example.pdf",
+    )
+    deleted_objects: list[object] = []
+    qdrant_document_ids: list[str] = []
+    storage_keys: list[str] = []
+    committed = False
+
+    class FakeScalarResult:
+        def __init__(self, values: list[object]) -> None:
+            self.values = values
+
+        def __iter__(self):
+            return iter(self.values)
+
+    class FakeSession:
+        scalars_calls = 0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        async def scalars(self, statement):
+            self.scalars_calls += 1
+            if self.scalars_calls == 1:
+                return FakeScalarResult([source])
+            return FakeScalarResult([document])
+
+        async def delete(self, item) -> None:
+            deleted_objects.append(item)
+
+        async def commit(self) -> None:
+            nonlocal committed
+            committed = True
+
+    class FakeSessionFactory:
+        def __call__(self):
+            return FakeSession()
+
+    class FakeQdrantStore:
+        async def delete_document_points(self, actual_document_id: str) -> None:
+            qdrant_document_ids.append(actual_document_id)
+
+    class FakeStorage:
+        def delete(self, storage_key: str) -> None:
+            storage_keys.append(storage_key)
+
+    test_settings = SimpleNamespace(
+        ingestion=SimpleNamespace(audit_retention_days=7),
+    )
+    monkeypatch.setattr(worker_module, "settings", test_settings)
+
+    await worker_module.cleanup_deleted_documents(
+        {
+            "session_factory": FakeSessionFactory(),
+            "qdrant_store": FakeQdrantStore(),
+            "document_storage": FakeStorage(),
+        }
+    )
+
+    assert qdrant_document_ids == [str(document_id)]
+    assert storage_keys == ["documents/example.pdf"]
+    assert deleted_objects == [document, source]
+    assert committed is True

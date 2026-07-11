@@ -14,6 +14,7 @@ from app.infrastructure.db.models import (
     ErmScore,
     Message,
     MessageEvidenceCandidate,
+    Source,
     Segment,
     Thread,
 )
@@ -46,7 +47,24 @@ def test_document_table_columns_match_schema() -> None:
     assert Document.__tablename__ == "documents"
     assert str(cols["id"].type) == "UUID"
     assert cols["id"].primary_key
-    assert len(cols) == 10
+    assert str(cols["source_id"].type) == "UUID"
+    assert not cols["source_id"].nullable
+    assert str(cols["version_number"].type) == "INTEGER"
+    assert str(cols["status"].type) == "TEXT"
+    assert str(cols["is_current"].type) == "BOOLEAN"
+    assert len(cols) == 21
+
+
+def test_source_and_document_version_lifecycle_schema() -> None:
+    source_cols = {c.name: c for c in _table(Source).c}
+    document_cols = {c.name: c for c in _table(Document).c}
+
+    assert Source.__tablename__ == "sources"
+    assert source_cols["source_key"].unique
+    assert not source_cols["source_key"].nullable
+    assert "deleted_at" in source_cols
+    assert "canonical_document_id" in document_cols
+    assert "warnings" in document_cols
 
 
 def test_evidence_table_columns_match_schema() -> None:
