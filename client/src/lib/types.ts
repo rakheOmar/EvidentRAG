@@ -26,6 +26,8 @@ export interface Segment {
 }
 
 export interface Evidence {
+  asset_key?: string | null;
+  bounding_box?: Record<string, number> | null;
   content: string;
   context_header: string | null;
   document_slug: string | null;
@@ -33,6 +35,7 @@ export interface Evidence {
   erm_multiplier: number | null;
   erm_state: "boost" | "penalty" | null;
   id: string;
+  kind?: string;
   page: number | null;
 }
 

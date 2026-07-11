@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { requestJson } from "@/lib/errors";
 
 import type {
   SentenceTraceFeedbackResponse,
@@ -20,93 +21,49 @@ const queryKeys = {
 export async function createThread(
   content: string,
 ): Promise<ThreadTurnResponse> {
-  const response = await fetch("/api/v1/threads", {
+  return requestJson<ThreadTurnResponse>("/api/v1/threads", {
     body: JSON.stringify({ content }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
-
-  if (!response.ok) {
-    throw new Error(
-      `POST /api/v1/threads failed: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  return (await response.json()) as ThreadTurnResponse;
 }
 
 export async function appendThreadMessage(
   threadId: string,
   content: string,
 ): Promise<ThreadTurnResponse> {
-  const response = await fetch(`/api/v1/threads/${threadId}/messages`, {
+  return requestJson<ThreadTurnResponse>(`/api/v1/threads/${threadId}/messages`, {
     body: JSON.stringify({ content }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
-
-  if (!response.ok) {
-    throw new Error(
-      `POST /api/v1/threads/${threadId}/messages failed: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  return (await response.json()) as ThreadTurnResponse;
 }
 
 export async function fetchThreads(): Promise<ThreadSummary[]> {
-  const response = await fetch("/api/v1/threads", { method: "GET" });
-
-  if (!response.ok) {
-    throw new Error(
-      `GET /api/v1/threads failed: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  return (await response.json()) as ThreadSummary[];
+  return requestJson<ThreadSummary[]>("/api/v1/threads", { method: "GET" });
 }
 
 export async function fetchThread(threadId: string): Promise<ThreadDetail> {
-  const response = await fetch(`/api/v1/threads/${threadId}`, {
+  return requestJson<ThreadDetail>(`/api/v1/threads/${threadId}`, {
     method: "GET",
   });
-
-  if (!response.ok) {
-    throw new Error(
-      `GET /api/v1/threads/${threadId} failed: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  return (await response.json()) as ThreadDetail;
 }
 
 export async function fetchModelContext(): Promise<ModelContextDetails> {
-  const response = await fetch("/api/v1/models", { method: "GET" });
-  if (!response.ok) {
-    throw new Error(
-      `GET /api/v1/models failed: ${response.status} ${response.statusText}`,
-    );
-  }
-  return (await response.json()) as ModelContextDetails;
+  return requestJson<ModelContextDetails>("/api/v1/model-context", {
+    method: "GET",
+  });
 }
 
 export async function putSentenceTraceFeedback(
   traceId: string,
   rating: "up" | "down",
 ): Promise<SentenceTraceFeedbackResponse> {
-  const response = await fetch(`/api/v1/sentence-traces/${traceId}/feedback`, {
+  return requestJson<SentenceTraceFeedbackResponse>(`/api/v1/sentence-traces/${traceId}/rating`, {
     body: JSON.stringify({ rating }),
     headers: { "Content-Type": "application/json" },
     method: "PUT",
   });
-
-  if (!response.ok) {
-    throw new Error(
-      `PUT /api/v1/sentence-traces/${traceId}/feedback failed: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  return (await response.json()) as SentenceTraceFeedbackResponse;
 }
 
 export function useThreadHistory() {

@@ -14,7 +14,7 @@ import {
   putSentenceTraceFeedback,
 } from "../api";
 
-const createThreadErrorMessage = /POST \/api\/v1\/threads failed: 400/;
+const createThreadErrorMessage = /400 Bad Request/;
 
 function makeThreadSummary(
   overrides: Partial<ThreadSummary> = {}
@@ -212,7 +212,7 @@ describe("putSentenceTraceFeedback", () => {
     vi.unstubAllGlobals();
   });
 
-  it("PUTs the rating to /api/v1/sentence-traces/{id}/feedback", async () => {
+  it("PUTs the rating to /api/v1/sentence-traces/{id}/rating", async () => {
     const expected = { rating: "up", trace_id: "trace-001" };
     const fetchMock = vi
       .fn()
@@ -223,7 +223,7 @@ describe("putSentenceTraceFeedback", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/sentence-traces/trace-001/feedback");
+    expect(url).toBe("/api/v1/sentence-traces/trace-001/rating");
     expect(init?.method).toBe("PUT");
     expect(JSON.parse(init?.body as string)).toEqual({ rating: "up" });
     expect(result).toEqual(expected);
