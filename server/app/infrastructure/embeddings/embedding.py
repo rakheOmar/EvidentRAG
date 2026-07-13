@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import logging
 import re
 from collections.abc import Sequence
-from time import perf_counter, sleep
+from time import sleep
 from typing import Any
 
 from google import genai
 from google.genai import types
 
 from app.core.config import EmbeddingSettings
-
-logger = logging.getLogger(__name__)
+from app.core.telemetry import record_degradation, traced_operation
 
 MAX_EMBEDDING_REQUEST_SIZE = 100
 MAX_EMBEDDING_RETRIES = 8
@@ -65,33 +63,22 @@ class EmbeddingClient:
         batch_number: int,
         batch_count: int,
     ) -> list[list[float]]:
-        started_at = perf_counter()
-        wide_event: dict[str, object] = {
-            "event": event,
+        operation_context = {
             "model": self._model,
             "batch_size": len(contents),
             "batch_number": batch_number,
             "batch_count": batch_count,
         }
-        try:
-            response = self._embed_with_retries(contents, wide_event)
+        with traced_operation(event, **operation_context) as operation:
+            response = self._embed_with_retries(contents, operation)
             result = [list(embedding.values) for embedding in response.embeddings]
             if len(result) != len(contents):
                 raise ValueError(
                     f"Embedding response contained {len(result)} vectors for "
                     f"{len(contents)} inputs"
                 )
-            wide_event["embedding_count"] = len(result)
-            wide_event["outcome"] = "success"
+            operation["embedding_count"] = len(result)
             return result
-        except Exception as exc:
-            wide_event["outcome"] = "error"
-            wide_event["error_type"] = type(exc).__name__
-            wide_event["error_message"] = str(exc)
-            raise
-        finally:
-            wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-            logger.info(event, extra={"wide_event": wide_event})
 
     def _embed_with_retries(
         self,
@@ -113,15 +100,11 @@ class EmbeddingClient:
                 delay = self._retry_delay(exc, attempt)
                 wide_event["retry_count"] = attempt + 1
                 wide_event["retry_delay_seconds"] = delay
-                logger.warning(
-                    "embedding_rate_limited",
-                    extra={
-                        "wide_event": {
-                            "model": self._model,
-                            "attempt": attempt + 1,
-                            "retry_delay_seconds": delay,
-                        }
-                    },
+                record_degradation(
+                    "embedding_rate_limit",
+                    model=self._model,
+                    attempt=attempt + 1,
+                    retry_delay_seconds=delay,
                 )
                 sleep(delay)
 

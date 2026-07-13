@@ -15,10 +15,8 @@ from sqlalchemy import select
 
 from app.infrastructure.db.models import Document, Evidence
 from app.infrastructure.qdrant.client import QdrantStore
-
-import logging
-
-logger = logging.getLogger(__name__)
+from app.core.logging import enrich_wide_event
+from app.core.telemetry import record_degradation
 
 
 @dataclass(frozen=True)
@@ -136,16 +134,10 @@ def _extract_pdf(
             )
         except Exception as exc:
             failed_visuals += 1
-            logger.warning(
-                "document_visual_extraction_failed",
-                extra={
-                    "wide_event": {
-                        "picture_index": picture_index,
-                        "error_type": type(exc).__name__,
-                        "error_message": str(exc),
-                    }
-                },
-                exc_info=True,
+            record_degradation(
+                "document_visual_extraction",
+                picture_index=picture_index,
+                error_type=type(exc).__name__,
             )
     if failed_visuals:
         warnings.append("Some visual assets could not be extracted.")
@@ -259,15 +251,12 @@ class DocumentIngestionPipeline:
                     status_code = getattr(response, "status_code", None)
                     if status_code != 422:
                         raise
-                    logger.warning(
-                        "image_embedding_fallback_to_caption",
-                        extra={
-                            "wide_event": {
-                                "visual_count": len(visuals),
-                                "error_type": type(exc).__name__,
-                                "status_code": status_code,
-                            }
-                        },
+                    record_degradation(
+                        "image_embedding",
+                        fallback="caption",
+                        visual_count=len(visuals),
+                        error_type=type(exc).__name__,
+                        status_code=status_code,
                     )
                     image_vectors = await asyncio.to_thread(
                         self._embedding_client.embed_texts,
@@ -411,9 +400,7 @@ class DocumentIngestionPipeline:
             wide_event["duration_ms"] = round(
                 (asyncio.get_running_loop().time() - started_at) * 1000, 2
             )
-            logger.info(
-                "document_ingestion_completed", extra={"wide_event": wide_event}
-            )
+            enrich_wide_event(ingestion=wide_event)
 
     async def _publish(
         self, document_id: uuid.UUID, stage: str, progress: int, **extra

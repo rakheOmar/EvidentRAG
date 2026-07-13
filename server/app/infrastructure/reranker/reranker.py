@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
-from time import perf_counter
 
 import httpx
 
 from app.core.config import RerankerSettings
+from app.core.telemetry import traced_operation
 from app.infrastructure.ai.scheduler import AIRequestScheduler
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -39,16 +36,13 @@ class RerankClient:
         documents: list[str],
         top_n: int = 5,
     ) -> list[RerankResult]:
-        started_at = perf_counter()
-
-        wide_event: dict[str, object] = {
-            "event": "rerank",
+        operation_context = {
             "model": self._rerank_model,
             "candidate_count": len(documents),
             "top_n": top_n,
         }
 
-        try:
+        with traced_operation("rerank", **operation_context) as operation:
             headers = {"Content-Type": "application/json"}
             if self._api_key:
                 headers["Authorization"] = f"Bearer {self._api_key}"
@@ -81,16 +75,7 @@ class RerankClient:
                 )
                 for result in response.json().get("results", [])
             ]
-            wide_event["result_count"] = len(results)
-            wide_event["outcome"] = "success"
+            operation["result_count"] = len(results)
             return sorted(
                 results, key=lambda result: result.relevance_score, reverse=True
             )
-        except Exception as exc:
-            wide_event["outcome"] = "error"
-            wide_event["error_type"] = type(exc).__name__
-            wide_event["error_message"] = str(exc)
-            raise
-        finally:
-            wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-            logger.info("rerank", extra={"wide_event": wide_event})

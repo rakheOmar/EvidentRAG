@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import uuid
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -28,6 +27,8 @@ from app.application.query_pipeline.json_stream_parser import (
     JsonStreamParser,
     join_segment_texts,
 )
+from app.core.logging import enrich_wide_event
+from app.core.telemetry import record_degradation
 from app.infrastructure.db.models import (
     Answer,
     Evidence,
@@ -37,8 +38,6 @@ from app.infrastructure.db.models import (
     Thread,
 )
 from app.infrastructure.llm.context_manager import ContextManager
-
-logger = logging.getLogger(__name__)
 
 
 def _candidate_rows(by_id, evidence_ids: list[uuid.UUID]) -> list[dict[str, object]]:
@@ -352,7 +351,7 @@ class QueryPipeline:
                 wide_event["duration_ms"] = round(
                     (perf_counter() - started_at) * 1000, 2
                 )
-                logger.info("pipeline_run", extra={"wide_event": wide_event})
+                enrich_wide_event(pipeline=wide_event)
 
             assistant_message.status = "completed"
             assistant_message.completed_at = assistant_message.updated_at = (
@@ -419,15 +418,10 @@ class QueryPipeline:
             await session.commit()
         except SQLAlchemyError:
             await session.rollback()
-            logger.warning(
-                "message_failure_persist_failed",
-                extra={
-                    "wide_event": {
-                        "event": "message_failure_persist_failed",
-                        "message_id": str(message_id),
-                        "outcome": "error",
-                    }
-                },
+            record_degradation(
+                "message_failure_persistence",
+                message_id=str(message_id),
+                outcome="error",
             )
 
     async def _build_conversation_context(
@@ -721,16 +715,11 @@ class QueryPipeline:
             except httpx.HTTPStatusError as exc:
                 if exc.response.status_code not in {408, 429, 500, 502, 503, 504}:
                     raise
-                logger.warning(
-                    "rerank_fallback_to_fused",
-                    extra={
-                        "wide_event": {
-                            "event": "rerank_fallback_to_fused",
-                            "query": rerank_q,
-                            "status_code": exc.response.status_code,
-                            "outcome": "degraded",
-                        }
-                    },
+                record_degradation(
+                    "rerank",
+                    reason="upstream_status",
+                    status_code=exc.response.status_code,
+                    candidate_count=len(documents),
                 )
                 return evidence_ids[:top_n], candidates[:top_n], {}
             ranked = await self._apply_erm_to_ranked_results(
@@ -781,16 +770,11 @@ class QueryPipeline:
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code not in {408, 429, 500, 502, 503, 504}:
                 raise
-            logger.warning(
-                "rerank_fallback_to_fused",
-                extra={
-                    "wide_event": {
-                        "event": "rerank_fallback_to_fused",
-                        "query": query_text,
-                        "status_code": exc.response.status_code,
-                        "outcome": "degraded",
-                    }
-                },
+            record_degradation(
+                "rerank",
+                reason="upstream_status",
+                status_code=exc.response.status_code,
+                candidate_count=len(documents),
             )
             selected_ids = ordered_ids[:top_n]
             return selected_ids, _candidate_rows(by_id, selected_ids), {}
@@ -1191,31 +1175,21 @@ class QueryPipeline:
                 top_n=5,
             )
         except httpx.TimeoutException as exc:
-            logger.warning(
-                "rerank_fallback_to_fused",
-                extra={
-                    "wide_event": {
-                        "event": "rerank_fallback_to_fused",
-                        "reason": "timeout",
-                        "error_type": type(exc).__name__,
-                        "outcome": "degraded",
-                    }
-                },
+            record_degradation(
+                "rerank",
+                reason="timeout",
+                error_type=type(exc).__name__,
+                candidate_count=len(documents),
             )
             return evidence_ids[:5]
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code not in {408, 429, 500, 502, 503, 504}:
                 raise
-            logger.warning(
-                "rerank_fallback_to_fused",
-                extra={
-                    "wide_event": {
-                        "event": "rerank_fallback_to_fused",
-                        "reason": "upstream_status",
-                        "status_code": exc.response.status_code,
-                        "outcome": "degraded",
-                    }
-                },
+            record_degradation(
+                "rerank",
+                reason="upstream_status",
+                status_code=exc.response.status_code,
+                candidate_count=len(documents),
             )
             return evidence_ids[:5]
 
@@ -1619,18 +1593,10 @@ class QueryPipeline:
         try:
             await self._redis.publish(channel, message)
         except Exception as exc:
-            logger.error(
-                "message_event_publish_failed",
-                extra={
-                    "wide_event": {
-                        "event": "message_event_publish_failed",
-                        "message_id": str(message_id),
-                        "channel": channel,
-                        "published_event": event,
-                        "outcome": "error",
-                        "error_type": type(exc).__name__,
-                        "error_message": str(exc),
-                    }
-                },
+            record_degradation(
+                "message_event_publish",
+                message_id=str(message_id),
+                published_event=event,
+                error_type=type(exc).__name__,
             )
             raise

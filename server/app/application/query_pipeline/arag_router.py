@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
-import logging
 from dataclasses import dataclass, field
 from time import perf_counter
 
-logger = logging.getLogger(__name__)
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+
+from app.core.logging import enrich_wide_event
 
 ROUTER_SYSTEM_PROMPT = """\
 You are an adaptive query router for a RAG system. Classify the user's query into one of these routes:
@@ -40,9 +42,8 @@ class AragRouter:
         self, query_text: str, model: str | None = None
     ) -> RoutingResult:
         started_at = perf_counter()
-        wide_event: dict[str, object] = {
-            "event": "arag_router_classify",
-            "query_text": query_text,
+        routing_context: dict[str, object] = {
+            "query_length": len(query_text),
         }
 
         messages = [
@@ -50,31 +51,42 @@ class AragRouter:
             {"role": "user", "content": query_text},
         ]
 
-        try:
-            raw = await self._llm_client.generate(messages, model=model)
-            parsed = json.loads(raw)
-            route = str(parsed.get("route", "simple")).lower()
-            if route not in (
-                "simple",
-                "multi_hop",
-                "comparison",
-                "aggregation",
-                "conversation",
-            ):
-                wide_event["invalid_route"] = route
-                route = "simple"
-            sub_queries = [
-                str(sq) for sq in parsed.get("sub_queries", []) if isinstance(sq, str)
-            ]
-            wide_event["route"] = route
-            wide_event["sub_queries"] = sub_queries
-            wide_event["outcome"] = "success"
-            return RoutingResult(route=route, sub_queries=sub_queries)
-        except Exception as exc:
-            wide_event["outcome"] = "error"
-            wide_event["error_type"] = type(exc).__name__
-            wide_event["error_message"] = str(exc)
-            return RoutingResult(route="simple", sub_queries=[])
-        finally:
-            wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-            logger.info("arag_router_classify", extra={"wide_event": wide_event})
+        tracer = trace.get_tracer(__name__)
+        with tracer.start_as_current_span("arag_router.classify") as span:
+            span.set_attribute("gen_ai.request.model", model or "default")
+            span.set_attribute("evidentrag.query.length", len(query_text))
+            try:
+                raw = await self._llm_client.generate(messages, model=model)
+                parsed = json.loads(raw)
+                route = str(parsed.get("route", "simple")).lower()
+                if route not in (
+                    "simple",
+                    "multi_hop",
+                    "comparison",
+                    "aggregation",
+                    "conversation",
+                ):
+                    routing_context["invalid_route"] = route
+                    route = "simple"
+                sub_queries = [
+                    str(sq)
+                    for sq in parsed.get("sub_queries", [])
+                    if isinstance(sq, str)
+                ]
+                routing_context["route"] = route
+                routing_context["sub_query_count"] = len(sub_queries)
+                routing_context["outcome"] = "success"
+                span.set_attribute("evidentrag.route", route)
+                span.set_attribute("evidentrag.sub_query.count", len(sub_queries))
+                return RoutingResult(route=route, sub_queries=sub_queries)
+            except Exception as exc:
+                routing_context["outcome"] = "fallback"
+                routing_context["error_type"] = type(exc).__name__
+                span.record_exception(exc)
+                span.set_status(Status(StatusCode.ERROR, type(exc).__name__))
+                return RoutingResult(route="simple", sub_queries=[])
+            finally:
+                routing_context["duration_ms"] = round(
+                    (perf_counter() - started_at) * 1000, 2
+                )
+                enrich_wide_event(routing=routing_context)

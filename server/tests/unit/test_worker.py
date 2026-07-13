@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -17,6 +18,7 @@ from app.core.config import (
     RerankerSettings,
     Settings,
 )
+from app.core.logging import enrich_wide_event, get_request_id
 
 
 @pytest.mark.asyncio
@@ -72,6 +74,57 @@ async def test_run_message_pipeline_builds_pipeline_from_ctx_and_runs_message(
 
 
 @pytest.mark.asyncio
+async def test_run_message_pipeline_preserves_request_context_for_job(
+    monkeypatch,
+) -> None:
+    from app import worker as worker_module
+
+    observed_request_ids: list[str | None] = []
+    log_records: list[tuple[str, dict[str, Any]]] = []
+
+    class FakeQueryPipeline:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        async def run(self, actual_message_id) -> None:
+            observed_request_ids.append(get_request_id())
+            enrich_wide_event(pipeline={"route": "simple", "retrieval_count": 20})
+
+    monkeypatch.setattr(worker_module, "QueryPipeline", FakeQueryPipeline)
+    monkeypatch.setattr(
+        worker_module.logger,
+        "info",
+        lambda message, **kwargs: log_records.append((message, kwargs)),
+    )
+    ctx = {
+        "session_factory": object(),
+        "redis": object(),
+        "embedding_client": object(),
+        "qdrant_store": object(),
+        "rerank_client": object(),
+        "llm_client": object(),
+        "arag_router": object(),
+    }
+
+    await worker_module.run_message_pipeline(
+        ctx,
+        uuid.uuid4(),
+        {"x-request-id": "request-123"},
+    )
+
+    assert observed_request_ids == ["request-123"]
+    assert get_request_id() is None
+    records = [record for record in log_records if record[0] == "run_message_pipeline"]
+    assert len(records) == 1
+    wide_event = records[0][1]["extra"]["wide_event"]
+    assert wide_event["request_id"] == "request-123"
+    assert wide_event["pipeline"] == {
+        "route": "simple",
+        "retrieval_count": 20,
+    }
+
+
+@pytest.mark.asyncio
 async def test_run_message_pipeline_skips_non_retryable_errors(monkeypatch) -> None:
     from app.application.query_pipeline.query_pipeline import NonRetryablePipelineError
     from app import worker as worker_module
@@ -101,13 +154,76 @@ async def test_run_message_pipeline_skips_non_retryable_errors(monkeypatch) -> N
 
 
 @pytest.mark.asyncio
+async def test_run_document_ingestion_preserves_context_and_emits_one_event(
+    monkeypatch,
+) -> None:
+    from app import worker as worker_module
+
+    observed_request_ids: list[str | None] = []
+    log_records: list[tuple[str, dict[str, Any]]] = []
+
+    class FakeDocumentIngestionPipeline:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        async def run(self, document_id: str) -> None:
+            observed_request_ids.append(get_request_id())
+            enrich_wide_event(document={"id": document_id, "evidence_count": 42})
+
+    monkeypatch.setattr(
+        worker_module, "DocumentIngestionPipeline", FakeDocumentIngestionPipeline
+    )
+    monkeypatch.setattr(
+        worker_module.logger,
+        "info",
+        lambda message, **kwargs: log_records.append((message, kwargs)),
+    )
+    ctx = {
+        "session_factory": object(),
+        "redis": object(),
+        "embedding_client": object(),
+        "llm_client": object(),
+        "qdrant_store": object(),
+        "document_storage": object(),
+    }
+    document_id = uuid.uuid4()
+
+    await worker_module.run_document_ingestion(
+        ctx,
+        document_id,
+        {"x-request-id": "request-456"},
+    )
+
+    assert observed_request_ids == ["request-456"]
+    assert get_request_id() is None
+    records = [
+        record for record in log_records if record[0] == "run_document_ingestion"
+    ]
+    assert len(records) == 1
+    wide_event = records[0][1]["extra"]["wide_event"]
+    assert wide_event["request_id"] == "request-456"
+    assert wide_event["document"] == {
+        "id": str(document_id),
+        "evidence_count": 42,
+    }
+
+
+@pytest.mark.asyncio
 async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> None:
     from app import worker as worker_module
 
     captured: dict[str, object] = {}
+    log_records: list[tuple[str, dict[str, Any]]] = []
+    warning_records: list[tuple[str, dict[str, Any]]] = []
     fake_engine = object()
     fake_session_factory = object()
     fake_redis = object()
+
+    class FakeTelemetryRuntime:
+        def instrument_sqlalchemy(self, engine) -> None:
+            captured["telemetry_engine"] = engine
+
+    fake_telemetry = FakeTelemetryRuntime()
 
     settings = Settings(
         app=AppSettings(
@@ -115,7 +231,7 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
             environment="test",
             client_dist_path="../client/dist",
         ),
-        log=LogSettings(level="INFO", format="json"),
+        log=LogSettings(level="INFO"),
         otel=OtelSettings(
             enabled=False,
             service_name="server-test",
@@ -163,6 +279,9 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
 
         async def ensure_collection(self) -> None:
             captured["ensure_collection_called"] = True
+            from app.core.telemetry import record_degradation
+
+            record_degradation("qdrant_payload_index", field="source_id")
 
     class FakeEmbeddingClient:
         def __init__(self, actual_settings) -> None:
@@ -196,6 +315,11 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
         captured["redis_url"] = url
         return fake_redis
 
+    def fake_configure_telemetry(app, actual_settings) -> object:
+        captured["telemetry_app"] = app
+        captured["telemetry_settings"] = actual_settings
+        return fake_telemetry
+
     monkeypatch.setattr(worker_module, "settings", settings)
     monkeypatch.setattr(worker_module, "create_engine", fake_create_engine)
     monkeypatch.setattr(
@@ -207,7 +331,23 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
     monkeypatch.setattr(worker_module, "AragRouter", FakeAragRouter)
     monkeypatch.setattr(worker_module, "RerankClient", FakeRerankClient)
     monkeypatch.setattr(
+        worker_module,
+        "configure_telemetry",
+        fake_configure_telemetry,
+        raising=False,
+    )
+    monkeypatch.setattr(
         worker_module.Redis, "from_url", staticmethod(fake_redis_from_url)
+    )
+    monkeypatch.setattr(
+        worker_module.logger,
+        "info",
+        lambda message, **kwargs: log_records.append((message, kwargs)),
+    )
+    monkeypatch.setattr(
+        worker_module.logger,
+        "warning",
+        lambda message, **kwargs: warning_records.append((message, kwargs)),
     )
 
     ctx: dict[str, object] = {}
@@ -223,6 +363,9 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
     assert captured["redis_url"] == settings.redis.url
     assert captured["ensure_collection_called"] is True
     assert captured["arag_router_llm_client"] is captured["llm_client_instance"]
+    assert captured["telemetry_app"] is None
+    assert captured["telemetry_settings"] is settings
+    assert captured["telemetry_engine"] is fake_engine
 
     document_storage = ctx.pop("document_storage")
     assert document_storage.__class__.__name__ == "LocalDocumentStorage"
@@ -235,7 +378,21 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
         "rerank_client": captured["rerank_client_instance"],
         "redis": fake_redis,
         "arag_router": captured["arag_router_instance"],
+        "telemetry": fake_telemetry,
     }
+    assert warning_records == []
+    startup_records = [
+        record for record in log_records if record[0] == "worker_startup"
+    ]
+    assert len(startup_records) == 1
+    assert startup_records[0][1]["extra"]["wide_event"]["model_catalog"] == {
+        "outcome": "degraded",
+        "error_type": "AttributeError",
+        "error_message": "'FakeLLMClient' object has no attribute 'set_model_catalog'",
+    }
+    assert startup_records[0][1]["extra"]["wide_event"]["degradations"] == [
+        {"stage": "qdrant_payload_index", "field": "source_id"}
+    ]
 
 
 @pytest.mark.asyncio
@@ -245,6 +402,7 @@ async def test_worker_shutdown_closes_redis_and_disposes_engine() -> None:
     captured: dict[str, bool] = {
         "redis_closed": False,
         "engine_disposed": False,
+        "telemetry_shutdown": False,
     }
 
     class FakeRedis:
@@ -255,9 +413,16 @@ async def test_worker_shutdown_closes_redis_and_disposes_engine() -> None:
         async def dispose(self) -> None:
             captured["engine_disposed"] = True
 
+    class FakeTelemetryRuntime:
+        def shutdown(self) -> None:
+            assert captured["redis_closed"] is True
+            assert captured["engine_disposed"] is True
+            captured["telemetry_shutdown"] = True
+
     ctx = {
         "redis": FakeRedis(),
         "engine": FakeEngine(),
+        "telemetry": FakeTelemetryRuntime(),
     }
 
     await worker_module.shutdown(ctx)
@@ -265,6 +430,7 @@ async def test_worker_shutdown_closes_redis_and_disposes_engine() -> None:
     assert captured == {
         "redis_closed": True,
         "engine_disposed": True,
+        "telemetry_shutdown": True,
     }
 
 
@@ -300,6 +466,24 @@ async def test_cleanup_deleted_documents_removes_expired_source_documents(
     qdrant_document_ids: list[str] = []
     storage_keys: list[str] = []
     committed = False
+    observability_call: tuple[str, dict[str, object], object] | None = None
+
+    class FakeJobObservability:
+        def __init__(
+            self,
+            job_name: str,
+            identity: dict[str, object],
+            trace_context: object,
+        ) -> None:
+            nonlocal observability_call
+            observability_call = (job_name, identity, trace_context)
+            self.wide_event = {"event": job_name, **identity}
+
+        def __enter__(self) -> dict[str, object]:
+            return self.wide_event
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
 
     class FakeScalarResult:
         def __init__(self, values: list[object]) -> None:
@@ -346,6 +530,7 @@ async def test_cleanup_deleted_documents_removes_expired_source_documents(
         ingestion=SimpleNamespace(audit_retention_days=7),
     )
     monkeypatch.setattr(worker_module, "settings", test_settings)
+    monkeypatch.setattr(worker_module, "_job_observability", FakeJobObservability)
 
     await worker_module.cleanup_deleted_documents(
         {
@@ -359,3 +544,8 @@ async def test_cleanup_deleted_documents_removes_expired_source_documents(
     assert storage_keys == ["documents/example.pdf"]
     assert deleted_objects == [document, source]
     assert committed is True
+    assert observability_call == (
+        "deleted_document_cleanup",
+        {"retention_days": 7},
+        None,
+    )

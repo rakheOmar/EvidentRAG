@@ -47,7 +47,6 @@ class AppSettings:
 @dataclass(frozen=True)
 class LogSettings:
     level: str
-    format: str
 
 
 @dataclass(frozen=True)
@@ -171,7 +170,6 @@ def get_settings() -> Settings:
         ),
         log=LogSettings(
             level=os.getenv("LOG_LEVEL", "INFO").upper(),
-            format=os.getenv("LOG_FORMAT", "json").lower(),
         ),
         otel=OtelSettings(
             enabled=_get_bool("OTEL_ENABLED", False),

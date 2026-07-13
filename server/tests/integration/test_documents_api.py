@@ -9,10 +9,15 @@ from app.infrastructure.db.models import Document, Source
 
 class _JobQueue:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[str, str, dict[str, str]]] = []
 
-    async def enqueue_job(self, function_name: str, document_id: str) -> None:
-        self.calls.append((function_name, document_id))
+    async def enqueue_job(
+        self,
+        function_name: str,
+        document_id: str,
+        trace_context: dict[str, str],
+    ) -> None:
+        self.calls.append((function_name, document_id, trace_context))
 
 
 class _DocumentStorage:
@@ -99,7 +104,10 @@ def test_document_upload_list_detail_and_terminal_events(client) -> None:
 
     assert uploaded["id"] == document_id
     assert uploaded["status"] == "queued"
-    assert queue.calls == [("run_document_ingestion", document_id)]
+    function_name, queued_document_id, trace_context = queue.calls[0]
+    assert function_name == "run_document_ingestion"
+    assert queued_document_id == document_id
+    UUID(trace_context["x-request-id"])
     assert list(storage.writes.values()) == [b"%PDF-1.7\ncontent"]
 
     listing = client.get("/api/v1/documents")
@@ -132,7 +140,10 @@ def test_document_retry_and_delete_tombstones_source(client) -> None:
 
     assert retry.status_code == 200
     assert retry.json()["status"] == "queued"
-    assert queue.calls[-1] == ("run_document_ingestion", document_id)
+    function_name, queued_document_id, trace_context = queue.calls[-1]
+    assert function_name == "run_document_ingestion"
+    assert queued_document_id == document_id
+    assert trace_context["x-request-id"] == retry.headers["x-request-id"]
 
     deleted = client.delete(f"/api/v1/documents/{document_id}")
     missing = client.delete("/api/v1/documents/00000000-0000-0000-0000-000000000000")

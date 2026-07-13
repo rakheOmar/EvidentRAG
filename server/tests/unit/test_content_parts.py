@@ -122,6 +122,4 @@ def test_answer_content_parts_removes_model_authored_image_markdown() -> None:
         [],
     )
 
-    assert result == [
-        {"type": "text", "text": "See  for the input representation."}
-    ]
+    assert result == [{"type": "text", "text": "See  for the input representation."}]

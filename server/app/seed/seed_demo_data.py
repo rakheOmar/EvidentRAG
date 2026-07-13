@@ -13,7 +13,7 @@ from qdrant_client.http.models import PointStruct
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import get_settings
-from app.core.logging import configure_logging
+from app.core.logging import configure_logging, reset_wide_event, set_wide_event
 from app.infrastructure.db.session import create_engine, create_session_factory
 from app.infrastructure.db.models import Base, Document, Evidence, Source
 from app.infrastructure.embeddings.embedding import EmbeddingClient
@@ -49,16 +49,6 @@ async def _embed_batch(
         if exc.response.status_code != 400:
             raise
         if len(texts) == 1:
-            logger.info(
-                "seed_embedding_skipped",
-                extra={
-                    "wide_event": {
-                        "event": "seed_embedding_skipped",
-                        "locator": locators[0],
-                        "outcome": "skipped",
-                    }
-                },
-            )
             return [], [0]
 
         midpoint = len(texts) // 2
@@ -141,15 +131,17 @@ async def seed_demo_data(
     started_at = perf_counter()
     seeded_count = 0
     skipped_count = 0
+    seeded_evidence_count = 0
+    skipped_evidence_count = 0
     artifact_paths = sorted(seed_dir.glob("*.json"))
     wide_event: dict[str, object] = {
         "event": "seed_demo_data",
         "seed_dir": str(seed_dir),
         "document_count": len(artifact_paths),
     }
+    wide_event_token = set_wide_event(wide_event)
 
     try:
-        logger.info("seed_demo_data_starting", extra={"wide_event": wide_event})
         await _recreate_schema(session_factory)
         wide_event["schema_recreated"] = True
 
@@ -205,19 +197,9 @@ async def seed_demo_data(
                     embedded_rows, vectors = await _embed_evidence_rows(
                         embedding_client, evidence_rows
                     )
+                    skipped_evidence_count += len(evidence_rows) - len(embedded_rows)
                     if not embedded_rows:
                         skipped_count += 1
-                        logger.info(
-                            "seed_document_skipped",
-                            extra={
-                                "wide_event": {
-                                    "event": "seed_document_skipped",
-                                    "reason": "no_embeddable_evidence",
-                                    "slug": document.slug,
-                                    "outcome": "skipped",
-                                }
-                            },
-                        )
                         await session.rollback()
                         continue
 
@@ -250,35 +232,33 @@ async def seed_demo_data(
                     await qdrant_store.upsert_points(points)
                     await session.commit()
                     seeded_count += 1
-                    logger.info(
-                        "seed_document_seeded",
-                        extra={
-                            "wide_event": {
-                                "event": "seed_document_seeded",
-                                "slug": document.slug,
-                                "evidence_count": len(embedded_rows),
-                                "outcome": "success",
-                            }
-                        },
-                    )
+                    seeded_evidence_count += len(embedded_rows)
                 except Exception:
                     await session.rollback()
                     raise
 
         wide_event["seeded_count"] = seeded_count
         wide_event["skipped_count"] = skipped_count
+        wide_event["seeded_evidence_count"] = seeded_evidence_count
+        wide_event["skipped_evidence_count"] = skipped_evidence_count
         wide_event["outcome"] = "success"
         return seeded_count
     except Exception as exc:
         wide_event["seeded_count"] = seeded_count
         wide_event["skipped_count"] = skipped_count
+        wide_event["seeded_evidence_count"] = seeded_evidence_count
+        wide_event["skipped_evidence_count"] = skipped_evidence_count
         wide_event["outcome"] = "error"
         wide_event["error_type"] = type(exc).__name__
         wide_event["error_message"] = str(exc)
         raise
     finally:
         wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-        logger.info("seed_demo_data", extra={"wide_event": wide_event})
+        log = logger.error if wide_event.get("outcome") == "error" else logger.info
+        try:
+            log("seed_demo_data", extra={"wide_event": wide_event})
+        finally:
+            reset_wide_event(wide_event_token)
 
 
 async def run_seed_demo_data(seed_dir: Path = DEFAULT_SEED_DIR) -> int:

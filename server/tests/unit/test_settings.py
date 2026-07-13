@@ -40,7 +40,7 @@ def test_settings_normalize_shorthand_embedding_model(monkeypatch) -> None:
 
     settings = get_settings()
 
-    assert settings.embeddings.model == "google/gemini-embedding-2"
+    assert settings.embeddings.model == "gemini-embedding-2"
 
 
 def test_settings_read_db_env(monkeypatch) -> None:

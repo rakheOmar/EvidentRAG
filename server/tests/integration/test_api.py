@@ -44,6 +44,10 @@ def _sse_done_event(
                 "page": 1,
                 "erm_state": None,
                 "erm_multiplier": None,
+                "kind": "text",
+                "asset_key": None,
+                "asset_url": None,
+                "bounding_box": None,
             }
         ],
         "content_parts": [
@@ -156,10 +160,15 @@ def test_create_thread_returns_pending_turn(client) -> None:
 def test_append_message_enqueues_pipeline_job(client) -> None:
     class FakeJobQueue:
         def __init__(self) -> None:
-            self.calls: list[tuple[str, str]] = []
+            self.calls: list[tuple[str, str, dict[str, str]]] = []
 
-        async def enqueue_job(self, function_name: str, message_id: str) -> None:
-            self.calls.append((function_name, message_id))
+        async def enqueue_job(
+            self,
+            function_name: str,
+            message_id: str,
+            trace_context: dict[str, str],
+        ) -> None:
+            self.calls.append((function_name, message_id, trace_context))
 
     job_queue = FakeJobQueue()
     client.app.state.job_queue = job_queue
@@ -177,7 +186,10 @@ def test_append_message_enqueues_pipeline_job(client) -> None:
 
     assert response.status_code == 201
     message_id = response.json()["assistant_message"]["id"]
-    assert job_queue.calls[-1] == ("run_message_pipeline", message_id)
+    function_name, queued_message_id, trace_context = job_queue.calls[-1]
+    assert function_name == "run_message_pipeline"
+    assert queued_message_id == message_id
+    assert trace_context["x-request-id"] == response.headers["x-request-id"]
 
 
 def test_list_threads_returns_created_threads(client) -> None:
@@ -257,7 +269,7 @@ def test_put_sentence_trace_feedback_sets_rating_and_updates_erm(client) -> None
     graph = _create_answer_graph(client, thread_id=thread_id, message_id=message_id)
 
     response = client.put(
-        f"/api/v1/sentence-traces/{graph['segment_id']}/feedback",
+        f"/api/v1/sentence-traces/{graph['segment_id']}/rating",
         json={"rating": "up"},
     )
 
@@ -307,11 +319,11 @@ def test_put_sentence_trace_feedback_overwrites_previous_rating(client) -> None:
     graph = _create_answer_graph(client, thread_id=thread_id, message_id=message_id)
 
     client.put(
-        f"/api/v1/sentence-traces/{graph['segment_id']}/feedback",
+        f"/api/v1/sentence-traces/{graph['segment_id']}/rating",
         json={"rating": "up"},
     )
     response = client.put(
-        f"/api/v1/sentence-traces/{graph['segment_id']}/feedback",
+        f"/api/v1/sentence-traces/{graph['segment_id']}/rating",
         json={"rating": "down"},
     )
 
@@ -339,7 +351,7 @@ def test_put_sentence_trace_feedback_returns_not_found_for_missing_trace(
     client,
 ) -> None:
     response = client.put(
-        "/api/v1/sentence-traces/00000000-0000-0000-0000-000000000000/feedback",
+        "/api/v1/sentence-traces/00000000-0000-0000-0000-000000000000/rating",
         json={"rating": "up"},
     )
 
@@ -348,7 +360,7 @@ def test_put_sentence_trace_feedback_returns_not_found_for_missing_trace(
 
 def test_put_sentence_trace_feedback_returns_422_for_invalid_rating(client) -> None:
     response = client.put(
-        "/api/v1/sentence-traces/00000000-0000-0000-0000-000000000000/feedback",
+        "/api/v1/sentence-traces/00000000-0000-0000-0000-000000000000/rating",
         json={"rating": "sideways"},
     )
 

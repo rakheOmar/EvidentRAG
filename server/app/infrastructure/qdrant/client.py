@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import inspect
-import logging
 import re
-from time import perf_counter
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.models import (
@@ -22,8 +20,7 @@ from qdrant_client.http.models import (
 )
 
 from app.core.config import QdrantSettings
-
-logger = logging.getLogger(__name__)
+from app.core.telemetry import record_degradation, traced_operation
 
 _FNV_OFFSET_BASIS_32 = 0x811C9DC5
 _FNV_PRIME_32 = 0x01000193
@@ -89,15 +86,9 @@ class QdrantStore:
                     self._collection, field_name=field_name, field_schema=schema
                 )
             except Exception:
-                logger.warning(
-                    "qdrant_payload_index_unavailable",
-                    extra={
-                        "wide_event": {
-                            "event": "qdrant_payload_index_unavailable",
-                            "field": field_name,
-                            "outcome": "degraded",
-                        }
-                    },
+                record_degradation(
+                    "qdrant_payload_index",
+                    field=field_name,
                 )
 
     async def reset_collection(self) -> None:
@@ -161,17 +152,14 @@ class QdrantStore:
         sparse_limit: int = 20,
         fused_limit: int = 20,
     ) -> list:
-        started_at = perf_counter()
-
-        wide_event: dict[str, object] = {
-            "event": "hybrid_search",
+        operation_context = {
             "collection": self._collection,
             "dense_limit": dense_limit,
             "sparse_limit": sparse_limit,
             "fused_limit": fused_limit,
         }
 
-        try:
+        with traced_operation("qdrant.hybrid_search", **operation_context) as operation:
             response = await self._client.query_points(
                 self._collection,
                 prefetch=[
@@ -189,14 +177,5 @@ class QdrantStore:
                     must=[FieldCondition(key="eligible", match=MatchValue(value=True))]
                 ),
             )
-            wide_event["result_count"] = len(response.points)
-            wide_event["outcome"] = "success"
+            operation["result_count"] = len(response.points)
             return response.points
-        except Exception as exc:
-            wide_event["outcome"] = "error"
-            wide_event["error_type"] = type(exc).__name__
-            wide_event["error_message"] = str(exc)
-            raise
-        finally:
-            wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-            logger.info("hybrid_search", extra={"wide_event": wide_event})
