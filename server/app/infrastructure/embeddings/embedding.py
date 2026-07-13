@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import re
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from time import sleep
-from typing import Any
+from typing import Any, Protocol, TypeVar
 
 from google import genai
 from google.genai import types
@@ -13,12 +14,26 @@ from app.core.telemetry import record_degradation, traced_operation
 
 MAX_EMBEDDING_REQUEST_SIZE = 100
 MAX_EMBEDDING_RETRIES = 8
+T = TypeVar("T")
+
+
+class EmbeddingScheduler(Protocol):
+    async def run(
+        self,
+        bucket: str,
+        operation: Callable[[], Awaitable[T]],
+    ) -> T: ...
 
 
 class EmbeddingClient:
-    def __init__(self, settings: EmbeddingSettings) -> None:
+    def __init__(
+        self,
+        settings: EmbeddingSettings,
+        scheduler: EmbeddingScheduler | None = None,
+    ) -> None:
         self._model = settings.model
         self._dimensions = settings.dimensions
+        self._scheduler = scheduler
         if settings.batch_size < 1:
             raise ValueError("Embedding batch size must be greater than zero")
         self._batch_size = min(settings.batch_size, MAX_EMBEDDING_REQUEST_SIZE)
@@ -39,6 +54,21 @@ class EmbeddingClient:
         ]
         return self._embed(contents, "embed_images")
 
+    async def embed_texts_async(self, texts: list[str]) -> list[list[float]]:
+        contents = [
+            types.Content(parts=[types.Part.from_text(text=text)]) for text in texts
+        ]
+        return await self._embed_async(contents, "embed_texts")
+
+    async def embed_images_async(self, images: list[bytes]) -> list[list[float]]:
+        contents = [
+            types.Content(
+                parts=[types.Part.from_bytes(data=image, mime_type="image/png")]
+            )
+            for image in images
+        ]
+        return await self._embed_async(contents, "embed_images")
+
     def _embed(
         self,
         contents: Sequence[types.Content],
@@ -55,6 +85,49 @@ class EmbeddingClient:
                 )
             )
         return results
+
+    async def _embed_async(
+        self,
+        contents: Sequence[types.Content],
+        event: str,
+    ) -> list[list[float]]:
+        results: list[list[float]] = []
+        batch_count = (len(contents) + self._batch_size - 1) // self._batch_size
+        for start in range(0, len(contents), self._batch_size):
+            batch = contents[start : start + self._batch_size]
+            results.extend(
+                await self._embed_batch_async(
+                    batch,
+                    event,
+                    start // self._batch_size + 1,
+                    batch_count,
+                )
+            )
+        return results
+
+    async def _embed_batch_async(
+        self,
+        contents: Sequence[types.Content],
+        event: str,
+        batch_number: int,
+        batch_count: int,
+    ) -> list[list[float]]:
+        operation_context = {
+            "model": self._model,
+            "batch_size": len(contents),
+            "batch_number": batch_number,
+            "batch_count": batch_count,
+        }
+        with traced_operation(event, **operation_context) as operation:
+            response = await self._embed_with_retries_async(contents, operation)
+            result = [list(embedding.values) for embedding in response.embeddings]
+            if len(result) != len(contents):
+                raise ValueError(
+                    f"Embedding response contained {len(result)} vectors for "
+                    f"{len(contents)} inputs"
+                )
+            operation["embedding_count"] = len(result)
+            return result
 
     def _embed_batch(
         self,
@@ -107,6 +180,45 @@ class EmbeddingClient:
                     retry_delay_seconds=delay,
                 )
                 sleep(delay)
+
+        raise AssertionError("Embedding retry loop exited unexpectedly")
+
+    async def _embed_with_retries_async(
+        self,
+        contents: Sequence[types.Content],
+        wide_event: dict[str, object],
+    ) -> Any:
+        for attempt in range(MAX_EMBEDDING_RETRIES + 1):
+
+            async def request() -> Any:
+                return await asyncio.to_thread(
+                    self._client.models.embed_content,
+                    model=self._model,
+                    contents=list(contents),
+                    config=types.EmbedContentConfig(
+                        output_dimensionality=self._dimensions,
+                    ),
+                )
+
+            try:
+                return (
+                    await self._scheduler.run("embeddings", request)
+                    if self._scheduler is not None
+                    else await request()
+                )
+            except Exception as exc:
+                if not self._is_rate_limited(exc) or attempt >= MAX_EMBEDDING_RETRIES:
+                    raise
+                delay = self._retry_delay(exc, attempt)
+                wide_event["retry_count"] = attempt + 1
+                wide_event["retry_delay_seconds"] = delay
+                record_degradation(
+                    "embedding_rate_limit",
+                    model=self._model,
+                    attempt=attempt + 1,
+                    retry_delay_seconds=delay,
+                )
+                await asyncio.sleep(delay)
 
         raise AssertionError("Embedding retry loop exited unexpectedly")
 

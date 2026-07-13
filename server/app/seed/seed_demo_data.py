@@ -10,10 +10,12 @@ from time import perf_counter
 
 import httpx
 from qdrant_client.http.models import PointStruct
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, reset_wide_event, set_wide_event
+from app.infrastructure.ai.scheduler import AIRequestScheduler
 from app.infrastructure.db.session import create_engine, create_session_factory
 from app.infrastructure.db.models import Base, Document, Evidence, Source
 from app.infrastructure.embeddings.embedding import EmbeddingClient
@@ -43,7 +45,7 @@ async def _embed_batch(
     locators: Sequence[str],
 ) -> tuple[list[list[float]], list[int]]:
     try:
-        vectors = await asyncio.to_thread(embedding_client.embed_texts, list(texts))
+        vectors = await embedding_client.embed_texts_async(list(texts))
         return vectors, []
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code != 400:
@@ -268,7 +270,9 @@ async def run_seed_demo_data(seed_dir: Path = DEFAULT_SEED_DIR) -> int:
     engine = create_engine(settings.db)
     session_factory = create_session_factory(engine)
     qdrant_store = QdrantStore(settings.qdrant)
-    embedding_client = EmbeddingClient(settings.embeddings)
+    redis = Redis.from_url(settings.redis.url)
+    scheduler = AIRequestScheduler(redis, settings.rate_limits)
+    embedding_client = EmbeddingClient(settings.embeddings, scheduler=scheduler)
 
     try:
         return await seed_demo_data(
@@ -278,6 +282,7 @@ async def run_seed_demo_data(seed_dir: Path = DEFAULT_SEED_DIR) -> int:
             seed_dir=seed_dir,
         )
     finally:
+        await redis.aclose()
         await qdrant_store.close()
         await engine.dispose()
 

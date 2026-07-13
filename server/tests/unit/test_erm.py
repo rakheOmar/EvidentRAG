@@ -57,7 +57,7 @@ class _FakeWriteSession:
 
 
 class _FakeEmbeddingClient:
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+    async def embed_texts_async(self, texts: list[str]) -> list[list[float]]:
         assert texts == ["What is BERT?"]
         return [[1.0, 0.0]]
 

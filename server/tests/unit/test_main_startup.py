@@ -56,16 +56,19 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
             record_degradation("qdrant_payload_index", field="source_id")
 
     class FakeEmbeddingClient:
-        def __init__(self, settings) -> None:
+        def __init__(self, settings, scheduler=None) -> None:
             captured["embedding_settings"] = settings
+            captured["embedding_scheduler"] = scheduler
 
     class FakeLLMClient:
         def __init__(self, settings, scheduler=None) -> None:
             captured["llm_settings"] = settings
+            captured["llm_scheduler"] = scheduler
 
     class FakeRerankClient:
         def __init__(self, settings, scheduler=None) -> None:
             captured["reranker_settings"] = settings
+            captured["reranker_scheduler"] = scheduler
 
     class FakeJobQueue:
         async def aclose(self) -> None:
@@ -191,6 +194,8 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
     assert captured["job_queue_url"] == settings.redis.url
     assert captured["embedding_settings"] is settings.embeddings
     assert captured["llm_settings"] is settings.llm
+    assert captured["embedding_scheduler"] is captured["llm_scheduler"]
+    assert captured["embedding_scheduler"] is captured["reranker_scheduler"]
     assert captured["seed_args"]["session_factory"] is fake_session_factory
     assert app.state.session_factory is fake_session_factory
     assert app.state.job_queue is fake_job_queue
@@ -245,7 +250,7 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
             captured["job_queue_closed"] = True
 
     class FakeEmbeddingClient:
-        def __init__(self, settings) -> None:
+        def __init__(self, settings, scheduler=None) -> None:
             captured["embedding_settings"] = settings
 
     class FakeLLMClient:

@@ -560,7 +560,7 @@ class QueryPipeline:
         if self._embedding_client is None or self._qdrant_store is None:
             return None
 
-        dense_vector = self._embedding_client.embed_texts([query_text])[0]
+        dense_vector = (await self._embedding_client.embed_texts_async([query_text]))[0]
         search_results = await self._qdrant_store.hybrid_search(
             query_text=query_text,
             dense_vector=dense_vector,
@@ -665,7 +665,7 @@ class QueryPipeline:
         if self._embedding_client is None or self._qdrant_store is None:
             return [], [], {}
 
-        dense_vector = self._embedding_client.embed_texts([query_text])[0]
+        dense_vector = (await self._embedding_client.embed_texts_async([query_text]))[0]
         search_results = await self._qdrant_store.hybrid_search(
             query_text=query_text,
             dense_vector=dense_vector,
@@ -781,7 +781,9 @@ class QueryPipeline:
 
         ranked = await self._apply_erm_to_ranked_results(
             session,
-            query_embedding=self._embedding_client.embed_texts([query_text])[0]
+            query_embedding=(
+                await self._embedding_client.embed_texts_async([query_text])
+            )[0]
             if self._embedding_client is not None
             else [],
             evidence_ids=ordered_ids,

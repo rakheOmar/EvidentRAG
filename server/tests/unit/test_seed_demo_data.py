@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -103,7 +104,7 @@ class _FakeEmbeddingClient:
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
 
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+    async def embed_texts_async(self, texts: list[str]) -> list[list[float]]:
         self.calls.append(texts)
         return [
             [float(index), float(index) + 0.1] for index, _ in enumerate(texts, start=1)
@@ -111,7 +112,7 @@ class _FakeEmbeddingClient:
 
 
 class _FailingEmbeddingClient:
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+    async def embed_texts_async(self, texts: list[str]) -> list[list[float]]:
         raise RuntimeError("embedding failed")
 
 
@@ -119,7 +120,7 @@ class _BadChunkEmbeddingClient:
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
 
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+    async def embed_texts_async(self, texts: list[str]) -> list[list[float]]:
         self.calls.append(texts)
         if any(text == "bad" for text in texts):
             raise httpx.HTTPStatusError(
@@ -563,11 +564,14 @@ async def test_run_seed_demo_data_uses_runtime_dependencies(
     fake_session_factory = object()
     fake_qdrant_store = _FakeQdrantStore()
     fake_embedding_client = object()
+    fake_redis = SimpleNamespace(aclose=AsyncMock())
     captured: dict[str, Any] = {}
     settings = SimpleNamespace(
         db=object(),
         qdrant=object(),
         embeddings=object(),
+        redis=SimpleNamespace(url="redis://test"),
+        rate_limits=object(),
     )
 
     monkeypatch.setattr("app.core.config.load_dotenv", lambda *a, **k: None)
@@ -589,8 +593,9 @@ async def test_run_seed_demo_data_uses_runtime_dependencies(
         captured["qdrant_settings"] = qdrant_settings
         return fake_qdrant_store
 
-    def fake_embedding_factory(embedding_settings):
+    def fake_embedding_factory(embedding_settings, scheduler=None):
         captured["embedding_settings"] = embedding_settings
+        captured["embedding_scheduler"] = scheduler
         return fake_embedding_client
 
     monkeypatch.setattr("app.seed.seed_demo_data.create_engine", fake_create_engine)
@@ -600,6 +605,9 @@ async def test_run_seed_demo_data_uses_runtime_dependencies(
     monkeypatch.setattr("app.seed.seed_demo_data.QdrantStore", fake_qdrant_factory)
     monkeypatch.setattr(
         "app.seed.seed_demo_data.EmbeddingClient", fake_embedding_factory
+    )
+    monkeypatch.setattr(
+        "app.seed.seed_demo_data.Redis.from_url", lambda url: fake_redis
     )
 
     async def fake_seed_demo_data(**kwargs):
@@ -616,6 +624,7 @@ async def test_run_seed_demo_data_uses_runtime_dependencies(
     assert captured["engine"] is fake_engine
     assert captured["qdrant_settings"] is settings.qdrant
     assert captured["embedding_settings"] is settings.embeddings
+    assert captured["embedding_scheduler"] is not None
     assert captured["seed_kwargs"] == {
         "session_factory": fake_session_factory,
         "qdrant_store": fake_qdrant_store,
@@ -624,3 +633,4 @@ async def test_run_seed_demo_data_uses_runtime_dependencies(
     }
     assert fake_qdrant_store.closed is True
     assert fake_engine.disposed is True
+    fake_redis.aclose.assert_awaited_once()

@@ -284,14 +284,16 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
             record_degradation("qdrant_payload_index", field="source_id")
 
     class FakeEmbeddingClient:
-        def __init__(self, actual_settings) -> None:
+        def __init__(self, actual_settings, scheduler=None) -> None:
             captured["embedding_settings"] = actual_settings
             captured["embedding_client_instance"] = self
+            captured["embedding_scheduler"] = scheduler
 
     class FakeLLMClient:
         def __init__(self, actual_settings, scheduler=None) -> None:
             captured["llm_settings"] = actual_settings
             captured["llm_client_instance"] = self
+            captured["llm_scheduler"] = scheduler
 
     class FakeAragRouter:
         def __init__(self, llm_client) -> None:
@@ -302,6 +304,7 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
         def __init__(self, actual_settings, scheduler=None) -> None:
             captured["reranker_settings"] = actual_settings
             captured["rerank_client_instance"] = self
+            captured["reranker_scheduler"] = scheduler
 
     def fake_create_engine(actual_settings) -> object:
         captured["db_settings"] = actual_settings
@@ -366,6 +369,8 @@ async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> Non
     assert captured["telemetry_app"] is None
     assert captured["telemetry_settings"] is settings
     assert captured["telemetry_engine"] is fake_engine
+    assert captured["embedding_scheduler"] is captured["llm_scheduler"]
+    assert captured["embedding_scheduler"] is captured["reranker_scheduler"]
 
     document_storage = ctx.pop("document_storage")
     assert document_storage.__class__.__name__ == "LocalDocumentStorage"

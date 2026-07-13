@@ -86,7 +86,7 @@ async def apply_feedback_to_erm(
     if not evidence_ids:
         return
 
-    embedding = embedding_client.embed_texts([query_text])[0]
+    embedding = (await embedding_client.embed_texts_async([query_text]))[0]
     query_embedding_hash = hash_query_embedding(embedding)
     query_embedding = await session.get(ErmQueryEmbedding, query_embedding_hash)
     if query_embedding is None:

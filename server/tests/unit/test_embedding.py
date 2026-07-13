@@ -29,6 +29,15 @@ class _FakeGenAIClient:
         self.models = _FakeModels()
 
 
+class _FakeScheduler:
+    def __init__(self) -> None:
+        self.buckets: list[str] = []
+
+    async def run(self, bucket: str, operation):
+        self.buckets.append(bucket)
+        return await operation()
+
+
 def _client(monkeypatch, fake: _FakeGenAIClient) -> EmbeddingClient:
     monkeypatch.setattr(
         "app.infrastructure.embeddings.embedding.genai.Client",
@@ -80,6 +89,75 @@ def test_embed_texts_splits_requests_at_configured_batch_size(monkeypatch) -> No
 
     assert [len(call["contents"]) for call in fake.models.calls] == [64, 64, 33]
     assert len(vectors) == 161
+
+
+@pytest.mark.asyncio
+async def test_embed_texts_async_schedules_each_provider_batch(monkeypatch) -> None:
+    fake = _FakeGenAIClient("gemini-key")
+    scheduler = _FakeScheduler()
+    monkeypatch.setattr(
+        "app.infrastructure.embeddings.embedding.genai.Client",
+        lambda api_key: fake,
+    )
+    client = EmbeddingClient(
+        EmbeddingSettings(
+            api_base="http://unused",
+            api_key="gemini-key",
+            seed_demo_data=True,
+            model="gemini-embedding-2",
+            dimensions=768,
+            batch_size=2,
+        ),
+        scheduler=scheduler,
+    )
+
+    vectors = await client.embed_texts_async(["first", "second", "third"])
+
+    assert vectors == [[0.0], [1.0], [0.0]]
+    assert scheduler.buckets == ["embeddings", "embeddings"]
+    assert [len(call["contents"]) for call in fake.models.calls] == [2, 1]
+
+
+@pytest.mark.asyncio
+async def test_embed_texts_async_schedules_provider_retries(monkeypatch) -> None:
+    fake = _FakeGenAIClient("gemini-key")
+    scheduler = _FakeScheduler()
+    attempts = 0
+
+    def rate_limited_then_success(**kwargs: Any) -> SimpleNamespace:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("429 RESOURCE_EXHAUSTED retry in 1.0s")
+        return SimpleNamespace(
+            embeddings=[SimpleNamespace(values=[0.0]) for _ in kwargs["contents"]]
+        )
+
+    fake.models.embed_content = rate_limited_then_success  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "app.infrastructure.embeddings.embedding.genai.Client",
+        lambda api_key: fake,
+    )
+
+    async def no_wait(_delay: float) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "app.infrastructure.embeddings.embedding.asyncio.sleep", no_wait
+    )
+    client = EmbeddingClient(
+        EmbeddingSettings(
+            api_base="http://unused",
+            api_key="gemini-key",
+            seed_demo_data=True,
+            model="gemini-embedding-2",
+            dimensions=768,
+        ),
+        scheduler=scheduler,
+    )
+
+    assert await client.embed_texts_async(["retry me"]) == [[0.0]]
+    assert scheduler.buckets == ["embeddings", "embeddings"]
 
 
 def test_embed_texts_retries_provider_rate_limits(monkeypatch) -> None:

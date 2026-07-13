@@ -232,9 +232,7 @@ class DocumentIngestionPipeline:
                 f"{chunk.context_header}\n\n{chunk.content}" for chunk in chunks
             ]
             vectors = (
-                await asyncio.to_thread(
-                    self._embedding_client.embed_texts, embedding_inputs
-                )
+                await self._embedding_client.embed_texts_async(embedding_inputs)
                 if embedding_inputs
                 else []
             )
@@ -242,9 +240,8 @@ class DocumentIngestionPipeline:
             image_vectors: list[list[float]] = []
             if visuals:
                 try:
-                    image_vectors = await asyncio.to_thread(
-                        self._embedding_client.embed_images,
-                        [visual.content for visual in visuals],
+                    image_vectors = await self._embedding_client.embed_images_async(
+                        [visual.content for visual in visuals]
                     )
                 except Exception as exc:
                     response = getattr(exc, "response", None)
@@ -258,9 +255,8 @@ class DocumentIngestionPipeline:
                         error_type=type(exc).__name__,
                         status_code=status_code,
                     )
-                    image_vectors = await asyncio.to_thread(
-                        self._embedding_client.embed_texts,
-                        captions,
+                    image_vectors = await self._embedding_client.embed_texts_async(
+                        captions
                     )
             evidence_items: list[
                 tuple[str, str, int, ExtractedVisual | None, int | None]

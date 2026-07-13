@@ -255,7 +255,7 @@ def test_get_message_events_replays_done_for_completed_message(client) -> None:
 
 def test_put_sentence_trace_feedback_sets_rating_and_updates_erm(client) -> None:
     class FakeEmbeddingClient:
-        def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        async def embed_texts_async(self, texts: list[str]) -> list[list[float]]:
             assert texts == ["What does EvidentRAG say about citations?"]
             return [[1.0, 0.0]]
 
@@ -306,7 +306,7 @@ def test_put_sentence_trace_feedback_sets_rating_and_updates_erm(client) -> None
 
 def test_put_sentence_trace_feedback_overwrites_previous_rating(client) -> None:
     class FakeEmbeddingClient:
-        def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        async def embed_texts_async(self, texts: list[str]) -> list[list[float]]:
             return [[1.0, 0.0]]
 
     client.app.state.embedding_client = FakeEmbeddingClient()

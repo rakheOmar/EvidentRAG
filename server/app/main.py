@@ -77,7 +77,7 @@ async def lifespan(app: FastAPI):
         qdrant_store = QdrantStore(settings.qdrant)
         redis = Redis.from_url(settings.redis.url)
         scheduler = AIRequestScheduler(redis, settings.rate_limits)
-        embedding_client = EmbeddingClient(settings.embeddings)
+        embedding_client = EmbeddingClient(settings.embeddings, scheduler=scheduler)
         llm_client = LLMClient(settings.llm, scheduler=scheduler)
         rerank_client = RerankClient(settings.reranker, scheduler=scheduler)
         job_queue = ArqRedis.from_url(settings.redis.url)

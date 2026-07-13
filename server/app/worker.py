@@ -71,7 +71,7 @@ async def startup(ctx: dict) -> None:
         qdrant_store = QdrantStore(settings.qdrant)
         redis = Redis.from_url(settings.redis.url)
         scheduler = AIRequestScheduler(redis, settings.rate_limits)
-        embedding_client = EmbeddingClient(settings.embeddings)
+        embedding_client = EmbeddingClient(settings.embeddings, scheduler=scheduler)
         llm_client = LLMClient(settings.llm, scheduler=scheduler)
         rerank_client = RerankClient(settings.reranker, scheduler=scheduler)
         arag_router = AragRouter(llm_client=llm_client)
