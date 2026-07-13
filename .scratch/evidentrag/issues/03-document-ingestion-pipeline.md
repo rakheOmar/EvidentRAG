@@ -1,4 +1,4 @@
-Status: in-progress
+Status: done
 
 ## What to build
 
@@ -12,9 +12,13 @@ The full async Document Ingestion Pipeline: a user uploads a PDF through the UI,
 - [x] `GET /api/v1/documents` returns `200 OK` and lists all Documents with filename, status (processing/ready/failed), page count, created date, and pagination metadata
 - [x] `GET /api/v1/documents/{document_id}` returns `200 OK` with one Document and its current ingestion status and metadata; missing Documents return `404`
 - [x] `DELETE /api/v1/documents/{document_id}` tombstones the Source, immediately removes every Version from Qdrant retrieval eligibility, retains audit data/assets for the configured retention period, and returns `204 No Content`; missing Documents return `404`
-- [ ] React UI has: upload button with drag-and-drop, document list with status badges, progress bar during ingestion, delete button. Pending guided UI work.
+- [x] React UI has: upload button with drag-and-drop, document list with status badges, progress indicator during ingestion, and delete button
 - [x] Image Anchors are extracted from PDFs, captioned, stored, and linked to the nearest text Evidence
 
 ## Blocked by
 
 - #01-project-scaffold
+
+## Comments
+
+- 2026-07-13: Completed the guided Documents UI, version-aware ingestion lifecycle, Docling parsing, deterministic structural Context Headers, image extraction/captioning, Google Gemini embeddings, Qdrant eligibility promotion, retries, progress reporting, and Source deletion flow.
