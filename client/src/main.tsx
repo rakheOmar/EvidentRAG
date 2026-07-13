@@ -24,7 +24,9 @@ import { BrowserRouter } from "react-router";
 
 import "./index.css";
 import { ThemeProvider } from "@/components/theme-provider.tsx";
+import { ErrorFeedbackProvider } from "@/components/error-feedback";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 
 import { App } from "./app.tsx";
 
@@ -40,9 +42,12 @@ createRoot(rootElement).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <ThemeProvider>
-          <TooltipProvider>
-            <App />
-          </TooltipProvider>
+          <ErrorFeedbackProvider>
+            <TooltipProvider>
+              <App />
+              <Toaster />
+            </TooltipProvider>
+          </ErrorFeedbackProvider>
         </ThemeProvider>
       </BrowserRouter>
     </QueryClientProvider>

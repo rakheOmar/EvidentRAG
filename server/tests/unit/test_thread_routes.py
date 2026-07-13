@@ -8,7 +8,7 @@ from typing import cast
 import pytest
 from starlette.requests import Request
 
-from app.api.routes.threads import create_thread
+from app.api.routes.threads import _generate_thread_title, create_thread
 from app.api.schemas.threads import ThreadCreate
 from app.infrastructure.db.models import Message, Thread
 
@@ -83,6 +83,39 @@ class _FakeJobQueue:
 class _FakeLLMClient:
     async def generate(self, messages, model=None) -> str:
         return "Thread title"
+
+
+class _MarkdownTitleLLMClient:
+    async def generate(self, messages, model=None) -> str:
+        return "## Figure 2: BERT Embeddings\n\n| Type | Purpose |"
+
+
+@pytest.mark.asyncio
+async def test_generate_thread_title_strips_markdown_from_model_output() -> None:
+    request = cast(
+        Request,
+        SimpleNamespace(
+            app=SimpleNamespace(
+                state=SimpleNamespace(llm_client=_MarkdownTitleLLMClient())
+            )
+        ),
+    )
+
+    title = await _generate_thread_title(request, "Explain Figure 2")
+
+    assert title == "Figure 2: BERT Embeddings"
+
+
+@pytest.mark.asyncio
+async def test_generate_thread_title_strips_markdown_from_fallback() -> None:
+    request = cast(
+        Request,
+        SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(llm_client=None))),
+    )
+
+    title = await _generate_thread_title(request, "## Explain BERT\n\nMore detail")
+
+    assert title == "Explain BERT"
 
 
 @pytest.mark.asyncio

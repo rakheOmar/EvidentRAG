@@ -4,6 +4,39 @@ import json
 import re
 
 
+_LIST_ITEM_PATTERN = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)")
+_STRUCTURAL_MARKDOWN_PATTERN = re.compile(
+    r"^\s*(?:#{1,6}\s|```|\$\$|\||[-*+]\s+|\d+[.)]\s+)"
+)
+
+
+def join_segment_texts(parts: list[str]) -> str:
+    """Join citation segments without invalidating Markdown block syntax."""
+    joined = ""
+    previous_part = ""
+    for part in (part for part in parts if part):
+        if not joined:
+            joined = part
+            previous_part = part
+            continue
+        previous_content = previous_part.rstrip()
+        current_content = part.lstrip()
+        if _LIST_ITEM_PATTERN.match(previous_content) and _LIST_ITEM_PATTERN.match(
+            current_content
+        ):
+            joined = f"{joined.rstrip()}\n{current_content}"
+        elif _STRUCTURAL_MARKDOWN_PATTERN.match(
+            previous_content
+        ) or _STRUCTURAL_MARKDOWN_PATTERN.match(current_content):
+            joined = f"{joined.rstrip()}\n\n{current_content}"
+        elif previous_part != previous_content or part != current_content:
+            joined = f"{joined}{part}"
+        else:
+            joined = f"{joined} {part}"
+        previous_part = part
+    return joined
+
+
 class JsonStreamParser:
     _TEXT_PATTERN = re.compile(r'"text":\s*"((?:[^"\\]|\\.)*)"')
     _LEADING_CODE_FENCE_PATTERN = re.compile(r"^```[a-zA-Z0-9_-]*\s*")
@@ -14,13 +47,27 @@ class JsonStreamParser:
         self._emitted_texts: list[str] = []
         self._emitted_count = 0
 
+    @staticmethod
+    def _decode_text(raw: str) -> str:
+        try:
+            return json.loads(f'"{raw}"')
+        except json.JSONDecodeError:
+            # Models sometimes emit Markdown/LaTeX commands such as \\mathbf
+            # inside a JSON string without escaping the backslash. Preserve
+            # those literal commands instead of failing the whole answer.
+            safe_raw = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", raw)
+            try:
+                return json.loads(f'"{safe_raw}"')
+            except json.JSONDecodeError:
+                return raw
+
     def feed(self, chunk: str) -> list[str]:
         self._buffer += chunk
         matches = list(self._TEXT_PATTERN.finditer(self._buffer))
 
         emitted: list[str] = []
         for match in matches[self._emitted_count :]:
-            decoded = json.loads(f'"{match.group(1)}"')
+            decoded = self._decode_text(match.group(1))
             emitted.append(decoded)
             self._emitted_texts.append(decoded)
 
@@ -77,15 +124,15 @@ class JsonStreamParser:
                         i += 1
                 raw = "".join(raw_chars)
                 if raw:
-                    parts.append(json.loads(f'"{raw}"'))
+                    parts.append(self._decode_text(raw))
 
-        return " ".join(parts)
+        return join_segment_texts(parts)
 
     def get_segments(self) -> list[dict[str, object]]:
         matches = list(self._TEXT_PATTERN.finditer(self._buffer))
         segments: list[dict[str, object]] = []
         for match in matches:
-            text = json.loads(f'"{match.group(1)}"')
+            text = self._decode_text(match.group(1))
             evidence_ids = self._extract_evidence_ids(match)
             segments.append({"text": text, "evidence_ids": evidence_ids})
         return segments

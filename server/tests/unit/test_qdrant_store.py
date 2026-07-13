@@ -3,7 +3,13 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-from qdrant_client.http.models import Fusion, FusionQuery, Modifier, SparseVector
+from qdrant_client.http.models import (
+    FieldCondition,
+    Fusion,
+    FusionQuery,
+    Modifier,
+    SparseVector,
+)
 
 from app.core.config import QdrantSettings
 from app.infrastructure.qdrant.client import QdrantStore
@@ -146,6 +152,11 @@ async def test_hybrid_search_queries_qdrant_with_dense_sparse_and_rrf(
     assert kwargs["query"].fusion == Fusion.RRF
     assert kwargs["limit"] == 20
     assert kwargs["with_payload"] is True
+    query_filter = kwargs["query_filter"]
+    assert len(query_filter.must) == 1
+    assert isinstance(query_filter.must[0], FieldCondition)
+    assert query_filter.must[0].key == "eligible"
+    assert query_filter.must[0].match.value is True
 
     prefetch = kwargs["prefetch"]
     assert len(prefetch) == 2

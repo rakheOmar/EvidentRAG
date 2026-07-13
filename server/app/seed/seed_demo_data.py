@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.infrastructure.db.session import create_engine, create_session_factory
-from app.infrastructure.db.models import Base, Document, Evidence
+from app.infrastructure.db.models import Base, Document, Evidence, Source
 from app.infrastructure.embeddings.embedding import EmbeddingClient
 from app.infrastructure.qdrant.client import QdrantStore
 
@@ -164,14 +164,24 @@ async def seed_demo_data(
             async with session_factory() as session:
                 try:
                     document_id = uuid.uuid4()
+                    source = Source(
+                        id=uuid.uuid4(),
+                        source_key=f"seed:{document_data['slug']}",
+                        title=document_data["title"],
+                    )
+                    session.add(source)
+                    await session.flush()
                     document = Document(
                         id=document_id,
+                        source_id=source.id,
                         title=document_data["title"],
                         slug=document_data["slug"],
                         source_path=document_data["source_path"],
                         source_type=document_data["source_type"],
                         content_hash=document_data["content_hash"],
                         page_count=document_data["page_count"],
+                        status="ready",
+                        is_current=True,
                         extra=document_data["metadata"],
                     )
                     session.add(document)
@@ -227,6 +237,8 @@ async def seed_demo_data(
                                 "document_id": str(document.id),
                                 "document_title": document.title,
                                 "document_slug": document.slug,
+                                "source_id": str(document.source_id),
+                                "eligible": True,
                                 "locator": evidence.locator,
                                 "page": evidence.page,
                                 "chunk_index": evidence.chunk_index,

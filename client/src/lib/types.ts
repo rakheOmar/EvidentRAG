@@ -26,6 +26,9 @@ export interface Segment {
 }
 
 export interface Evidence {
+  asset_key?: string | null;
+  asset_url?: string | null;
+  bounding_box?: Record<string, number> | null;
   content: string;
   context_header: string | null;
   document_slug: string | null;
@@ -33,6 +36,7 @@ export interface Evidence {
   erm_multiplier: number | null;
   erm_state: "boost" | "penalty" | null;
   id: string;
+  kind?: string;
   page: number | null;
 }
 
@@ -109,6 +113,31 @@ export interface ThreadTurnResponse {
   assistant_message: ThreadMessage;
   thread: ThreadSummary;
   user_message: ThreadMessage;
+}
+
+export interface DocumentRecord {
+  byte_size: number | null;
+  created_at: string;
+  document_id: string;
+  error_message: string | null;
+  id: string;
+  is_current: boolean;
+  original_filename: string | null;
+  page_count: number;
+  source_id: string;
+  source_key: string;
+  status: string;
+  title: string;
+  updated_at: string;
+  version_number: number;
+  warnings: unknown[];
+}
+
+export interface DocumentListResponse {
+  items: DocumentRecord[];
+  limit: number;
+  offset: number;
+  total: number;
 }
 
 export interface RouteSelectedEvent {

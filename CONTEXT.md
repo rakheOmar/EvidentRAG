@@ -2,6 +2,16 @@
 
 A demo project showcasing an Adaptive RAG engine with Evidence Retrieval Memory and sentence-level citation traces. Docker-Compose-runnable, not packaged as a library or deployed as a service.
 
+## Versioned document lifecycle
+
+**Source**:
+A stable identity for knowledge supplied to EvidentRAG. Updating or deleting knowledge targets a Source.
+_Avoid_: File, asset, resource
+
+**Document Version**:
+An immutable uploaded representation of a Source. Only the current ready Version is eligible for normal retrieval; older Versions remain for provenance and audit.
+_Avoid_: Replacement file, mutable document
+
 ## Language
 
 **EvidentRAG**:

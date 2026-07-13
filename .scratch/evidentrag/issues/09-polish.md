@@ -11,7 +11,7 @@ Polish and finishing touches across the entire application. This includes: error
 - [ ] Empty states for: no documents uploaded, no queries yet, no golden dataset entries
 - [ ] Responsive layout: works at 1920px, 1366px, and 768px widths
 - [ ] Query history page: list of past Queries from `GET /api/v1/queries` with route badge and timestamp, click through to the full Answer + traces via the Query/Answer resource endpoints
-- [ ] Document status polling: when ingestion is in progress, UI polls for updates without manual refresh
+- [x] Document status polling: when ingestion is in progress, UI polls for updates without manual refresh
 - [ ] Keyboard shortcuts: Enter to submit Query, Escape to close evidence panel
 - [ ] All issues from prior slices are resolved and the full flow works end-to-end with `docker compose up`
 
@@ -25,3 +25,7 @@ Polish and finishing touches across the entire application. This includes: error
 - #06-multi-hop-comparison-aggregation-routes
 - #07-evidence-retrieval-memory
 - #08-evaluation-system
+
+## Comments
+
+- 2026-07-13: The Documents page now refreshes status every two seconds and consumes ingestion progress events, so processing state advances without a manual page refresh.

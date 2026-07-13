@@ -140,6 +140,30 @@ def test_get_accumulated_text_handles_json_escaped_chars() -> None:
     assert parser.get_accumulated_text() == "Line1\nLine2."
 
 
+def test_get_accumulated_text_preserves_markdown_block_boundaries() -> None:
+    from app.application.query_pipeline.json_stream_parser import JsonStreamParser
+
+    parser = JsonStreamParser()
+    parser.feed(
+        '[{"text":"## Figure 2","evidence_ids":[]},'
+        '{"text":"| Type | Purpose |\\n|---|---|","evidence_ids":["e1"]},'
+        '{"text":"1. Explain the input.","evidence_ids":["e1"]}]'
+    )
+
+    assert parser.get_accumulated_text() == (
+        "## Figure 2\n\n| Type | Purpose |\n|---|---|\n\n1. Explain the input."
+    )
+
+
+def test_get_accumulated_text_preserves_unescaped_latex_backslashes() -> None:
+    from app.application.query_pipeline.json_stream_parser import JsonStreamParser
+
+    parser = JsonStreamParser()
+    parser.feed('[{"text":"The formula is \\mathbf{x}","evidence_ids":[]}]')
+
+    assert parser.get_accumulated_text() == r"The formula is \mathbf{x}"
+
+
 def test_get_accumulated_text_handles_space_after_colon() -> None:
     from app.application.query_pipeline.json_stream_parser import JsonStreamParser
 

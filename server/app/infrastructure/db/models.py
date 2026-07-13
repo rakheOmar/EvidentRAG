@@ -3,7 +3,14 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -14,6 +21,34 @@ class Base(DeclarativeBase):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class Source(Base):
+    __tablename__ = "sources"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    source_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    extra: Mapped[dict] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=_now, server_default="now()"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        default=_now,
+        server_default="now()",
+        onupdate=_now,
+    )
+
+    documents: Mapped[list[Document]] = relationship(back_populates="source")
 
 
 class Document(Base):
@@ -27,6 +62,34 @@ class Document(Base):
     source_path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     source_type: Mapped[str] = mapped_column(
         Text, nullable=False, default="pdf", server_default="pdf"
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sources.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    version_number: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
+    status: Mapped[str] = mapped_column(
+        Text, nullable=False, default="pending", server_default="pending", index=True
+    )
+    is_current: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false", index=True
+    )
+    storage_key: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
+    original_filename: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_type: Mapped[str | None] = mapped_column(Text, nullable=True)
+    byte_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    warnings: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    canonical_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
     )
     content_hash: Mapped[str] = mapped_column(Text, nullable=False)
     page_count: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -44,6 +107,12 @@ class Document(Base):
         onupdate=_now,
     )
 
+    source: Mapped[Source] = relationship(
+        back_populates="documents", foreign_keys=[source_id]
+    )
+    canonical_document: Mapped[Document | None] = relationship(
+        remote_side="Document.id", foreign_keys=[canonical_document_id]
+    )
     evidence: Mapped[list[Evidence]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
     )

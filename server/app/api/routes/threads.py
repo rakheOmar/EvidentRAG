@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import AsyncIterator
 from uuid import UUID
 
@@ -33,10 +34,33 @@ router = APIRouter(prefix="/api/v1/threads", tags=["threads"])
 
 logger = logging.getLogger(__name__)
 
+_MARKDOWN_LINK_PATTERN = re.compile(r"!?\[([^\]]+)\]\([^)]+\)")
+_MARKDOWN_PREFIX_PATTERN = re.compile(
+    r"^\s{0,3}(?:#{1,6}\s*|>\s*|[-+*]\s+|\d+[.)]\s+|```\w*\s*)"
+)
+_MARKDOWN_TOKEN_PATTERN = re.compile(r"[`*_~|]")
+_HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
+_WHITESPACE_PATTERN = re.compile(r"\s+")
+
+
+def _plain_thread_title(value: str) -> str:
+    for raw_line in value.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        line = _MARKDOWN_LINK_PATTERN.sub(r"\1", line)
+        line = _MARKDOWN_PREFIX_PATTERN.sub("", line)
+        line = _HTML_TAG_PATTERN.sub("", line)
+        line = _MARKDOWN_TOKEN_PATTERN.sub("", line)
+        line = _WHITESPACE_PATTERN.sub(" ", line).strip().strip("\"'")
+        if line:
+            return line[:80].rstrip()
+    return ""
+
 
 async def _generate_thread_title(request: Request, content: str) -> str:
     llm_client = getattr(request.app.state, "llm_client", None)
-    fallback = content.strip().replace("\n", " ")[:60] or "New Chat"
+    fallback = _plain_thread_title(content) or "New Chat"
     if llm_client is None:
         return fallback
 
@@ -45,18 +69,20 @@ async def _generate_thread_title(request: Request, content: str) -> str:
             "role": "system",
             "content": (
                 "Generate a concise chat thread title for the user's opening "
-                "message. Return plain text only, under 8 words, with no quotes."
+                "message. Return exactly one line of plain text under 8 words. "
+                "Do not use Markdown, headings, bullets, pipes, code fences, "
+                "asterisks, underscores, brackets, or quotes."
             ),
         },
         {"role": "user", "content": content},
     ]
 
     try:
-        title = (await llm_client.generate(messages)).strip().strip('"').strip()
+        title = _plain_thread_title(await llm_client.generate(messages))
     except Exception:
         return fallback
 
-    return title[:80] if title else fallback
+    return title or fallback
 
 
 async def _build_answer_response(session, message: Message) -> AnswerResponse | None:
@@ -75,6 +101,41 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
         if isinstance(answer.extra, dict)
         else {}
     )
+
+    async def add_evidence(parsed_eid: UUID) -> None:
+        if parsed_eid in evidence_by_id:
+            return
+        evidence = await session.scalar(
+            select(Evidence)
+            .options(selectinload(Evidence.document))
+            .where(Evidence.id == parsed_eid)
+        )
+        if evidence is None:
+            return
+        asset_key = (evidence.extra or {}).get("asset_key")
+        evidence_by_id[parsed_eid] = EvidenceResponse(
+            id=evidence.id,
+            content=evidence.content,
+            context_header=evidence.context_header,
+            document_title=evidence.document.title,
+            document_slug=evidence.document.slug,
+            page=evidence.page,
+            erm_state=(evidence_metadata.get(str(parsed_eid), {}) or {}).get(
+                "erm_state"
+            ),
+            erm_multiplier=(evidence_metadata.get(str(parsed_eid), {}) or {}).get(
+                "erm_multiplier"
+            ),
+            kind=(evidence.extra or {}).get("kind", "text"),
+            asset_key=asset_key,
+            asset_url=(
+                f"/api/v1/documents/{evidence.document_id}/assets/"
+                f"{str(asset_key).rsplit('/', 1)[-1]}"
+                if asset_key
+                else None
+            ),
+            bounding_box=(evidence.extra or {}).get("bounding_box"),
+        )
 
     for seg in sorted(answer.segments, key=lambda item: item.segment_index):
         resolved_evidence: list[UUID] = []
@@ -97,27 +158,7 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
                 )
                 continue
             resolved_evidence.append(parsed_eid)
-            if parsed_eid not in evidence_by_id:
-                evidence = await session.scalar(
-                    select(Evidence)
-                    .options(selectinload(Evidence.document))
-                    .where(Evidence.id == parsed_eid)
-                )
-                if evidence is not None:
-                    evidence_by_id[parsed_eid] = EvidenceResponse(
-                        id=evidence.id,
-                        content=evidence.content,
-                        context_header=evidence.context_header,
-                        document_title=evidence.document.title,
-                        document_slug=evidence.document.slug,
-                        page=evidence.page,
-                        erm_state=(
-                            evidence_metadata.get(str(parsed_eid), {}) or {}
-                        ).get("erm_state"),
-                        erm_multiplier=(
-                            evidence_metadata.get(str(parsed_eid), {}) or {}
-                        ).get("erm_multiplier"),
-                    )
+            await add_evidence(parsed_eid)
 
         segments.append(
             SegmentResponse(
@@ -129,6 +170,17 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
             )
         )
 
+    retrieved_evidence_ids = (
+        answer.extra.get("retrieved_evidence_ids", [])
+        if isinstance(answer.extra, dict)
+        else []
+    )
+    for raw_eid in retrieved_evidence_ids:
+        try:
+            await add_evidence(UUID(str(raw_eid)))
+        except ValueError:
+            continue
+
     evidence_dicts = [
         {
             "id": str(ev.id),
@@ -137,6 +189,9 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
             "document_slug": ev.document_slug,
             "page": ev.page,
             "context_header": ev.context_header,
+            "kind": ev.kind,
+            "asset_key": ev.asset_key,
+            "asset_url": ev.asset_url,
         }
         for ev in evidence_by_id.values()
     ]
@@ -318,8 +373,12 @@ async def create_thread(payload: ThreadCreate, request: Request) -> ThreadTurnRe
         await session.refresh(assistant_message)
 
     job_queue = getattr(request.app.state, "job_queue", None)
-    if job_queue is not None:
-        await job_queue.enqueue_job("run_message_pipeline", str(assistant_message.id))
+    if job_queue is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"message": "Message processing is unavailable"},
+        )
+    await job_queue.enqueue_job("run_message_pipeline", str(assistant_message.id))
 
     async with request.app.state.session_factory() as session:
         thread = await session.get(Thread, thread.id)
@@ -336,6 +395,11 @@ async def create_thread(payload: ThreadCreate, request: Request) -> ThreadTurnRe
 async def list_threads(
     request: Request, limit: int = 100, offset: int = 0
 ) -> list[ThreadSummaryResponse]:
+    if not 1 <= limit <= 100 or offset < 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": "limit must be 1..100 and offset must be non-negative"},
+        )
     async with request.app.state.session_factory() as session:
         result = await session.execute(
             select(Thread)
@@ -355,7 +419,10 @@ async def get_thread(thread_id: UUID, request: Request) -> ThreadDetailResponse:
             .where(Thread.id == thread_id)
         )
         if thread is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"message": "Thread not found"},
+            )
 
         ordered_messages = sorted(thread.messages, key=lambda message: message.position)
         return ThreadDetailResponse(
@@ -378,7 +445,10 @@ async def append_message(
     async with request.app.state.session_factory() as session:
         thread = await session.get(Thread, thread_id)
         if thread is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"message": "Thread not found"},
+            )
         user_message, assistant_message = await _create_turn(
             session, thread=thread, content=payload.content
         )
@@ -388,8 +458,12 @@ async def append_message(
         await session.refresh(assistant_message)
 
     job_queue = getattr(request.app.state, "job_queue", None)
-    if job_queue is not None:
-        await job_queue.enqueue_job("run_message_pipeline", str(assistant_message.id))
+    if job_queue is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"message": "Message processing is unavailable"},
+        )
+    await job_queue.enqueue_job("run_message_pipeline", str(assistant_message.id))
 
     async with request.app.state.session_factory() as session:
         thread = await session.get(Thread, thread_id)

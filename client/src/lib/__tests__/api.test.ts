@@ -9,12 +9,15 @@ import type {
 import {
   appendThreadMessage,
   createThread,
+  deleteDocument,
+  fetchDocuments,
   fetchThread,
   fetchThreads,
   putSentenceTraceFeedback,
+  uploadDocument,
 } from "../api";
 
-const createThreadErrorMessage = /POST \/api\/v1\/threads failed: 400/;
+const createThreadErrorMessage = /400 Bad Request/;
 
 function makeThreadSummary(
   overrides: Partial<ThreadSummary> = {}
@@ -212,7 +215,7 @@ describe("putSentenceTraceFeedback", () => {
     vi.unstubAllGlobals();
   });
 
-  it("PUTs the rating to /api/v1/sentence-traces/{id}/feedback", async () => {
+  it("PUTs the rating to /api/v1/sentence-traces/{id}/rating", async () => {
     const expected = { rating: "up", trace_id: "trace-001" };
     const fetchMock = vi
       .fn()
@@ -223,9 +226,69 @@ describe("putSentenceTraceFeedback", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/sentence-traces/trace-001/feedback");
+    expect(url).toBe("/api/v1/sentence-traces/trace-001/rating");
     expect(init?.method).toBe("PUT");
     expect(JSON.parse(init?.body as string)).toEqual({ rating: "up" });
     expect(result).toEqual(expected);
+  });
+});
+
+describe("document APIs", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("uploads a PDF as multipart form data and returns its document", async () => {
+    const expected = {
+      byte_size: 512,
+      created_at: "2026-07-11T10:00:00Z",
+      document_id: "document-001",
+      error_message: null,
+      id: "document-001",
+      is_current: false,
+      original_filename: "handbook.pdf",
+      page_count: 0,
+      source_id: "source-001",
+      source_key: "source-key",
+      status: "queued",
+      title: "handbook",
+      updated_at: "2026-07-11T10:00:00Z",
+      version_number: 1,
+      warnings: [],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(stubJson(expected, { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["%PDF-1.7"], "handbook.pdf", {
+      type: "application/pdf",
+    });
+
+    const result = await uploadDocument(file);
+
+    const [url, init] = getFirstCall(fetchMock);
+    expect(url).toBe("/api/v1/documents");
+    expect(init?.method).toBe("POST");
+    const body = init?.body;
+    expect(body).toBeInstanceOf(FormData);
+    if (!(body instanceof FormData)) {
+      throw new Error("Expected upload request body to be FormData.");
+    }
+    expect(body.get("file")).toBe(file);
+    expect(result).toEqual(expected);
+  });
+
+  it("lists documents and deletes a document without parsing an empty response", async () => {
+    const listResponse = { items: [], limit: 100, offset: 0, total: 0 };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(stubJson(listResponse))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchDocuments()).resolves.toEqual(listResponse);
+    await expect(deleteDocument("document-001")).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/v1/documents/document-001");
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("DELETE");
   });
 });

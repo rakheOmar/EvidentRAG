@@ -8,9 +8,13 @@ from time import perf_counter
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.models import (
     Distance,
+    FieldCondition,
+    Filter,
     Fusion,
     FusionQuery,
     Modifier,
+    MatchValue,
+    PayloadSchemaType,
     Prefetch,
     SparseVector,
     SparseVectorParams,
@@ -75,6 +79,26 @@ class QdrantStore:
                 vectors_config=self._vectors_config(),
                 sparse_vectors_config=self._sparse_vectors_config(),
             )
+        for field_name, schema in (
+            ("eligible", PayloadSchemaType.BOOL),
+            ("document_id", PayloadSchemaType.KEYWORD),
+            ("source_id", PayloadSchemaType.KEYWORD),
+        ):
+            try:
+                await self._client.create_payload_index(
+                    self._collection, field_name=field_name, field_schema=schema
+                )
+            except Exception:
+                logger.warning(
+                    "qdrant_payload_index_unavailable",
+                    extra={
+                        "wide_event": {
+                            "event": "qdrant_payload_index_unavailable",
+                            "field": field_name,
+                            "outcome": "degraded",
+                        }
+                    },
+                )
 
     async def reset_collection(self) -> None:
         exists = await self._client.collection_exists(self._collection)
@@ -90,6 +114,33 @@ class QdrantStore:
         await self._client.upsert(
             self._collection,
             points=points,
+            wait=True,
+        )
+
+    async def set_document_eligibility(self, document_id: str, eligible: bool) -> None:
+        await self._client.set_payload(
+            self._collection,
+            payload={"eligible": eligible},
+            points=Filter(
+                must=[
+                    FieldCondition(
+                        key="document_id", match=MatchValue(value=document_id)
+                    )
+                ]
+            ),
+            wait=True,
+        )
+
+    async def delete_document_points(self, document_id: str) -> None:
+        await self._client.delete(
+            self._collection,
+            points_selector=Filter(
+                must=[
+                    FieldCondition(
+                        key="document_id", match=MatchValue(value=document_id)
+                    )
+                ]
+            ),
             wait=True,
         )
 
@@ -134,6 +185,9 @@ class QdrantStore:
                 query=FusionQuery(fusion=Fusion.RRF),
                 limit=fused_limit,
                 with_payload=True,
+                query_filter=Filter(
+                    must=[FieldCondition(key="eligible", match=MatchValue(value=True))]
+                ),
             )
             wide_event["result_count"] = len(response.points)
             wide_event["outcome"] = "success"

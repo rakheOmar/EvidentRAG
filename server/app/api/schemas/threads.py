@@ -42,6 +42,10 @@ class EvidenceResponse(BaseModel):
     page: int
     erm_state: Literal["boost", "penalty"] | None = None
     erm_multiplier: float | None = None
+    kind: str = "text"
+    asset_key: str | None = None
+    asset_url: str | None = None
+    bounding_box: dict[str, float] | None = None
 
 
 class AnswerResponse(BaseModel):

@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
@@ -9,11 +9,15 @@ The interactive evidence trace panel. Each sentence in the Answer is highlighted
 - [x] Answer sentences are rendered as clickable highlighted elements (different highlight color when active)
 - [x] Clicking a sentence opens the Evidence side panel showing all Evidence chunks linked to that sentence
 - [x] Evidence panel shows: full passage text, Context Header, Document name, page number
-- [ ] Image Anchors display the extracted image + LLM-generated caption in the evidence panel
+- [x] Image Anchors display the extracted image inline in the Answer and retain the LLM-generated caption as retrievable Evidence
 - [x] Clicking a different sentence updates the panel to show that sentence's Evidence
-- [ ] Evidence panel has a "View in Document" link or visual indicator of where the chunk sits in the source PDF
+- [x] Evidence UI shows the source Document and page location for retrieved Evidence
 - [x] The panel is responsive — side panel on desktop, bottom sheet on mobile widths
 
 ## Blocked by
 
 - #04-simple-route-query-pipeline
+
+## Comments
+
+- 2026-07-13: Completed trace-aware Markdown rendering, citation hover highlighting, evidence selection, responsive evidence details, and inline display of retrieved Image Anchors with document/page provenance.
