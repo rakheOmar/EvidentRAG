@@ -29,12 +29,14 @@ describe("error presentation", () => {
             request_id: "req-1",
           },
         }),
-        { status: 422 },
-      ),
+        { status: 422 }
+      )
     );
     vi.stubGlobal("fetch", fetcher);
 
-    await expect(requestJson("/api/v1/threads", { method: "POST" })).rejects.toMatchObject({
+    await expect(
+      requestJson("/api/v1/threads", { method: "POST" })
+    ).rejects.toMatchObject({
       code: "validation_error",
       message: "Content is required",
       presentation: "inline",

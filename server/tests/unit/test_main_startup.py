@@ -1,354 +1,148 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-
-from app.core.config import (
-    AppSettings,
-    RerankerSettings,
-    DatabaseSettings,
-    EmbeddingSettings,
-    LLMSettings,
-    LogSettings,
-    OtelSettings,
-    QdrantSettings,
-    RedisSettings,
-    Settings,
-)
 from typing import Any
 
+from fastapi.testclient import TestClient
+
 import app.main as main_module
+from tests.support.runtime_fakes import ApplicationRuntimeHarness
+from tests.support.settings import build_runtime_settings
 
 
 app = main_module.app
 
 
-def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
-    captured: dict[str, Any] = {}
+def test_startup_initializes_runtime_seeds_and_cleans_up(monkeypatch) -> None:
+    runtime = ApplicationRuntimeHarness(
+        settings=build_runtime_settings(seed_demo_data=True),
+        qdrant_degradation=True,
+    )
+    runtime.patch_main(monkeypatch, main_module)
+    seed_calls: list[dict[str, object]] = []
     log_records: list[tuple[str, dict[str, Any]]] = []
 
-    class FakeConnection:
-        async def run_sync(self, callback) -> None:
-            captured["create_all_callback"] = callback
-
-    class FakeBeginContext:
-        async def __aenter__(self) -> FakeConnection:
-            return FakeConnection()
-
-        async def __aexit__(self, exc_type, exc, tb) -> None:
-            return None
-
-    class FakeEngine:
-        def begin(self) -> FakeBeginContext:
-            captured["begin_called"] = True
-            return FakeBeginContext()
-
-        async def dispose(self) -> None:
-            pass
-
-    class FakeQdrantStore:
-        def __init__(self, settings) -> None:
-            captured["qdrant_settings"] = settings
-
-        async def ensure_collection(self) -> None:
-            captured["ensure_collection_called"] = True
-            from app.core.telemetry import record_degradation
-
-            record_degradation("qdrant_payload_index", field="source_id")
-
-    class FakeEmbeddingClient:
-        def __init__(self, settings, scheduler=None) -> None:
-            captured["embedding_settings"] = settings
-            captured["embedding_scheduler"] = scheduler
-
-    class FakeLLMClient:
-        def __init__(self, settings, scheduler=None) -> None:
-            captured["llm_settings"] = settings
-            captured["llm_scheduler"] = scheduler
-
-    class FakeRerankClient:
-        def __init__(self, settings, scheduler=None) -> None:
-            captured["reranker_settings"] = settings
-            captured["reranker_scheduler"] = scheduler
-
-    class FakeJobQueue:
-        async def aclose(self) -> None:
-            captured["job_queue_closed"] = True
-
-    class FakeTelemetryRuntime:
-        def instrument_sqlalchemy(self, engine) -> None:
-            captured["telemetry_engine"] = engine
-
-        def shutdown(self) -> None:
-            captured["telemetry_shutdown"] = True
-
-    fake_engine = FakeEngine()
-    fake_session_factory = object()
-    fake_job_queue = FakeJobQueue()
-
-    settings = Settings(
-        app=AppSettings(
-            app_name="EvidentRAG",
-            environment="development",
-            client_dist_path="../client/dist",
-        ),
-        log=LogSettings(level="INFO"),
-        otel=OtelSettings(
-            enabled=False,
-            service_name="evidentrag-server",
-            exporter_otlp_endpoint=None,
-            exporter_otlp_headers=None,
-            exporter_otlp_protocol="grpc",
-            excluded_urls="/health",
-        ),
-        embeddings=EmbeddingSettings(
-            api_base="http://optiplex-3020:8081/v1",
-            api_key=None,
-            seed_demo_data=True,
-            model="google/gemini-embedding-2",
-            dimensions=768,
-        ),
-        llm=LLMSettings(
-            api_base="http://optiplex-3020:8081/v1",
-            api_key=None,
-            generation_model="gemini-2.5-pro",
-            utility_model="gemini-2.5-flash",
-        ),
-        reranker=RerankerSettings(
-            api_base="https://api.cohere.com/v2",
-            api_key=None,
-            model="rerank-english-v3.0",
-        ),
-        db=DatabaseSettings(
-            host="localhost",
-            port=5432,
-            user="evidentrag",
-            password=None,
-            db="evidentrag",
-        ),
-        qdrant=QdrantSettings(
-            url="http://localhost:6333",
-            evidence_collection="evidentrag_evidence",
-        ),
-        redis=RedisSettings(url="redis://localhost:6379/0"),
-    )
-
-    async def fake_seed_demo_data(*, session_factory, qdrant_store, embedding_client):
-        captured["seed_args"] = {
-            "session_factory": session_factory,
-            "qdrant_store": qdrant_store,
-            "embedding_client": embedding_client,
-        }
+    async def fake_seed_demo_data(**kwargs: object) -> int:
+        seed_calls.append(kwargs)
         return 1
 
-    def fake_create_engine(db_settings):
-        captured["db_settings"] = db_settings
-        return fake_engine
-
-    def fake_create_session_factory(engine):
-        captured["session_engine"] = engine
-        return fake_session_factory
-
-    class FakeArqRedis:
-        @staticmethod
-        def from_url(url: str) -> FakeJobQueue:
-            captured["job_queue_url"] = url
-            return fake_job_queue
-
-    monkeypatch.setattr(main_module, "settings", settings)
-    monkeypatch.setattr(
-        main_module,
-        "configure_telemetry",
-        lambda *args: (_ for _ in ()).throw(
-            AssertionError("telemetry must be configured before startup")
-        ),
-    )
-    monkeypatch.setattr(main_module, "create_engine", fake_create_engine)
-    monkeypatch.setattr(
-        main_module, "create_session_factory", fake_create_session_factory
-    )
-    monkeypatch.setattr(main_module, "QdrantStore", FakeQdrantStore)
-    monkeypatch.setattr(main_module, "EmbeddingClient", FakeEmbeddingClient)
-    monkeypatch.setattr(main_module, "LLMClient", FakeLLMClient)
-    monkeypatch.setattr(main_module, "RerankClient", FakeRerankClient)
-    monkeypatch.setattr(main_module, "ArqRedis", FakeArqRedis)
     monkeypatch.setattr(main_module, "seed_demo_data", fake_seed_demo_data)
-    app.state.telemetry = FakeTelemetryRuntime()
     monkeypatch.setattr(
         main_module.logger,
         "info",
-        lambda message, *args, **kwargs: log_records.append((message, kwargs)),
+        lambda message, **kwargs: log_records.append((message, kwargs)),
     )
+    app.state.telemetry = runtime.telemetry
 
     with TestClient(app):
-        pass
+        assert app.state.session_factory is runtime.session_factory
+        assert app.state.qdrant_store is runtime.qdrant_store
+        assert app.state.embedding_client is runtime.embedding_client
+        assert app.state.llm_client is runtime.llm_client
+        assert app.state.rerank_client is runtime.rerank_client
+        assert app.state.redis is runtime.redis
+        assert app.state.job_queue is runtime.job_queue
+        assert app.state.model_catalog == ["model-test"]
 
-    assert captured["telemetry_shutdown"] is True
-    assert captured["telemetry_engine"] is fake_engine
-    assert captured["db_settings"] is settings.db
-    assert captured["begin_called"] is True
-    assert captured["create_all_callback"] == main_module.Base.metadata.create_all
-    assert captured["session_engine"] is fake_engine
-    assert captured["qdrant_settings"] is settings.qdrant
-    assert captured["ensure_collection_called"] is True
-    assert captured["reranker_settings"] is settings.reranker
-    assert captured["job_queue_url"] == settings.redis.url
-    assert captured["embedding_settings"] is settings.embeddings
-    assert captured["llm_settings"] is settings.llm
-    assert captured["embedding_scheduler"] is captured["llm_scheduler"]
-    assert captured["embedding_scheduler"] is captured["reranker_scheduler"]
-    assert captured["seed_args"]["session_factory"] is fake_session_factory
-    assert app.state.session_factory is fake_session_factory
-    assert app.state.job_queue is fake_job_queue
-    assert isinstance(app.state.embedding_client, FakeEmbeddingClient)
-    assert isinstance(app.state.llm_client, FakeLLMClient)
-    assert isinstance(app.state.rerank_client, FakeRerankClient)
-    messages = [message for message, _ in log_records]
-    assert "seed_demo_data_starting" not in messages
+    assert runtime.created_db_settings is runtime.settings.db
+    assert runtime.session_engine is runtime.engine
+    assert runtime.telemetry.instrumented_engine is runtime.engine
+    assert runtime.engine_begin_calls == 1
+    assert runtime.schema_callback == main_module.Base.metadata.create_all
+    assert runtime.qdrant_store is not None
+    assert runtime.qdrant_store.settings is runtime.settings.qdrant
+    assert runtime.qdrant_store.collection_ensured is True
+    assert runtime.embedding_client is not None
+    assert runtime.embedding_client.settings is runtime.settings.embeddings
+    assert runtime.llm_client is not None
+    assert runtime.llm_client.settings is runtime.settings.llm
+    assert runtime.llm_client.list_models_calls == 1
+    assert runtime.llm_client.catalog == ["model-test"]
+    assert runtime.rerank_client is not None
+    assert runtime.rerank_client.settings is runtime.settings.reranker
+    assert runtime.embedding_client.scheduler is runtime.llm_client.scheduler
+    assert runtime.embedding_client.scheduler is runtime.rerank_client.scheduler
+    assert runtime.redis_url == runtime.settings.redis.url
+    assert runtime.job_queue_url == runtime.settings.redis.url
+    assert seed_calls == [
+        {
+            "session_factory": runtime.session_factory,
+            "qdrant_store": runtime.qdrant_store,
+            "embedding_client": runtime.embedding_client,
+        }
+    ]
+    assert runtime.lifecycle == [
+        "job_queue_closed",
+        "redis_closed",
+        "engine_disposed",
+        "telemetry_shutdown",
+    ]
+
     startup_records = [record for record in log_records if record[0] == "app_startup"]
     assert len(startup_records) == 1
-    assert startup_records[0][1]["extra"]["wide_event"]["seeded_documents"] == 1
-    assert startup_records[0][1]["extra"]["wide_event"]["degradations"] == [
+    startup_event = startup_records[0][1]["extra"]["wide_event"]
+    assert startup_event["seeded_documents"] == 1
+    assert startup_event["degradations"] == [
         {"stage": "qdrant_payload_index", "field": "source_id"}
     ]
+    assert "seed_demo_data_starting" not in [message for message, _ in log_records]
 
 
 def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
-    captured: dict[str, Any] = {}
-
-    class FakeConnection:
-        async def run_sync(self, callback) -> None:
-            captured["create_all_callback"] = callback
-
-    class FakeBeginContext:
-        async def __aenter__(self) -> FakeConnection:
-            return FakeConnection()
-
-        async def __aexit__(self, exc_type, exc, tb) -> None:
-            return None
-
-    class FakeEngine:
-        def begin(self) -> FakeBeginContext:
-            captured["begin_called"] = True
-            return FakeBeginContext()
-
-        async def dispose(self) -> None:
-            pass
-
-    class FakeQdrantStore:
-        def __init__(self, settings) -> None:
-            captured["qdrant_settings"] = settings
-
-        async def ensure_collection(self) -> None:
-            captured["ensure_collection_called"] = True
-
-    class FakeRerankClient:
-        def __init__(self, settings, scheduler=None) -> None:
-            captured["reranker_settings"] = settings
-
-    class FakeJobQueue:
-        async def aclose(self) -> None:
-            captured["job_queue_closed"] = True
-
-    class FakeEmbeddingClient:
-        def __init__(self, settings, scheduler=None) -> None:
-            captured["embedding_settings"] = settings
-
-    class FakeLLMClient:
-        def __init__(self, settings, scheduler=None) -> None:
-            captured["llm_settings"] = settings
-
-    settings = Settings(
-        app=AppSettings(
-            app_name="EvidentRAG",
-            environment="development",
-            client_dist_path="../client/dist",
-        ),
-        log=LogSettings(level="INFO"),
-        otel=OtelSettings(
-            enabled=False,
-            service_name="evidentrag-server",
-            exporter_otlp_endpoint=None,
-            exporter_otlp_headers=None,
-            exporter_otlp_protocol="grpc",
-            excluded_urls="/health",
-        ),
-        embeddings=EmbeddingSettings(
-            api_base="http://optiplex-3020:8081/v1",
-            api_key=None,
-            seed_demo_data=False,
-            model="google/gemini-embedding-2",
-            dimensions=768,
-        ),
-        llm=LLMSettings(
-            api_base="http://optiplex-3020:8081/v1",
-            api_key=None,
-            generation_model="gemini-2.5-pro",
-            utility_model="gemini-2.5-flash",
-        ),
-        reranker=RerankerSettings(
-            api_base="https://api.cohere.com/v2",
-            api_key=None,
-            model="rerank-english-v3.0",
-        ),
-        db=DatabaseSettings(
-            host="localhost",
-            port=5432,
-            user="evidentrag",
-            password=None,
-            db="evidentrag",
-        ),
-        qdrant=QdrantSettings(
-            url="http://localhost:6333",
-            evidence_collection="evidentrag_evidence",
-        ),
-        redis=RedisSettings(url="redis://localhost:6379/0"),
+    runtime = ApplicationRuntimeHarness(
+        settings=build_runtime_settings(seed_demo_data=False)
     )
-    fake_job_queue = FakeJobQueue()
+    runtime.patch_main(monkeypatch, main_module)
 
-    def fake_create_engine(db_settings):
-        captured["db_settings"] = db_settings
-        return FakeEngine()
-
-    def fake_create_session_factory(engine):
-        captured["session_engine"] = engine
-        return object()
-
-    async def fail_if_called(**kwargs):
+    async def fail_if_called(**kwargs: object) -> int:
         raise AssertionError("seed_demo_data should not be called")
 
-    class FakeArqRedis:
-        @staticmethod
-        def from_url(url: str) -> FakeJobQueue:
-            captured["job_queue_url"] = url
-            return fake_job_queue
-
-    monkeypatch.setattr(main_module, "settings", settings)
-    monkeypatch.setattr(main_module, "configure_telemetry", lambda *args: None)
-    app.state.telemetry = None
-    monkeypatch.setattr(main_module, "create_engine", fake_create_engine)
-    monkeypatch.setattr(
-        main_module, "create_session_factory", fake_create_session_factory
-    )
-    monkeypatch.setattr(main_module, "QdrantStore", FakeQdrantStore)
-    monkeypatch.setattr(main_module, "EmbeddingClient", FakeEmbeddingClient)
-    monkeypatch.setattr(main_module, "LLMClient", FakeLLMClient)
-    monkeypatch.setattr(main_module, "RerankClient", FakeRerankClient)
-    monkeypatch.setattr(main_module, "ArqRedis", FakeArqRedis)
     monkeypatch.setattr(main_module, "seed_demo_data", fail_if_called)
+    app.state.telemetry = None
 
     with TestClient(app):
-        pass
+        assert app.state.session_factory is runtime.session_factory
+        assert app.state.job_queue is runtime.job_queue
+        assert app.state.embedding_client is runtime.embedding_client
+        assert app.state.llm_client is runtime.llm_client
+        assert app.state.rerank_client is runtime.rerank_client
 
-    assert captured["db_settings"] is settings.db
-    assert captured["begin_called"] is True
-    assert captured["create_all_callback"] == main_module.Base.metadata.create_all
-    assert captured["qdrant_settings"] is settings.qdrant
-    assert captured["ensure_collection_called"] is True
-    assert captured["reranker_settings"] is settings.reranker
-    assert captured["job_queue_url"] == settings.redis.url
-    assert captured["embedding_settings"] is settings.embeddings
-    assert captured["llm_settings"] is settings.llm
-    assert app.state.job_queue is fake_job_queue
-    assert isinstance(app.state.embedding_client, FakeEmbeddingClient)
-    assert isinstance(app.state.llm_client, FakeLLMClient)
-    assert isinstance(app.state.rerank_client, FakeRerankClient)
+    assert runtime.engine_begin_calls == 1
+    assert runtime.schema_callback == main_module.Base.metadata.create_all
+    assert runtime.qdrant_store is not None
+    assert runtime.qdrant_store.collection_ensured is True
+    assert runtime.llm_client is not None
+    assert runtime.llm_client.catalog == ["model-test"]
+    assert runtime.lifecycle == [
+        "job_queue_closed",
+        "redis_closed",
+        "engine_disposed",
+    ]
+
+
+def test_startup_records_model_catalog_degradation_and_continues(monkeypatch) -> None:
+    runtime = ApplicationRuntimeHarness(
+        model_catalog_error=RuntimeError("model service unavailable")
+    )
+    runtime.patch_main(monkeypatch, main_module)
+    log_records: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        main_module.logger,
+        "info",
+        lambda message, **kwargs: log_records.append((message, kwargs)),
+    )
+    app.state.telemetry = None
+
+    with TestClient(app):
+        assert app.state.model_catalog == []
+        assert app.state.llm_client is runtime.llm_client
+
+    assert runtime.llm_client is not None
+    assert runtime.llm_client.list_models_calls == 1
+    assert runtime.llm_client.catalog == []
+    startup_records = [record for record in log_records if record[0] == "app_startup"]
+    assert len(startup_records) == 1
+    assert startup_records[0][1]["extra"]["wide_event"]["model_catalog"] == {
+        "outcome": "degraded",
+        "error_type": "RuntimeError",
+        "error_message": "model service unavailable",
+    }

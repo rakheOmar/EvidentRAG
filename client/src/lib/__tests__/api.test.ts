@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  DocumentRecord,
   ThreadDetail,
   ThreadSummary,
   ThreadTurnResponse,
@@ -11,13 +12,15 @@ import {
   createThread,
   deleteDocument,
   fetchDocuments,
+  fetchModelContext,
   fetchThread,
   fetchThreads,
   putSentenceTraceFeedback,
   uploadDocument,
 } from "../api";
 
-const createThreadErrorMessage = /400 Bad Request/;
+const API_PREFIX = "/api/v1";
+const REQUEST_ID_PATTERN = /^[0-9a-f-]{36}$/;
 
 function makeThreadSummary(
   overrides: Partial<ThreadSummary> = {}
@@ -32,7 +35,13 @@ function makeThreadSummary(
   };
 }
 
-function makeTurnResponse(): ThreadTurnResponse {
+function makeThreadDetail(overrides: Partial<ThreadDetail> = {}): ThreadDetail {
+  return { ...makeThreadSummary(), messages: [], ...overrides };
+}
+
+function makeTurnResponse(
+  overrides: Partial<ThreadTurnResponse> = {}
+): ThreadTurnResponse {
   return {
     assistant_message: {
       completed_at: null,
@@ -65,230 +74,212 @@ function makeTurnResponse(): ThreadTurnResponse {
       thread_id: "thread-001",
       updated_at: "2026-07-04T10:00:00Z",
     },
-  };
-}
-
-function makeThreadDetail(overrides: Partial<ThreadDetail> = {}): ThreadDetail {
-  return {
-    ...makeThreadSummary(),
-    messages: [],
     ...overrides,
   };
 }
 
-function stubJson(body: unknown, init: { status?: number } = {}): Response {
+function makeDocument(overrides: Partial<DocumentRecord> = {}): DocumentRecord {
+  return {
+    byte_size: 512,
+    created_at: "2026-07-11T10:00:00Z",
+    document_id: "document-001",
+    error_message: null,
+    id: "document-001",
+    is_current: false,
+    original_filename: "handbook.pdf",
+    page_count: 0,
+    source_id: "source-001",
+    source_key: "source-key",
+    status: "queued",
+    title: "handbook",
+    updated_at: "2026-07-11T10:00:00Z",
+    version_number: 1,
+    warnings: [],
+    ...overrides,
+  };
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     headers: { "Content-Type": "application/json" },
-    status: 200,
-    ...init,
+    status,
   });
 }
 
 function getFirstCall(fetchMock: ReturnType<typeof vi.fn>) {
   const [firstCall] = fetchMock.mock.calls;
-
-  if (firstCall === undefined) {
+  if (!firstCall) {
     throw new Error("Expected fetch to be called at least once.");
   }
-
   return firstCall;
 }
 
-describe("createThread", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
+function stubFetch(response: Response | Response[]) {
+  const fetchMock = vi.fn();
+  for (const item of Array.isArray(response) ? response : [response]) {
+    fetchMock.mockResolvedValueOnce(item);
+  }
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
 
-  it("POSTs { content } to /api/v1/threads and returns the parsed ThreadTurnResponse", async () => {
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("thread API wrappers", () => {
+  it.each([
+    {
+      call: () => createThread("What is RAG?"),
+      expectedBody: { content: "What is RAG?" },
+      expectedPath: `${API_PREFIX}/threads`,
+      label: "creates a thread",
+    },
+    {
+      call: () => appendThreadMessage("thread-001", "And what about HNSW?"),
+      expectedBody: { content: "And what about HNSW?" },
+      expectedPath: `${API_PREFIX}/threads/thread-001/messages`,
+      label: "appends a thread message",
+    },
+  ])("$label", async ({ call, expectedPath, expectedBody }) => {
     const expected = makeTurnResponse();
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(expected), {
-        headers: { "Content-Type": "application/json" },
-        status: 201,
-      })
-    );
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(jsonResponse(expected, 201));
 
-    const result = await createThread("What is RAG?");
+    await expect(call()).resolves.toEqual(expected);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/threads");
+    expect(url).toBe(expectedPath);
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(init?.body as string)).toEqual({
-      content: "What is RAG?",
-    });
-    expect(result).toEqual(expected);
+    expect(JSON.parse(init?.body as string)).toEqual(expectedBody);
+    expect(new Headers(init?.headers).get("x-request-id")).toMatch(
+      REQUEST_ID_PATTERN
+    );
   });
 
-  it("throws a meaningful error on a 4xx response", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response("Bad Request", { status: 400 }))
-    );
+  it.each([
+    {
+      expected: "400 Bad Request",
+      presentation: "inline",
+      status: 400,
+      statusText: "Bad Request",
+    },
+    {
+      expected: "404 Not Found",
+      presentation: "toast",
+      status: 404,
+      statusText: "Not Found",
+    },
+    {
+      expected: "503 Service Unavailable",
+      presentation: "dialog",
+      status: 503,
+      statusText: "Service Unavailable",
+    },
+  ])("maps a $status response to an ApiError", async ({
+    expected,
+    presentation,
+    status,
+    statusText,
+  }) => {
+    stubFetch(new Response("", { status, statusText }));
 
-    await expect(createThread("oops")).rejects.toThrowError(
-      createThreadErrorMessage
-    );
+    await expect(createThread("oops")).rejects.toMatchObject({
+      message: expected,
+      presentation,
+      status,
+    });
   });
 });
 
-describe("appendThreadMessage", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
+describe("thread and model read wrappers", () => {
+  it.each([
+    {
+      body: [makeThreadSummary({ id: "thread-1", title: "first" })],
+      call: () => fetchThreads(),
+      label: "lists threads",
+      path: `${API_PREFIX}/threads`,
+    },
+    {
+      body: makeThreadDetail({ id: "thread-001" }),
+      call: () => fetchThread("thread-001"),
+      label: "fetches one thread",
+      path: `${API_PREFIX}/threads/thread-001`,
+    },
+    {
+      body: { context_window: 8192, generation_model: "gpt-4.1-mini" },
+      call: () => fetchModelContext(),
+      label: "fetches model context",
+      path: `${API_PREFIX}/model-context`,
+    },
+  ])("$label", async ({ call, path, body }) => {
+    const fetchMock = stubFetch(jsonResponse(body));
 
-  it("POSTs to /api/v1/threads/{id}/messages", async () => {
-    const expected = makeTurnResponse();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(stubJson(expected, { status: 201 }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await appendThreadMessage(
-      "thread-001",
-      "And what about HNSW?"
-    );
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/threads/thread-001/messages");
-    expect(init?.method).toBe("POST");
-    expect(JSON.parse(init?.body as string)).toEqual({
-      content: "And what about HNSW?",
-    });
-    expect(result).toEqual(expected);
-  });
-});
-
-describe("fetchThreads", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("GETs /api/v1/threads and returns the parsed ThreadSummary[]", async () => {
-    const expected = [
-      makeThreadSummary({ id: "thread-1", title: "first" }),
-      makeThreadSummary({ id: "thread-2", title: "second" }),
-    ];
-    const fetchMock = vi.fn().mockResolvedValue(stubJson(expected));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await fetchThreads();
+    await expect(call()).resolves.toEqual(body);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/threads");
+    expect(url).toBe(path);
     expect(init?.method).toBe("GET");
-    expect(result).toEqual(expected);
   });
 });
 
-describe("fetchThread", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
+describe("feedback API", () => {
+  it.each([
+    ["up", { rating: "up", trace_id: "trace-001" }],
+    ["down", { rating: "down", trace_id: "trace-001" }],
+  ] as const)("PUTs a %s rating", async (rating, expected) => {
+    const fetchMock = stubFetch(jsonResponse(expected));
 
-  it("GETs /api/v1/threads/{id} and returns the parsed ThreadDetail", async () => {
-    const expected = makeThreadDetail({
-      id: "thread-001",
-      messages: [
-        makeTurnResponse().user_message,
-        makeTurnResponse().assistant_message,
-      ],
-    });
-    const fetchMock = vi.fn().mockResolvedValue(stubJson(expected));
-    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      putSentenceTraceFeedback("trace-001", rating)
+    ).resolves.toEqual(expected);
 
-    const result = await fetchThread("thread-001");
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/threads/thread-001");
-    expect(init?.method).toBe("GET");
-    expect(result).toEqual(expected);
-  });
-});
-
-describe("putSentenceTraceFeedback", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("PUTs the rating to /api/v1/sentence-traces/{id}/rating", async () => {
-    const expected = { rating: "up", trace_id: "trace-001" };
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(stubJson(expected, { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await putSentenceTraceFeedback("trace-001", "up");
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/sentence-traces/trace-001/rating");
+    expect(url).toBe(`${API_PREFIX}/sentence-traces/trace-001/rating`);
     expect(init?.method).toBe("PUT");
-    expect(JSON.parse(init?.body as string)).toEqual({ rating: "up" });
-    expect(result).toEqual(expected);
+    expect(JSON.parse(init?.body as string)).toEqual({ rating });
   });
 });
 
-describe("document APIs", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("uploads a PDF as multipart form data and returns its document", async () => {
-    const expected = {
-      byte_size: 512,
-      created_at: "2026-07-11T10:00:00Z",
-      document_id: "document-001",
-      error_message: null,
-      id: "document-001",
-      is_current: false,
-      original_filename: "handbook.pdf",
-      page_count: 0,
-      source_id: "source-001",
-      source_key: "source-key",
-      status: "queued",
-      title: "handbook",
-      updated_at: "2026-07-11T10:00:00Z",
-      version_number: 1,
-      warnings: [],
-    };
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(stubJson(expected, { status: 201 }));
-    vi.stubGlobal("fetch", fetchMock);
+describe("document API wrappers", () => {
+  it.each([
+    { expectedSourceKey: null, sourceKey: undefined },
+    { expectedSourceKey: "source-override", sourceKey: "source-override" },
+  ])("uploads a PDF and handles source_key=$sourceKey", async ({
+    expectedSourceKey,
+    sourceKey,
+  }) => {
+    const expected = makeDocument();
+    const fetchMock = stubFetch(jsonResponse(expected, 201));
     const file = new File(["%PDF-1.7"], "handbook.pdf", {
       type: "application/pdf",
     });
 
-    const result = await uploadDocument(file);
+    await expect(uploadDocument(file, sourceKey)).resolves.toEqual(expected);
 
     const [url, init] = getFirstCall(fetchMock);
-    expect(url).toBe("/api/v1/documents");
+    expect(url).toBe(`${API_PREFIX}/documents`);
     expect(init?.method).toBe("POST");
-    const body = init?.body;
-    expect(body).toBeInstanceOf(FormData);
-    if (!(body instanceof FormData)) {
-      throw new Error("Expected upload request body to be FormData.");
-    }
+    expect(init?.body).toBeInstanceOf(FormData);
+    const body = init?.body as FormData;
     expect(body.get("file")).toBe(file);
-    expect(result).toEqual(expected);
+    expect(body.get("source_key")).toBe(expectedSourceKey);
   });
 
-  it("lists documents and deletes a document without parsing an empty response", async () => {
+  it("lists documents and deletes without parsing a 204 body", async () => {
     const listResponse = { items: [], limit: 100, offset: 0, total: 0 };
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(stubJson(listResponse))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch([
+      jsonResponse(listResponse),
+      new Response(null, { status: 204 }),
+    ]);
 
     await expect(fetchDocuments()).resolves.toEqual(listResponse);
     await expect(deleteDocument("document-001")).resolves.toBeUndefined();
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/v1/documents/document-001");
+
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      `${API_PREFIX}/documents/document-001`
+    );
     expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("DELETE");
   });
 });

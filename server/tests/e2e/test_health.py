@@ -3,17 +3,22 @@ from __future__ import annotations
 import uuid
 from unittest import mock
 
+import pytest
 
-def test_health_sets_request_id_header(client) -> None:
-    response = client.get("/health")
+
+pytestmark = pytest.mark.e2e
+
+
+def test_health_sets_request_id_header(service_client) -> None:
+    response = service_client.get("/health")
 
     assert response.status_code == 200
     assert response.headers["x-request-id"]
     uuid.UUID(response.headers["x-request-id"])
 
 
-def test_health_returns_service_info(client) -> None:
-    response = client.get("/health")
+def test_health_returns_service_info(service_client) -> None:
+    response = service_client.get("/health")
 
     assert response.status_code == 200
     body = response.json()
@@ -36,13 +41,13 @@ def test_health_returns_service_info(client) -> None:
     assert svc["redis"]["url"] in ("redis://localhost:6379", "redis://localhost:6379/0")
 
 
-def test_health_degraded_when_redis_down(client) -> None:
-    client.app.state.redis = mock.AsyncMock()
-    client.app.state.redis.ping.side_effect = ConnectionError(
+def test_health_degraded_when_redis_down(service_client) -> None:
+    service_client.app.state.redis = mock.AsyncMock()
+    service_client.app.state.redis.ping.side_effect = ConnectionError(
         "redis refused connection"
     )
 
-    response = client.get("/health")
+    response = service_client.get("/health")
 
     assert response.status_code == 200
     body = response.json()
@@ -55,14 +60,14 @@ def test_health_degraded_when_redis_down(client) -> None:
     assert body["services"]["qdrant"]["status"] == "healthy"
 
 
-def test_health_degraded_when_qdrant_down(client) -> None:
-    client.app.state.qdrant_store = mock.AsyncMock()
-    client.app.state.qdrant_store._client = mock.AsyncMock()
-    client.app.state.qdrant_store._client.get_collections.side_effect = ConnectionError(
-        "qdrant refused connection"
+def test_health_degraded_when_qdrant_down(service_client) -> None:
+    service_client.app.state.qdrant_store = mock.AsyncMock()
+    service_client.app.state.qdrant_store._client = mock.AsyncMock()
+    service_client.app.state.qdrant_store._client.get_collections.side_effect = (
+        ConnectionError("qdrant refused connection")
     )
 
-    response = client.get("/health")
+    response = service_client.get("/health")
 
     assert response.status_code == 200
     body = response.json()
@@ -87,10 +92,10 @@ class _FailingEngine:
     connect = _FailingConn
 
 
-def test_health_degraded_when_postgres_down(client) -> None:
-    client.app.state.engine = _FailingEngine()
+def test_health_degraded_when_postgres_down(service_client) -> None:
+    service_client.app.state.engine = _FailingEngine()
 
-    response = client.get("/health")
+    response = service_client.get("/health")
 
     assert response.status_code == 200
     body = response.json()

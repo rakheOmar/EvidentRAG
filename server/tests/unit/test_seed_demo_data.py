@@ -4,8 +4,6 @@ import json
 import uuid
 from pathlib import Path
 from typing import Any
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -16,6 +14,7 @@ from app.seed.seed_demo_data import (
     run_seed_demo_data,
     seed_demo_data,
 )
+from tests.support.settings import build_runtime_settings
 
 
 class _FakeResult:
@@ -149,6 +148,43 @@ class _FakeQdrantStore:
 
     async def close(self) -> None:
         self.closed = True
+
+
+class _SeedEntrypointEngine:
+    def __init__(self, lifecycle: list[str]) -> None:
+        self.lifecycle = lifecycle
+        self.disposed = False
+
+    async def dispose(self) -> None:
+        self.disposed = True
+        self.lifecycle.append("engine_disposed")
+
+
+class _SeedEntrypointRedis:
+    def __init__(self, lifecycle: list[str]) -> None:
+        self.lifecycle = lifecycle
+        self.closed = False
+
+    async def aclose(self) -> None:
+        self.closed = True
+        self.lifecycle.append("redis_closed")
+
+
+class _SeedEntrypointQdrant:
+    def __init__(self, lifecycle: list[str], settings: object) -> None:
+        self.lifecycle = lifecycle
+        self.settings = settings
+        self.closed = False
+
+    async def close(self) -> None:
+        self.closed = True
+        self.lifecycle.append("qdrant_closed")
+
+
+class _SeedEntrypointEmbedding:
+    def __init__(self, settings: object, scheduler: object) -> None:
+        self.settings = settings
+        self.scheduler = scheduler
 
 
 def test_validate_seed_schema_matches_thread_message_model() -> None:
@@ -560,55 +596,55 @@ async def test_run_seed_demo_data_uses_runtime_dependencies(
     monkeypatch, tmp_path: Path
 ) -> None:
     seed_dir = tmp_path / "demo-corpus"
-    fake_engine = _FakeEngine()
-    fake_session_factory = object()
-    fake_qdrant_store = _FakeQdrantStore()
-    fake_embedding_client = object()
-    fake_redis = SimpleNamespace(aclose=AsyncMock())
+    settings = build_runtime_settings()
+    lifecycle: list[str] = []
+    engine = _SeedEntrypointEngine(lifecycle)
+    session_factory = object()
+    redis = _SeedEntrypointRedis(lifecycle)
+    qdrant_store = _SeedEntrypointQdrant(lifecycle, settings.qdrant)
+    embedding_client: _SeedEntrypointEmbedding | None = None
     captured: dict[str, Any] = {}
-    settings = SimpleNamespace(
-        db=object(),
-        qdrant=object(),
-        embeddings=object(),
-        redis=SimpleNamespace(url="redis://test"),
-        rate_limits=object(),
-    )
 
-    monkeypatch.setattr("app.core.config.load_dotenv", lambda *a, **k: None)
     monkeypatch.setattr("app.seed.seed_demo_data.get_settings", lambda: settings)
     monkeypatch.setattr(
         "app.seed.seed_demo_data.configure_logging",
         lambda actual_settings: captured.setdefault("logged_settings", actual_settings),
     )
 
-    def fake_create_engine(db_settings):
-        captured["db_settings"] = db_settings
-        return fake_engine
+    def create_seed_engine(actual_settings: object) -> _SeedEntrypointEngine:
+        captured["db_settings"] = actual_settings
+        return engine
 
-    def fake_create_session_factory(engine):
-        captured["engine"] = engine
-        return fake_session_factory
+    def create_seed_session_factory(actual_engine: object) -> object:
+        captured["session_engine"] = actual_engine
+        return session_factory
 
-    def fake_qdrant_factory(qdrant_settings):
-        captured["qdrant_settings"] = qdrant_settings
-        return fake_qdrant_store
+    def create_seed_qdrant(actual_settings: object) -> _SeedEntrypointQdrant:
+        captured["qdrant_settings"] = actual_settings
+        return qdrant_store
 
-    def fake_embedding_factory(embedding_settings, scheduler=None):
-        captured["embedding_settings"] = embedding_settings
-        captured["embedding_scheduler"] = scheduler
-        return fake_embedding_client
+    def create_seed_redis(actual_url: str) -> _SeedEntrypointRedis:
+        captured["redis_url"] = actual_url
+        return redis
 
-    monkeypatch.setattr("app.seed.seed_demo_data.create_engine", fake_create_engine)
+    monkeypatch.setattr("app.seed.seed_demo_data.create_engine", create_seed_engine)
     monkeypatch.setattr(
-        "app.seed.seed_demo_data.create_session_factory", fake_create_session_factory
+        "app.seed.seed_demo_data.create_session_factory",
+        create_seed_session_factory,
     )
-    monkeypatch.setattr("app.seed.seed_demo_data.QdrantStore", fake_qdrant_factory)
+    monkeypatch.setattr("app.seed.seed_demo_data.QdrantStore", create_seed_qdrant)
+
+    def create_embedding_client(
+        actual_settings: object, *, scheduler: object
+    ) -> _SeedEntrypointEmbedding:
+        nonlocal embedding_client
+        embedding_client = _SeedEntrypointEmbedding(actual_settings, scheduler)
+        return embedding_client
+
     monkeypatch.setattr(
-        "app.seed.seed_demo_data.EmbeddingClient", fake_embedding_factory
+        "app.seed.seed_demo_data.EmbeddingClient", create_embedding_client
     )
-    monkeypatch.setattr(
-        "app.seed.seed_demo_data.Redis.from_url", lambda url: fake_redis
-    )
+    monkeypatch.setattr("app.seed.seed_demo_data.Redis.from_url", create_seed_redis)
 
     async def fake_seed_demo_data(**kwargs):
         captured["seed_kwargs"] = kwargs
@@ -621,16 +657,24 @@ async def test_run_seed_demo_data_uses_runtime_dependencies(
     assert seeded_count == 4
     assert captured["logged_settings"] is settings
     assert captured["db_settings"] is settings.db
-    assert captured["engine"] is fake_engine
+    assert captured["session_engine"] is engine
     assert captured["qdrant_settings"] is settings.qdrant
-    assert captured["embedding_settings"] is settings.embeddings
-    assert captured["embedding_scheduler"] is not None
+    assert captured["redis_url"] == settings.redis.url
+    assert qdrant_store.settings is settings.qdrant
+    assert embedding_client is not None
+    assert embedding_client.settings is settings.embeddings
+    assert embedding_client.scheduler is not None
     assert captured["seed_kwargs"] == {
-        "session_factory": fake_session_factory,
-        "qdrant_store": fake_qdrant_store,
-        "embedding_client": fake_embedding_client,
+        "session_factory": session_factory,
+        "qdrant_store": qdrant_store,
+        "embedding_client": embedding_client,
         "seed_dir": seed_dir,
     }
-    assert fake_qdrant_store.closed is True
-    assert fake_engine.disposed is True
-    fake_redis.aclose.assert_awaited_once()
+    assert qdrant_store.closed is True
+    assert redis.closed is True
+    assert engine.disposed is True
+    assert lifecycle == [
+        "redis_closed",
+        "qdrant_closed",
+        "engine_disposed",
+    ]

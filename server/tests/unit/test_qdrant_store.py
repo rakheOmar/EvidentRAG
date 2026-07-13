@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 import pytest
 from qdrant_client.http.models import (
@@ -8,6 +8,7 @@ from qdrant_client.http.models import (
     Fusion,
     FusionQuery,
     Modifier,
+    PayloadSchemaType,
     SparseVector,
 )
 
@@ -26,36 +27,38 @@ class TestTextToSparseVector:
         assert len(result.indices) == 1
         assert result.values[0] == 1.0
 
-    def test_empty_text_returns_empty_vectors(self) -> None:
-        result = QdrantStore._text_to_sparse_vector("")
+    @pytest.mark.parametrize(
+        ("text", "expected_values"),
+        [
+            ("", []),
+            ("a RAG x", [1.0]),
+            ("cat sat hat", [1.0, 1.0, 1.0]),
+        ],
+        ids=["empty", "short-tokens-filtered", "distinct-tokens"],
+    )
+    def test_filters_tokens_and_counts_distinct_terms(
+        self,
+        text: str,
+        expected_values: list[float],
+    ) -> None:
+        result = QdrantStore._text_to_sparse_vector(text)
 
         assert isinstance(result, SparseVector)
-        assert result.indices == []
-        assert result.values == []
+        assert len(result.indices) == len(expected_values)
+        assert result.values == expected_values
 
     def test_repeated_token_increases_value(self) -> None:
         single = QdrantStore._text_to_sparse_vector("hello")
         repeated = QdrantStore._text_to_sparse_vector("hello hello hello")
 
         assert single.indices == repeated.indices
-        assert repeated.values[0] == 3.0
-
-    def test_multiple_tokens_produce_separate_indices(self) -> None:
-        result = QdrantStore._text_to_sparse_vector("cat sat hat")
-
-        assert len(result.indices) == 3
-        assert all(v == 1.0 for v in result.values)
+        assert repeated.values == [3.0]
 
     def test_case_insensitive_tokens_map_to_same_index(self) -> None:
         upper = QdrantStore._text_to_sparse_vector("Hello")
         lower = QdrantStore._text_to_sparse_vector("hello")
 
         assert upper.indices == lower.indices
-
-    def test_short_tokens_are_filtered(self) -> None:
-        result = QdrantStore._text_to_sparse_vector("a RAG x")
-
-        assert len(result.indices) == 1
 
     def test_deterministic_output(self) -> None:
         first = QdrantStore._text_to_sparse_vector("the cat sat on the mat")
@@ -89,9 +92,30 @@ async def test_ensure_collection_creates_collection_when_missing(
     assert set(kwargs["vectors_config"].keys()) == {"dense"}
     assert kwargs["vectors_config"]["dense"].size == 768
     assert kwargs["sparse_vectors_config"]["sparse"].modifier == Modifier.IDF
+    mock_client.create_payload_index.assert_has_awaits(
+        [
+            call(
+                "evidentrag_evidence",
+                field_name="eligible",
+                field_schema=PayloadSchemaType.BOOL,
+            ),
+            call(
+                "evidentrag_evidence",
+                field_name="document_id",
+                field_schema=PayloadSchemaType.KEYWORD,
+            ),
+            call(
+                "evidentrag_evidence",
+                field_name="source_id",
+                field_schema=PayloadSchemaType.KEYWORD,
+            ),
+        ]
+    )
 
 
-async def test_ensure_collection_skips_when_exists(settings: QdrantSettings) -> None:
+async def test_ensure_collection_preserves_existing_collection(
+    settings: QdrantSettings,
+) -> None:
     mock_client = AsyncMock()
     mock_client.collection_exists.return_value = True
 
@@ -99,6 +123,7 @@ async def test_ensure_collection_skips_when_exists(settings: QdrantSettings) -> 
     await store.ensure_collection()
 
     mock_client.create_collection.assert_not_called()
+    assert mock_client.create_payload_index.await_count == 3
 
 
 async def test_upsert_points_calls_client_with_collection_and_points(

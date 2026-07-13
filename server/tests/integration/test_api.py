@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import uuid
 
+import pytest
+
 from app.application.query_pipeline.erm import hash_query_embedding
 from app.infrastructure.db.models import (
     Answer,
@@ -14,6 +16,9 @@ from app.infrastructure.db.models import (
     Segment,
     Source,
 )
+
+
+pytestmark = pytest.mark.integration
 
 
 def _sse_done_event(
@@ -250,6 +255,7 @@ def test_get_message_events_replays_done_for_completed_message(client) -> None:
     assert actual_payload["full_text"] == expected_payload["full_text"]
     assert actual_payload["segments"] == expected_payload["segments"]
     assert actual_payload["evidence"] == expected_payload["evidence"]
+    assert actual_payload["content_parts"] == expected_payload["content_parts"]
     assert actual_payload["error"] is False
 
 

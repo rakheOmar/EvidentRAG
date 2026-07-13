@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 
 def test_emits_completed_segment_texts_and_parses_final() -> None:
     from app.application.query_pipeline.json_stream_parser import JsonStreamParser
@@ -21,29 +23,22 @@ def test_emits_completed_segment_texts_and_parses_final() -> None:
     ]
 
 
-def test_parse_final_handles_leading_preamble() -> None:
+@pytest.mark.parametrize(
+    "model_output",
+    [
+        'Here is your summary:\n[{"text":"First.","evidence_ids":["e1"]}]',
+        '```json\n[{"text":"First.","evidence_ids":["e1"]}]\n```',
+        '[{"text":"First.","evidence_ids":["e1"]}] I hope this helps',
+    ],
+    ids=["leading-preamble", "markdown-code-fence", "trailing-explanation"],
+)
+def test_parse_final_extracts_json_from_surrounding_model_text(
+    model_output: str,
+) -> None:
     from app.application.query_pipeline.json_stream_parser import JsonStreamParser
 
     parser = JsonStreamParser()
-    parser.feed('Here is your summary:\n[{"text":"First.","evidence_ids":["e1"]}]')
-
-    assert parser.parse_final() == [{"text": "First.", "evidence_ids": ["e1"]}]
-
-
-def test_parse_final_handles_markdown_code_fences() -> None:
-    from app.application.query_pipeline.json_stream_parser import JsonStreamParser
-
-    parser = JsonStreamParser()
-    parser.feed('```json\n[{"text":"First.","evidence_ids":["e1"]}]\n```')
-
-    assert parser.parse_final() == [{"text": "First.", "evidence_ids": ["e1"]}]
-
-
-def test_parse_final_handles_trailing_text() -> None:
-    from app.application.query_pipeline.json_stream_parser import JsonStreamParser
-
-    parser = JsonStreamParser()
-    parser.feed('[{"text":"First.","evidence_ids":["e1"]}] I hope this helps')
+    parser.feed(model_output)
 
     assert parser.parse_final() == [{"text": "First.", "evidence_ids": ["e1"]}]
 
@@ -201,8 +196,7 @@ def test_get_segments_returns_completed_segments() -> None:
     ]
 
 
-def test_get_segments_excludes_partial_last_segment() -> None:
-    """The last segment whose evidence_ids haven't arrived yet is still returned with empty evidence_ids."""
+def test_get_segments_excludes_segment_until_text_is_complete() -> None:
     from app.application.query_pipeline.json_stream_parser import JsonStreamParser
 
     parser = JsonStreamParser()
@@ -227,8 +221,7 @@ def test_get_segments_includes_partial_segment_with_empty_ids_when_text_is_known
     parser = JsonStreamParser()
 
     parser.feed('[{"text":"Only text here.","evidence_ids":')
-    segments = parser.get_segments()
-    assert segments[-1] == {"text": "Only text here.", "evidence_ids": []}
+    assert parser.get_segments() == [{"text": "Only text here.", "evidence_ids": []}]
 
 
 def test_get_segments_updates_partial_segment_when_ids_arrive() -> None:
@@ -237,12 +230,12 @@ def test_get_segments_updates_partial_segment_when_ids_arrive() -> None:
     parser = JsonStreamParser()
 
     parser.feed('[{"text":"Cited text.","evidence_ids":["e1')
-    segments = parser.get_segments()
-    assert segments[-1] == {"text": "Cited text.", "evidence_ids": []}
+    assert parser.get_segments() == [{"text": "Cited text.", "evidence_ids": []}]
 
     parser.feed('","e2"]}]')
-    segments = parser.get_segments()
-    assert segments[-1] == {"text": "Cited text.", "evidence_ids": ["e1", "e2"]}
+    assert parser.get_segments() == [
+        {"text": "Cited text.", "evidence_ids": ["e1", "e2"]}
+    ]
 
 
 def test_get_segments_handles_space_after_colon() -> None:

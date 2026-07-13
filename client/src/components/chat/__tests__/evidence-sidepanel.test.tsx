@@ -23,7 +23,7 @@ afterEach(() => {
   cleanup();
 });
 
-function EvidenceHarness() {
+function EvidenceHarness({ onClose = noop }: { onClose?: () => void }) {
   const {
     clearEvidence,
     selectedEvidenceIds,
@@ -69,7 +69,7 @@ function EvidenceHarness() {
             page: 2,
           },
         ]}
-        onClose={noop}
+        onClose={onClose}
         open
       />
     </div>
@@ -106,6 +106,8 @@ describe("EvidenceSidepanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "seed selection" }));
 
+    expect(screen.getByText("p. 1")).toBeInTheDocument();
+    expect(screen.getByText("First evidence")).toBeInTheDocument();
     expect(screen.getByTestId("selected-message")).toHaveTextContent(
       "message-1"
     );
@@ -142,6 +144,21 @@ describe("EvidenceSidepanel", () => {
 
     expect(screen.getByTestId("selected-message")).toHaveTextContent("none");
     expect(screen.getByTestId("selected-evidence")).toHaveTextContent("none");
+  });
+
+  it("notifies the caller when the panel is closed", () => {
+    const onClose = vi.fn();
+    render(
+      <EvidencePanelProvider>
+        <EvidenceHarness onClose={onClose} />
+      </EvidencePanelProvider>
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close evidence panel" })
+    );
+
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("does not show a page prefix when page metadata is missing", () => {

@@ -8,10 +8,13 @@ import {
 } from "@/lib/markdown";
 
 describe("hasRichMarkdown", () => {
-  it("detects Markdown that must be rendered instead of displayed as cited plain text", () => {
-    expect(
-      hasRichMarkdown("## Input representation\n\n\\(E_i\\) = E_t + E_s")
-    ).toBe(true);
+  it.each([
+    ["heading", "## Input representation\n\nE_i = E_t + E_s"],
+    ["list", "- token embeddings"],
+    ["table", "| Type | Purpose |\n|---|---|"],
+    ["inline math", "For token \\(i\\), use \\(E_i\\)."],
+  ])("detects %s", (_label, markdown) => {
+    expect(hasRichMarkdown(markdown)).toBe(true);
   });
 
   it("keeps ordinary cited prose on the inline citation path", () => {
@@ -22,7 +25,7 @@ describe("hasRichMarkdown", () => {
 });
 
 describe("joinMarkdownSegments", () => {
-  it("keeps a trailing table newline from swallowing the following paragraph", () => {
+  it("separates structural segments without swallowing a following paragraph", () => {
     expect(
       joinMarkdownSegments([
         "## Figure 2",
@@ -35,27 +38,30 @@ describe("joinMarkdownSegments", () => {
         "**Figure 2:** Input embeddings are summed."
     );
   });
+
+  it.each([
+    [["", "", ""], ""],
+    [["First", "second"], "First second"],
+    [["- one", "- two"], "- one\n- two"],
+  ] as const)("joins %j as %j", (parts, expected) => {
+    expect(joinMarkdownSegments(parts)).toBe(expected);
+  });
 });
 
 describe("isSegmentHighlighted", () => {
-  it("highlights the traced segment for the hovered citation", () => {
-    expect(isSegmentHighlighted(["ev-1", "ev-2"], "ev-2", [])).toBe(true);
-    expect(isSegmentHighlighted(["ev-1"], "ev-2", ["ev-1"])).toBe(false);
-  });
-
-  it("falls back to the selected citation when none is hovered", () => {
-    expect(isSegmentHighlighted(["ev-1"], null, ["ev-1"])).toBe(true);
+  it.each([
+    [["ev-1", "ev-2"], "ev-2", [], true],
+    [["ev-1"], "ev-2", ["ev-1"], false],
+    [["ev-1"], null, ["ev-1"], true],
+    [["ev-1"], null, [], false],
+  ] as const)("returns %s for evidence=%j hovered=%s selected=%j", (evidenceIds, hoveredEvidenceId, selectedEvidenceIds, expected) => {
+    expect(
+      isSegmentHighlighted(evidenceIds, hoveredEvidenceId, selectedEvidenceIds)
+    ).toBe(expected);
   });
 });
 
 describe("requiresFullWidthHighlight", () => {
-  it("keeps prose, inline math, and headings tight to their content", () => {
-    expect(
-      requiresFullWidthHighlight("For token \\(i\\), use \\(E_i\\).")
-    ).toBe(false);
-    expect(requiresFullWidthHighlight("## Figure 2")).toBe(false);
-  });
-
   it.each([
     "| Type | Purpose |",
     "$$\nE_i = E_t + E_s\n$$",
@@ -63,5 +69,13 @@ describe("requiresFullWidthHighlight", () => {
     "```python",
   ])("keeps structural Markdown full width: %s", (markdown) => {
     expect(requiresFullWidthHighlight(markdown)).toBe(true);
+  });
+
+  it.each([
+    "For token \\(i\\), use \\(E_i\\).",
+    "## Figure 2",
+    "plain prose",
+  ])("keeps %s tight to its content", (markdown) => {
+    expect(requiresFullWidthHighlight(markdown)).toBe(false);
   });
 });

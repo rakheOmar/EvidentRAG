@@ -1,26 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from types import SimpleNamespace
+from typing import Any
 
 from fastapi import FastAPI
 
-from typing import Any
-
-from app.core.config import (
-    AppSettings,
-    RerankerSettings,
-    DatabaseSettings,
-    EmbeddingSettings,
-    LLMSettings,
-    LogSettings,
-    OtelSettings,
-    QdrantSettings,
-    RedisSettings,
-    Settings,
-    get_settings,
-)
 from app.core.logging import reset_request_id, set_request_id
+from tests.support.settings import build_runtime_settings
 
 
 def _patch_noop_metric_dependencies(monkeypatch) -> None:
@@ -122,52 +108,7 @@ def test_configure_telemetry_uses_standard_exporter_configuration(monkeypatch) -
     from app.core.telemetry import configure_telemetry
 
     app = FastAPI()
-    settings = Settings(
-        app=AppSettings(
-            app_name="EvidentRAG",
-            environment="development",
-            client_dist_path="../client/dist",
-        ),
-        log=LogSettings(level="INFO"),
-        otel=OtelSettings(
-            enabled=True,
-            service_name="evidentrag-server",
-            exporter_otlp_endpoint="http://collector:4317",
-            exporter_otlp_headers="authorization=token",
-            exporter_otlp_protocol="grpc",
-            excluded_urls="/health",
-        ),
-        embeddings=EmbeddingSettings(
-            api_base="http://optiplex-3020:8081/v1",
-            api_key=None,
-            seed_demo_data=False,
-            model="google/gemini-embedding-2",
-            dimensions=768,
-        ),
-        llm=LLMSettings(
-            api_base="http://optiplex-3020:8081/v1",
-            api_key=None,
-            generation_model="gemini-2.5-pro",
-            utility_model="gemini-2.5-flash",
-        ),
-        reranker=RerankerSettings(
-            api_base="https://api.cohere.com/v2",
-            api_key=None,
-            model="rerank-english-v3.0",
-        ),
-        db=DatabaseSettings(
-            host="localhost",
-            port=5432,
-            user="evidentrag",
-            password=None,
-            db="evidentrag",
-        ),
-        qdrant=QdrantSettings(
-            url="http://localhost:6333",
-            evidence_collection="evidentrag_evidence",
-        ),
-        redis=RedisSettings(url="redis://localhost:6379/0"),
-    )
+    settings = build_runtime_settings(otel_enabled=True)
 
     configure_telemetry(app, settings)
 
@@ -201,8 +142,7 @@ def test_configure_telemetry_emits_one_success_event(monkeypatch) -> None:
         "info",
         lambda message, **kwargs: log_records.append((message, kwargs)),
     )
-    settings = get_settings()
-    settings = replace(settings, otel=replace(settings.otel, enabled=True))
+    settings = build_runtime_settings(otel_enabled=True)
 
     telemetry.configure_telemetry(FastAPI(), settings)
 
@@ -223,8 +163,7 @@ def test_configure_telemetry_emits_one_skipped_event(monkeypatch) -> None:
         "info",
         lambda message, **kwargs: log_records.append((message, kwargs)),
     )
-    settings = get_settings()
-    settings = replace(settings, otel=replace(settings.otel, enabled=False))
+    settings = build_runtime_settings(otel_enabled=False)
 
     assert telemetry.configure_telemetry(FastAPI(), settings) is None
 
@@ -265,14 +204,9 @@ def test_configure_telemetry_selects_http_protobuf_exporter(monkeypatch) -> None
         telemetry.FastAPIInstrumentor, "instrument_app", lambda app, **kwargs: None
     )
 
-    settings = get_settings()
-    settings = replace(
-        settings,
-        otel=replace(
-            settings.otel,
-            enabled=True,
-            exporter_otlp_protocol="http/protobuf",
-        ),
+    settings = build_runtime_settings(
+        otel_enabled=True,
+        otel_protocol="http/protobuf",
     )
 
     telemetry.configure_telemetry(FastAPI(), settings)
@@ -313,8 +247,7 @@ def test_telemetry_runtime_flushes_and_shuts_down_once(monkeypatch) -> None:
         lambda app: lifecycle_calls.append("uninstrument_app"),
     )
 
-    settings = get_settings()
-    settings = replace(settings, otel=replace(settings.otel, enabled=True))
+    settings = build_runtime_settings(otel_enabled=True)
     runtime = telemetry.configure_telemetry(FastAPI(), settings)
 
     assert runtime is not None
@@ -422,8 +355,7 @@ def test_configure_telemetry_instruments_fastapi_and_httpx_with_metrics(
         lambda app: lifecycle_calls.append("fastapi_uninstrument"),
     )
 
-    settings = get_settings()
-    settings = replace(settings, otel=replace(settings.otel, enabled=True))
+    settings = build_runtime_settings(otel_enabled=True)
     runtime = telemetry.configure_telemetry(FastAPI(), settings)
 
     assert runtime is not None
