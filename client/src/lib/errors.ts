@@ -57,9 +57,24 @@ export function asAppError(error: unknown): ApiError {
   );
 }
 
-export async function requestJson<T>(
+export function requestJson<T>(
   input: RequestInfo | URL,
   init?: RequestInit,
+): Promise<T> {
+  return request(input, init, (response) => response.json() as Promise<T>);
+}
+
+export async function requestEmpty(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<void> {
+  await request(input, init, async () => undefined);
+}
+
+async function request<T>(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  parseResponse: (response: Response) => Promise<T>,
 ): Promise<T> {
   const startedAt = performance.now();
   const method = init?.method ?? "GET";
@@ -100,7 +115,7 @@ export async function requestJson<T>(
       throw error;
     }
     wideEvent.outcome = "success";
-    return (await response.json()) as T;
+    return await parseResponse(response);
   } catch (unknownError) {
     const error = asAppError(unknownError);
     wideEvent.outcome = "error";

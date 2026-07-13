@@ -24,7 +24,10 @@ from app.application.query_pipeline.erm import (
     ErmAdjustment,
     load_erm_adjustments,
 )
-from app.application.query_pipeline.json_stream_parser import JsonStreamParser
+from app.application.query_pipeline.json_stream_parser import (
+    JsonStreamParser,
+    join_segment_texts,
+)
 from app.infrastructure.db.models import (
     Answer,
     Evidence,
@@ -59,6 +62,10 @@ class AnswerGenerationError(NonRetryablePipelineError):
     """Raised when the model cannot produce a usable structured answer."""
 
 
+class NoRelevantEvidenceError(NonRetryablePipelineError):
+    """Raised when retrieval found no eligible evidence for the query."""
+
+
 class ConversationContext(TypedDict):
     conversation_history: str | None
     context_prefix: str | None
@@ -72,18 +79,25 @@ class RankedEvidenceResult(TypedDict):
     score: float
 
 
+MARKDOWN_SEGMENT_INSTRUCTION = (
+    'Each object must have a "text" key and an "evidence_ids" key. '
+    "Use one complete Markdown block or one plain-language sentence/phrase per object. "
+    "Never split a Markdown construct across objects: headings, tables, lists, fenced code blocks, and display math must each remain structurally valid when objects are concatenated in order. "
+    "Use blank lines around Markdown blocks, keep a table heading on its own line before its separator row, and keep every fenced code block complete in one object. "
+    "Plain-language segments must use proper capitalization and punctuation. "
+)
+
+
 SIMPLE_SYSTEM_PROMPT = (
     "Answer the question using ONLY the provided evidence. "
     "If the evidence does not contain the answer, respond with [] (empty array). "
     "Respond ONLY with a valid JSON array and no other text. "
-    "Do not include markdown, code fences, or explanations before or after the JSON. "
-    'Each object must have a "text" key with a phrase-level text segment '
-    'and an "evidence_ids" key with a list of evidence IDs that support that segment. '
-    "Segment at the phrase level: break the answer into meaningful sub-phrases "
-    "where each sub-phrase draws on specific evidence. "
-    "The combined segments must read as polished natural prose with proper capitalization "
-    "and punctuation. Include any needed punctuation inside the relevant segment text so "
-    "joining the segments with spaces yields a fluent answer. "
+    "Do not include text outside the JSON array. Markdown is allowed inside text "
+    "strings, including headings, lists, tables, fenced code blocks, and LaTeX math. "
+    "Never emit Markdown image syntax; EvidentRAG attaches retrieved images itself. "
+    "Escape JSON characters correctly. "
+    + MARKDOWN_SEGMENT_INSTRUCTION
+    + "Each evidence_ids value must list the evidence IDs that support its text. "
     "If a segment uses no evidence (e.g. connective text), use an empty array []. "
     "Example: "
     '[{"text": "This first claim", "evidence_ids": ["uuid1"]}, '
@@ -94,13 +108,12 @@ MULTI_HOP_SYSTEM_PROMPT = (
     "Answer the original question using the chain of reasoning and evidence provided below. "
     "Synthesize the intermediate answers into a coherent final answer. "
     "Respond ONLY with a valid JSON array and no other text. "
-    "Do not include markdown, code fences, or explanations before or after the JSON. "
-    'Each object must have a "text" key with a phrase-level text segment '
-    'and an "evidence_ids" key with a list of evidence IDs that support that segment. '
-    "Segment at the phrase level. "
-    "The combined segments must read as polished natural prose with proper capitalization "
-    "and punctuation. Include any needed punctuation inside the relevant segment text so "
-    "joining the segments with spaces yields a fluent answer. "
+    "Do not include text outside the JSON array. Markdown is allowed inside text "
+    "strings, including headings, lists, tables, fenced code blocks, and LaTeX math. "
+    "Never emit Markdown image syntax; EvidentRAG attaches retrieved images itself. "
+    "Escape JSON characters correctly. "
+    + MARKDOWN_SEGMENT_INSTRUCTION
+    + "Each evidence_ids value must list the evidence IDs that support its text. "
     "If a segment uses no evidence (e.g. connective text), use an empty array []. "
     "Example: "
     '[{"text": "First finding", "evidence_ids": ["uuid1"]}, '
@@ -112,13 +125,12 @@ COMPARISON_SYSTEM_PROMPT = (
     "Compare the entities described in the question using the provided evidence. "
     "Highlight similarities and differences in a structured format. "
     "Respond ONLY with a valid JSON array and no other text. "
-    "Do not include markdown, code fences, or explanations before or after the JSON. "
-    'Each object must have a "text" key with a phrase-level text segment '
-    'and an "evidence_ids" key with a list of evidence IDs that support that segment. '
-    "Segment at the phrase level. "
-    "The combined segments must read as polished natural prose with proper capitalization "
-    "and punctuation. Include any needed punctuation inside the relevant segment text so "
-    "joining the segments with spaces yields a fluent answer. "
+    "Do not include text outside the JSON array. Markdown is allowed inside text "
+    "strings, including headings, lists, tables, fenced code blocks, and LaTeX math. "
+    "Never emit Markdown image syntax; EvidentRAG attaches retrieved images itself. "
+    "Escape JSON characters correctly. "
+    + MARKDOWN_SEGMENT_INSTRUCTION
+    + "Each evidence_ids value must list the evidence IDs that support its text. "
     "If a segment uses no evidence (e.g. connective text), use an empty array []. "
     "Example: "
     '[{"text": "Both approaches share", "evidence_ids": ["uuid1"]}, '
@@ -133,13 +145,12 @@ AGGREGATION_SYSTEM_PROMPT = (
     "Provide a comprehensive summary covering the main themes and key points "
     "from the provided evidence. Organize the summary by topic. "
     "Respond ONLY with a valid JSON array and no other text. "
-    "Do not include markdown, code fences, or explanations before or after the JSON. "
-    'Each object must have a "text" key with a phrase-level text segment '
-    'and an "evidence_ids" key with a list of evidence IDs that support that segment. '
-    "Segment at the phrase level. "
-    "The combined segments must read as polished natural prose with proper capitalization "
-    "and punctuation. Include any needed punctuation inside the relevant segment text so "
-    "joining the segments with spaces yields a fluent answer. "
+    "Do not include text outside the JSON array. Markdown is allowed inside text "
+    "strings, including headings, lists, tables, fenced code blocks, and LaTeX math. "
+    "Never emit Markdown image syntax; EvidentRAG attaches retrieved images itself. "
+    "Escape JSON characters correctly. "
+    + MARKDOWN_SEGMENT_INSTRUCTION
+    + "Each evidence_ids value must list the evidence IDs that support its text. "
     "If a segment uses no evidence (e.g. connective text), use an empty array []. "
     "Example: "
     '[{"text": "One key theme is", "evidence_ids": ["uuid1"]}, '
@@ -151,13 +162,12 @@ CONVERSATION_SYSTEM_PROMPT = (
     "thread summary. Do not use external knowledge or retrieved documents. "
     "If the conversation history does not contain the answer, say that directly. "
     "Respond ONLY with a valid JSON array and no other text. "
-    "Do not include markdown, code fences, or explanations before or after the JSON. "
-    'Each object must have a "text" key with a phrase-level text segment '
-    'and an "evidence_ids" key with a list. For conversation answers, always use [] '
-    "for evidence_ids because the support comes from thread memory, not document evidence. "
-    "The combined segments must read as polished natural prose with proper capitalization "
-    "and punctuation. Include any needed punctuation inside the relevant segment text so "
-    "joining the segments with spaces yields a fluent answer. "
+    "Do not include text outside the JSON array. Markdown is allowed inside text "
+    "strings, including headings, lists, tables, fenced code blocks, and LaTeX math. "
+    "Never emit Markdown image syntax; EvidentRAG attaches retrieved images itself. "
+    "Escape JSON characters correctly. "
+    + MARKDOWN_SEGMENT_INSTRUCTION
+    + "For conversation answers, always use [] for evidence_ids because the support comes from thread memory, not document evidence. "
     "If the user asks what questions they asked earlier, focus on prior user turns."
 )
 
@@ -307,6 +317,11 @@ class QueryPipeline:
                     )
 
                 if done_payload is None and self._llm_client is not None:
+                    if wide_event.get("retrieval_count") == 0:
+                        raise NoRelevantEvidenceError(
+                            "No relevant evidence was found in your documents. "
+                            "Upload a relevant document or try a different question."
+                        )
                     raise AnswerGenerationError(
                         "The answer model returned no usable answer. Please retry."
                     )
@@ -1254,10 +1269,19 @@ class QueryPipeline:
         for evidence_id in selected_evidence_ids:
             evidence = await session.get(Evidence, evidence_id)
             evidence_contents.append(evidence.content)
+            asset_key = (evidence.extra or {}).get("asset_key")
             evidence_payloads.append(
                 {
                     "id": str(evidence_id),
                     "content": evidence.content,
+                    "kind": (evidence.extra or {}).get("kind", "text"),
+                    "asset_key": asset_key,
+                    "asset_url": (
+                        f"/api/v1/documents/{evidence.document_id}/assets/"
+                        f"{str(asset_key).rsplit('/', 1)[-1]}"
+                        if asset_key
+                        else None
+                    ),
                     **(evidence_metadata or {}).get(evidence_id, {}),
                 }
             )
@@ -1512,7 +1536,7 @@ class QueryPipeline:
         answer = Answer(
             id=uuid.uuid4(),
             message_id=message.id,
-            full_text=" ".join(full_text_parts),
+            full_text=join_segment_texts(full_text_parts),
             reasoning_trace=list(reasoning_trace) if reasoning_trace else [],
         )
         session.add(answer)
@@ -1554,6 +1578,7 @@ class QueryPipeline:
         answer.extra = {
             **(answer.extra or {}),
             "context_usage": context_usage or {},
+            "retrieved_evidence_ids": [str(ev["id"]) for ev in evidence_payloads],
             "evidence_metadata": {
                 str(ev["id"]): {
                     key: value

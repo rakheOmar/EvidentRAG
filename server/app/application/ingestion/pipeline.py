@@ -83,9 +83,26 @@ def _nearest_text_chunk_index(
 def _extract_pdf(
     path,
 ) -> tuple[list[ExtractedChunk], list[ExtractedVisual], int, list[str]]:
-    from docling.document_converter import DocumentConverter
+    from docling.datamodel.base_models import InputFormat
+    from docling.document_converter import (
+        DocumentConverter,
+        PdfFormatOption,
+    )
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
 
-    document = DocumentConverter().convert(path).document
+    pipeline_options = PdfPipelineOptions(
+        generate_page_images=True,
+        generate_picture_images=True,
+    )
+    document = (
+        DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+            }
+        )
+        .convert(path)
+        .document
+    )
     markdown = document.export_to_markdown()
     chunks = _extract_structured_chunks(markdown, _document_title(document, Path(path)))
     page_count = len(getattr(document, "pages", {}) or {})
@@ -93,8 +110,9 @@ def _extract_pdf(
     warnings: list[str] = (
         [] if chunks else ["No retrievable text was extracted from this PDF."]
     )
-    try:
-        for picture in getattr(document, "pictures", []):
+    failed_visuals = 0
+    for picture_index, picture in enumerate(getattr(document, "pictures", [])):
+        try:
             image = picture.get_image(document)
             stream = io.BytesIO()
             image.save(stream, format="PNG")
@@ -116,7 +134,20 @@ def _extract_pdf(
                     bounding_box=bounding_box,
                 )
             )
-    except Exception:
+        except Exception as exc:
+            failed_visuals += 1
+            logger.warning(
+                "document_visual_extraction_failed",
+                extra={
+                    "wide_event": {
+                        "picture_index": picture_index,
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                    }
+                },
+                exc_info=True,
+            )
+    if failed_visuals:
         warnings.append("Some visual assets could not be extracted.")
     return chunks, visuals, page_count, warnings
 
@@ -215,15 +246,33 @@ class DocumentIngestionPipeline:
                 if embedding_inputs
                 else []
             )
-            image_vectors = (
-                await asyncio.to_thread(
-                    self._embedding_client.embed_images,
-                    [visual.content for visual in visuals],
-                )
-                if visuals
-                else []
-            )
             captions = [await self._caption_image(visual.content) for visual in visuals]
+            image_vectors: list[list[float]] = []
+            if visuals:
+                try:
+                    image_vectors = await asyncio.to_thread(
+                        self._embedding_client.embed_images,
+                        [visual.content for visual in visuals],
+                    )
+                except Exception as exc:
+                    response = getattr(exc, "response", None)
+                    status_code = getattr(response, "status_code", None)
+                    if status_code != 422:
+                        raise
+                    logger.warning(
+                        "image_embedding_fallback_to_caption",
+                        extra={
+                            "wide_event": {
+                                "visual_count": len(visuals),
+                                "error_type": type(exc).__name__,
+                                "status_code": status_code,
+                            }
+                        },
+                    )
+                    image_vectors = await asyncio.to_thread(
+                        self._embedding_client.embed_texts,
+                        captions,
+                    )
             evidence_items: list[
                 tuple[str, str, int, ExtractedVisual | None, int | None]
             ] = [
@@ -334,6 +383,18 @@ class DocumentIngestionPipeline:
                 )
             await self._publish(identifier, "done", 100)
             wide_event["outcome"] = "success"
+        except asyncio.CancelledError:
+            error_message = (
+                "Document ingestion was cancelled or exceeded its worker timeout."
+            )
+            async with self._session_factory() as session:
+                document = await session.get(Document, identifier)
+                if document is not None and document.status == "processing":
+                    document.status = "failed"
+                    document.error_message = error_message
+                    await session.commit()
+            await self._publish(identifier, "failed", 100, error=error_message)
+            raise
         except Exception as exc:
             wide_event["outcome"] = "error"
             wide_event["error_type"] = type(exc).__name__

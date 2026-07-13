@@ -250,7 +250,7 @@ def _read_event(redis: _FakeRedis, index: int) -> dict[str, object]:
     return json.loads(redis.published[index][1])
 
 
-def test_query_pipeline_prompts_require_fluent_punctuated_segments() -> None:
+def test_query_pipeline_prompts_require_markdown_safe_segments() -> None:
     from app.application.query_pipeline.query_pipeline import (
         AGGREGATION_SYSTEM_PROMPT,
         COMPARISON_SYSTEM_PROMPT,
@@ -258,8 +258,6 @@ def test_query_pipeline_prompts_require_fluent_punctuated_segments() -> None:
         MULTI_HOP_SYSTEM_PROMPT,
         SIMPLE_SYSTEM_PROMPT,
     )
-
-    expected_instruction = "joining the segments with spaces yields a fluent answer."
 
     for prompt in (
         SIMPLE_SYSTEM_PROMPT,
@@ -269,7 +267,37 @@ def test_query_pipeline_prompts_require_fluent_punctuated_segments() -> None:
         CONVERSATION_SYSTEM_PROMPT,
     ):
         assert "proper capitalization and punctuation" in prompt
-        assert expected_instruction in prompt
+        assert "Never split a Markdown construct across objects" in prompt
+
+
+def test_query_pipeline_preserves_markdown_block_boundaries_when_joining_segments() -> (
+    None
+):
+    from app.application.query_pipeline.json_stream_parser import join_segment_texts
+
+    segments = [
+        "## Figure 2 Explanation",
+        "| Embedding Type | Purpose | Example |\n|---|---|---|\n| Token | Captures lexical semantics | $E_{token}$ |\n",
+        "**Figure 2:** The input embeddings are summed.",
+        "For each token, the representation is denoted as $E_i$.",
+        "$$E_i = E_{token} + E_{segment} + E_{position}$$",
+        "1. Tokenize the sentence.",
+        "2. Add a segment embedding.",
+        "```python\nE[i] = token_emb[i] + segment_emb[i]\n```",
+    ]
+
+    assert join_segment_texts(segments) == (
+        "## Figure 2 Explanation\n\n"
+        "| Embedding Type | Purpose | Example |\n"
+        "|---|---|---|\n"
+        "| Token | Captures lexical semantics | $E_{token}$ |\n\n"
+        "**Figure 2:** The input embeddings are summed. "
+        "For each token, the representation is denoted as $E_i$.\n\n"
+        "$$E_i = E_{token} + E_{segment} + E_{position}$$\n\n"
+        "1. Tokenize the sentence.\n"
+        "2. Add a segment embedding.\n\n"
+        "```python\nE[i] = token_emb[i] + segment_emb[i]\n```"
+    )
 
 
 @pytest.mark.asyncio

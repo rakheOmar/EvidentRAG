@@ -17,6 +17,9 @@ build/
 wheels/
 *.egg-info
 
+# Local runtime data
+server/data/
+
 # Python
 __pycache__/
 *.py[oc]

@@ -392,6 +392,7 @@ describe("useEvidentRuntime", () => {
     expect(result.current.adapter.adapters?.threadList?.threads).toEqual([
       {
         id: "thread-1",
+        lastMessageAt: new Date("2026-07-04T10:00:00Z"),
         remoteId: "thread-1",
         status: "regular",
         title: "What is BERT",

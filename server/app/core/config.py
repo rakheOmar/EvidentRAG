@@ -34,11 +34,7 @@ def _get_bool(name: str, default: bool) -> bool:
 
 
 def _normalize_embedding_model(model: str) -> str:
-    if "/" in model:
-        return model
-    if model.startswith("gemini-"):
-        return f"google/{model}"
-    return model
+    return model.removeprefix("google/")
 
 
 @dataclass(frozen=True)
@@ -79,6 +75,7 @@ class EmbeddingSettings:
     seed_demo_data: bool
     model: str
     dimensions: int
+    batch_size: int = 64
 
 
 @dataclass(frozen=True)
@@ -114,6 +111,7 @@ class IngestionSettings:
     max_upload_bytes: int
     retry_attempts: int
     audit_retention_days: int
+    job_timeout_seconds: int = 900
 
 
 @dataclass(frozen=True)
@@ -192,13 +190,16 @@ def get_settings() -> Settings:
             utility_model=os.getenv("UTILITY_MODEL", "gemini-2.5-flash"),
         ),
         embeddings=EmbeddingSettings(
-            api_base=os.getenv("LLM_API_BASE", "http://optiplex-3020:8081/v1"),
-            api_key=os.getenv("LLM_API_KEY"),
+            api_base=os.getenv(
+                "GEMINI_API_BASE", "https://generativelanguage.googleapis.com"
+            ),
+            api_key=os.getenv("GEMINI_API_KEY"),
             seed_demo_data=_get_bool("SEED_DEMO_DATA", False),
             model=_normalize_embedding_model(
                 os.getenv("GEMINI_EMBEDDING_MODEL", "google/gemini-embedding-2")
             ),
             dimensions=int(os.getenv("GEMINI_EMBEDDING_DIMENSIONS", "768")),
+            batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "64")),
         ),
         reranker=RerankerSettings(
             api_base=os.getenv("RERANKER_API_BASE", "https://api.cohere.com/v2"),
@@ -228,6 +229,9 @@ def get_settings() -> Settings:
             ),
             retry_attempts=int(os.getenv("DOCUMENT_INGESTION_RETRY_ATTEMPTS", "3")),
             audit_retention_days=int(os.getenv("DOCUMENT_AUDIT_RETENTION_DAYS", "7")),
+            job_timeout_seconds=int(
+                os.getenv("DOCUMENT_INGESTION_TIMEOUT_SECONDS", "900")
+            ),
         ),
         rate_limits=RateLimitSettings(
             retry_window_seconds=float(os.getenv("AI_RETRY_WINDOW_SECONDS", "60")),

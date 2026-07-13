@@ -44,6 +44,7 @@ class EvidenceResponse(BaseModel):
     erm_multiplier: float | None = None
     kind: str = "text"
     asset_key: str | None = None
+    asset_url: str | None = None
     bounding_box: dict[str, float] | None = None
 
 

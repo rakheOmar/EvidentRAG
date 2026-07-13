@@ -112,3 +112,16 @@ def test_answer_content_parts_returns_text_only_when_no_evidence() -> None:
     result = answer_content_parts("Just text.", [])
 
     assert result == [{"type": "text", "text": "Just text."}]
+
+
+def test_answer_content_parts_removes_model_authored_image_markdown() -> None:
+    from app.application.query_pipeline.content_parts import answer_content_parts
+
+    result = answer_content_parts(
+        "See ![Figure 2](#) for the input representation.",
+        [],
+    )
+
+    assert result == [
+        {"type": "text", "text": "See  for the input representation."}
+    ]

@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { requestJson } from "@/lib/errors";
+import { requestEmpty, requestJson } from "@/lib/errors";
 
 import type {
+  DocumentListResponse,
+  DocumentRecord,
   SentenceTraceFeedbackResponse,
   ThreadDetail,
   ThreadSummary,
@@ -14,9 +16,35 @@ export interface ModelContextDetails {
 }
 
 const queryKeys = {
+  documents: ["documents"] as const,
   thread: (threadId: string) => ["thread", threadId] as const,
   threads: ["threads"] as const,
 };
+
+export function uploadDocument(
+  file: File,
+  sourceKey?: string,
+): Promise<DocumentRecord> {
+  const formData = new FormData();
+  formData.set("file", file);
+  if (sourceKey) {
+    formData.set("source_key", sourceKey);
+  }
+  return requestJson<DocumentRecord>("/api/v1/documents", {
+    body: formData,
+    method: "POST",
+  });
+}
+
+export function fetchDocuments(): Promise<DocumentListResponse> {
+  return requestJson<DocumentListResponse>("/api/v1/documents", {
+    method: "GET",
+  });
+}
+
+export async function deleteDocument(documentId: string): Promise<void> {
+  await requestEmpty(`/api/v1/documents/${documentId}`, { method: "DELETE" });
+}
 
 export async function createThread(
   content: string,

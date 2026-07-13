@@ -208,7 +208,11 @@ async def cleanup_deleted_documents(ctx: dict) -> None:
 class WorkerSettings:
     functions = [
         run_message_pipeline,
-        func(run_document_ingestion, max_tries=settings.ingestion.retry_attempts),
+        func(
+            run_document_ingestion,
+            max_tries=settings.ingestion.retry_attempts,
+            timeout=settings.ingestion.job_timeout_seconds,
+        ),
     ]
     cron_jobs = [cron(cleanup_deleted_documents, hour=3, minute=0, unique=True)]
     on_startup = staticmethod(startup)

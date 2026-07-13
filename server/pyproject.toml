@@ -20,6 +20,7 @@ dependencies = [
     "docling>=2.107.0",
     "alembic>=1.18.5",
     "python-multipart>=0.0.32",
+    "google-genai>=1.0.0",
 ]
 
 [project.scripts]

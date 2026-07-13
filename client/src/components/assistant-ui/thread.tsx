@@ -97,6 +97,11 @@ import {
 } from "@/components/ui/popover";
 import { putSentenceTraceFeedback } from "@/lib/api";
 import { getMessageSegments, updateSegmentRating } from "@/lib/segments-store";
+import {
+  hasRichMarkdown,
+  isSegmentHighlighted,
+  requiresFullWidthHighlight,
+} from "@/lib/markdown";
 import type { QueryRoute } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -504,54 +509,112 @@ const TextWithCitations: FC = () => {
     });
   }, [segments]);
 
+  const renderAsMarkdown = useMemo(
+    () => (segments ?? []).some((segment) => hasRichMarkdown(segment.text)),
+    [segments],
+  );
+  const toggleEvidence = useCallback(
+    (id: string) => {
+      if (
+        selectedEvidenceIds.length === 1 &&
+        selectedEvidenceIds[0] === id
+      ) {
+        clearEvidence();
+        return;
+      }
+      selectEvidence(messageId, [id]);
+    },
+    [clearEvidence, messageId, selectEvidence, selectedEvidenceIds],
+  );
+
+  const renderCitationButtons = (evidenceIds: string[]) => {
+    const uniqueIds = [...new Set(evidenceIds)];
+    if (uniqueIds.length === 0) {
+      return null;
+    }
+    return (
+      <span className="inline-flex items-center gap-1 align-middle">
+        {uniqueIds.map((id) => {
+          const number = evidenceNumbers.get(id);
+          const isSelected = selectedEvidenceSet.has(id);
+          return (
+            <Badge
+              aria-label={`View evidence ${number ?? ""}`.trim()}
+              aria-pressed={isSelected}
+              className="ml-0.5 cursor-pointer rounded-full transition-[background-color,color,transform] duration-150 active:scale-[0.96]"
+              data-evidence-id={id}
+              key={id}
+              onClick={() => toggleEvidence(id)}
+              onMouseEnter={() => setHoveredId(id)}
+              onMouseLeave={() => setHoveredId(null)}
+              render={<button type="button" />}
+              variant={isSelected ? "default" : "secondary"}
+            >
+              {number}
+            </Badge>
+          );
+        })}
+      </span>
+    );
+  };
+
   if (segments && segments.length > 0) {
     return (
       <>
-        {renderedSegments.map((seg) => {
-          const isHighlighted =
-            seg.evidence_ids.length > 0 &&
-            (hoveredId !== null
-              ? seg.evidence_ids.includes(hoveredId)
-              : seg.evidence_ids.some((id) => selectedEvidenceSet.has(id)));
+        {renderAsMarkdown ? (
+          <div className="space-y-3">
+            {renderedSegments.map((seg) => {
+              const isHighlighted = isSegmentHighlighted(
+                seg.evidence_ids,
+                hoveredId,
+                selectedEvidenceIds,
+              );
+              const usesFullWidthHighlight = requiresFullWidthHighlight(
+                seg.text,
+              );
 
-          return (
-            <span key={seg.segment_index}>
-              <InlineCitationText
-                className={
-                  isHighlighted ? "rounded bg-accent/80 shadow-sm" : undefined
-                }
-              >
-                {seg.text}
-              </InlineCitationText>
-            </span>
-          );
-        })}
-        {evidenceNumbers.size > 0 && (
-          <span className="ms-1 inline-flex items-center gap-0.5 align-baseline">
-            {[...evidenceNumbers.entries()].map(([id, num]) => {
-              const isSelected = selectedEvidenceSet.has(id);
               return (
-                <Badge
-                  key={id}
-                  variant={isSelected ? "default" : "secondary"}
-                  className="ml-0.5 rounded-full cursor-pointer"
-                  onMouseEnter={() => setHoveredId(id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                  onClick={() => {
-                    if (
-                      selectedEvidenceIds.length === 1 &&
-                      selectedEvidenceIds[0] === id
-                    ) {
-                      clearEvidence();
-                    } else {
-                      selectEvidence(messageId, [id]);
-                    }
-                  }}
+                <div
+                  className={cn(
+                    "transition-colors duration-150",
+                    usesFullWidthHighlight
+                      ? "w-full"
+                      : "-mx-0.5 w-fit max-w-full rounded-sm px-0.5",
+                    isHighlighted && "bg-accent",
+                  )}
+                  data-segment-index={seg.segment_index}
+                  key={seg.segment_index}
                 >
-                  {num}
-                </Badge>
+                  <MarkdownText content={seg.text} />
+                </div>
               );
             })}
+          </div>
+        ) : (
+          renderedSegments.map((seg) => {
+            const isHighlighted = isSegmentHighlighted(
+              seg.evidence_ids,
+              hoveredId,
+              selectedEvidenceIds,
+            );
+
+            return (
+              <span key={seg.segment_index}>
+                <InlineCitationText
+                  className={cn(
+                    "-mx-0.5 box-decoration-clone rounded-sm px-0.5",
+                    isHighlighted && "bg-accent",
+                  )}
+                >
+                  {seg.text}
+                </InlineCitationText>
+              </span>
+            );
+          })
+        )}
+        {evidenceNumbers.size > 0 && (
+          <span className="ms-1 inline-flex items-center gap-0.5 align-baseline">
+            {renderCitationButtons([...evidenceNumbers.keys()])}
           </span>
         )}
       </>
@@ -954,6 +1017,22 @@ const AssistantMessage: FC = () => {
               }
               case "text":
                 return <TextWithCitations />;
+              case "image":
+                return (
+                  <figure className="my-3 max-w-2xl overflow-hidden rounded-xl border bg-muted/20">
+                    <img
+                      alt={part.filename ?? "Retrieved document image"}
+                      className="h-auto max-h-[32rem] w-full object-contain"
+                      loading="lazy"
+                      src={part.image}
+                    />
+                    {part.filename ? (
+                      <figcaption className="border-t px-3 py-2 text-muted-foreground text-xs">
+                        {part.filename}
+                      </figcaption>
+                    ) : null}
+                  </figure>
+                );
               case "reasoning":
                 return null;
               case "tool-call":

@@ -16,6 +16,7 @@ import {
   useThreadHistory,
 } from "@/lib/api";
 import { setMessageEvidence } from "@/lib/evidence-store";
+import { toDisplayContentParts } from "@/lib/content-parts";
 import { convertEvidentMessage } from "@/lib/message-utils";
 import { setMessageSegments } from "@/lib/segments-store";
 import { useErrorFeedback } from "@/components/error-feedback";
@@ -54,12 +55,16 @@ function toAssistantStatus(
   return "running";
 }
 
-function toRuntimeMessage(message: ThreadMessage): EvidentChatMessage {
+async function toRuntimeMessage(
+  message: ThreadMessage,
+): Promise<EvidentChatMessage> {
   const answer = message.answer ?? null;
   const contentParts: ThreadAssistantMessagePart[] =
     message.role === "assistant"
-      ? (answer?.content_parts?.filter((part) => part.type !== "source") ??
-        (answer ? [{ text: answer.full_text, type: "text" }] : []))
+      ? await toDisplayContentParts(
+          answer?.content_parts ??
+            (answer ? [{ text: answer.full_text, type: "text" }] : []),
+        )
       : [{ text: message.content_text, type: "text" }];
 
   if (answer?.segments) {
@@ -192,7 +197,7 @@ export function useEvidentRuntime() {
     loadedThreadIdRef.current = thread.id;
     setCurrentThreadId(thread.id);
     setIsRunning(false);
-    setMessages(thread.messages.map(toRuntimeMessage));
+    setMessages(await Promise.all(thread.messages.map(toRuntimeMessage)));
   }, []);
 
   useEffect(() => {
@@ -362,6 +367,7 @@ export function useEvidentRuntime() {
       );
 
       eventSource.addEventListener("done", (event: MessageEvent<string>) => {
+        void (async () => {
         const payload = JSON.parse(event.data) as DoneEventWithContentParts;
 
         if (payload.error) {
@@ -379,8 +385,8 @@ export function useEvidentRuntime() {
           if (payload.evidence) {
             setMessageEvidence(assistantMessageId, payload.evidence);
           }
-          const displayParts = payload.content_parts.filter(
-            (p) => p.type !== "source",
+          const displayParts = await toDisplayContentParts(
+            payload.content_parts,
           );
           updateAssistantMessage((entry) => ({
             ...entry,
@@ -409,6 +415,16 @@ export function useEvidentRuntime() {
         setIsRunning(false);
         queryClient.invalidateQueries({ queryKey: queryKeys.threads });
         queryClient.invalidateQueries({ queryKey: queryKeys.thread(threadId) });
+        })().catch((error: unknown) => {
+          updateAssistantMessage((entry) => ({
+            ...entry,
+            contentParts: [{ text: asAppError(error).message, type: "text" }],
+            status: "error",
+          }));
+          eventSource.close();
+          eventSourceRef.current = null;
+          setIsRunning(false);
+        });
       });
 
       eventSource.addEventListener("error", () => {
@@ -442,7 +458,8 @@ export function useEvidentRuntime() {
           threadId: currentThreadId,
           threads:
             historyQuery.data?.map((thread) => ({
-              id: thread.id,
+            id: thread.id,
+              lastMessageAt: new Date(thread.updated_at),
               remoteId: thread.id,
               status: "regular" as const,
               title: thread.title,

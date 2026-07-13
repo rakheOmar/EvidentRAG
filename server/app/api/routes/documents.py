@@ -17,7 +17,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
@@ -26,6 +26,22 @@ from app.api.sse.sse import redis_pubsub_stream, sse_event
 from app.infrastructure.db.models import Document, Source
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
+
+
+@router.get("/{document_id}/assets/{asset_name}")
+async def get_document_asset(document_id: UUID, asset_name: str, request: Request):
+    if Path(asset_name).name != asset_name or Path(asset_name).suffix.lower() != ".png":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid asset")
+    async with request.app.state.session_factory() as session:
+        document = await session.get(Document, document_id)
+        if document is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    path = request.app.state.document_storage.path(
+        f"assets/{document_id}/{asset_name}"
+    )
+    if not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+    return FileResponse(path, media_type="image/png")
 
 
 def _response(document: Document) -> DocumentResponse:

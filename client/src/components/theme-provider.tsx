@@ -48,6 +48,15 @@ function getSystemTheme(): ResolvedTheme {
   return "light";
 }
 
+function updateFavicon(theme: ResolvedTheme) {
+  const favicon = document.querySelector<HTMLLinkElement>("#brand-favicon");
+  if (!favicon) {
+    return;
+  }
+
+  favicon.href = `/brand/favicon_${theme}.png`;
+}
+
 function disableTransitionsTemporarily() {
   const style = document.createElement("style");
   style.append(
@@ -121,6 +130,8 @@ export function ThemeProvider({
 
       root.classList.remove("light", "dark");
       root.classList.add(resolvedTheme);
+      root.style.colorScheme = resolvedTheme;
+      updateFavicon(resolvedTheme);
 
       if (restoreTransitions) {
         restoreTransitions();

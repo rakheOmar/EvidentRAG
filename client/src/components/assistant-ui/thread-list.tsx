@@ -2,7 +2,6 @@
 
 import {
   AuiIf,
-  ThreadListItemMorePrimitive,
   ThreadListItemPrimitive,
   ThreadListPrimitive,
   useAuiState,
@@ -21,6 +20,12 @@ import {
   useMemo,
 } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -41,10 +46,9 @@ export const ThreadListRoot: FC<
   />
 );
 
-export const ThreadListItems: FC<ComponentPropsWithoutRef<"div">> = ({
-  className,
-  ...props
-}) => (
+export const ThreadListItems: FC<
+  ComponentPropsWithoutRef<"div"> & { sortOrder?: "recent" | "oldest" }
+> = ({ className, sortOrder = "recent", ...props }) => (
   <div
     className={cn("flex flex-col gap-0.5", className)}
     data-slot="aui_thread-list-items"
@@ -54,7 +58,7 @@ export const ThreadListItems: FC<ComponentPropsWithoutRef<"div">> = ({
       <ThreadListSkeleton />
     </AuiIf>
     <AuiIf condition={(s) => !s.threads.isLoading}>
-      <ThreadListItemGroups />
+      <ThreadListItemGroups sortOrder={sortOrder} />
     </AuiIf>
   </div>
 );
@@ -76,7 +80,9 @@ const dateGroupLabel = (
 
 type ThreadListGroup = { label: string; indices: number[] };
 
-const ThreadListItemGroups: FC = () => {
+const ThreadListItemGroups: FC<{ sortOrder: "recent" | "oldest" }> = ({
+  sortOrder,
+}) => {
   const threadIds = useAuiState((s) => s.threads.threadIds);
   const threadItems = useAuiState((s) => s.threads.threadItems);
 
@@ -97,7 +103,9 @@ const ThreadListItemGroups: FC = () => {
       dates[index]?.getTime() ?? Number.MAX_SAFE_INTEGER;
     const indices = threadIds
       .map((_, index) => index)
-      .sort((a, b) => time(b) - time(a));
+      .sort((a, b) =>
+        sortOrder === "oldest" ? time(a) - time(b) : time(b) - time(a),
+      );
 
     const result: ThreadListGroup[] = [];
     for (const index of indices) {
@@ -110,7 +118,7 @@ const ThreadListItemGroups: FC = () => {
       }
     }
     return result;
-  }, [threadIds, threadItems]);
+  }, [sortOrder, threadIds, threadItems]);
 
   if (!groups) {
     return (
@@ -214,43 +222,38 @@ export const ThreadListItem: FC = () => (
 );
 
 const ThreadListItemMore: FC = () => (
-  <ThreadListItemMorePrimitive.Root>
-    <ThreadListItemMorePrimitive.Trigger asChild>
-      <Button
-        className="absolute end-1.5 top-1/2 size-6 -translate-y-1/2 p-0 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100 group-data-active:opacity-100"
-        data-slot="aui_thread-list-item-more"
-        size="icon"
-        variant="ghost"
-      >
-        <MoreHorizontalIcon className="size-3.5" />
-        <span className="sr-only">More options</span>
-      </Button>
-    </ThreadListItemMorePrimitive.Trigger>
-    <ThreadListItemMorePrimitive.Content
+  <DropdownMenu>
+    <DropdownMenuTrigger
+      render={
+        <Button
+          className="absolute end-1.5 top-1/2 size-6 -translate-y-1/2 p-0 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100 group-data-active:opacity-100"
+          data-slot="aui_thread-list-item-more"
+          size="icon"
+          variant="ghost"
+        >
+          <MoreHorizontalIcon className="size-3.5" />
+          <span className="sr-only">More options</span>
+        </Button>
+      }
+    />
+    <DropdownMenuContent
       align="start"
-      className="data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 overflow-hidden rounded-xl border bg-popover/95 p-1.5 text-popover-foreground shadow-lg backdrop-blur-sm data-[state=closed]:animate-out data-[state=open]:animate-in"
-      data-slot="aui_thread-list-item-more-content"
+      className="min-w-40"
       side="right"
       sideOffset={6}
     >
       <ThreadListItemPrimitive.Archive asChild>
-        <ThreadListItemMorePrimitive.Item
-          className="flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-          data-slot="aui_thread-list-item-more-item"
-        >
+        <DropdownMenuItem>
           <ArchiveIcon className="size-4" />
           Archive
-        </ThreadListItemMorePrimitive.Item>
+        </DropdownMenuItem>
       </ThreadListItemPrimitive.Archive>
       <ThreadListItemPrimitive.Delete asChild>
-        <ThreadListItemMorePrimitive.Item
-          className="flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-1.5 text-destructive text-sm outline-none hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive"
-          data-slot="aui_thread-list-item-more-item"
-        >
+        <DropdownMenuItem className="text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive">
           <TrashIcon className="size-4" />
           Delete
-        </ThreadListItemMorePrimitive.Item>
+        </DropdownMenuItem>
       </ThreadListItemPrimitive.Delete>
-    </ThreadListItemMorePrimitive.Content>
-  </ThreadListItemMorePrimitive.Root>
+    </DropdownMenuContent>
+  </DropdownMenu>
 );
