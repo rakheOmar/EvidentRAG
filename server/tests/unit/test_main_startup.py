@@ -51,6 +51,9 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
 
         async def ensure_collection(self) -> None:
             captured["ensure_collection_called"] = True
+            from app.core.telemetry import record_degradation
+
+            record_degradation("qdrant_payload_index", field="source_id")
 
     class FakeEmbeddingClient:
         def __init__(self, settings) -> None:
@@ -68,6 +71,13 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
         async def aclose(self) -> None:
             captured["job_queue_closed"] = True
 
+    class FakeTelemetryRuntime:
+        def instrument_sqlalchemy(self, engine) -> None:
+            captured["telemetry_engine"] = engine
+
+        def shutdown(self) -> None:
+            captured["telemetry_shutdown"] = True
+
     fake_engine = FakeEngine()
     fake_session_factory = object()
     fake_job_queue = FakeJobQueue()
@@ -78,7 +88,7 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
             environment="development",
             client_dist_path="../client/dist",
         ),
-        log=LogSettings(level="INFO", format="json"),
+        log=LogSettings(level="INFO"),
         otel=OtelSettings(
             enabled=False,
             service_name="evidentrag-server",
@@ -135,10 +145,6 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
         captured["session_engine"] = engine
         return fake_session_factory
 
-    def fake_configure_telemetry(fastapi_app, actual_settings) -> None:
-        captured["telemetry_app"] = fastapi_app
-        captured["telemetry_settings"] = actual_settings
-
     class FakeArqRedis:
         @staticmethod
         def from_url(url: str) -> FakeJobQueue:
@@ -146,7 +152,13 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
             return fake_job_queue
 
     monkeypatch.setattr(main_module, "settings", settings)
-    monkeypatch.setattr(main_module, "configure_telemetry", fake_configure_telemetry)
+    monkeypatch.setattr(
+        main_module,
+        "configure_telemetry",
+        lambda *args: (_ for _ in ()).throw(
+            AssertionError("telemetry must be configured before startup")
+        ),
+    )
     monkeypatch.setattr(main_module, "create_engine", fake_create_engine)
     monkeypatch.setattr(
         main_module, "create_session_factory", fake_create_session_factory
@@ -157,6 +169,7 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
     monkeypatch.setattr(main_module, "RerankClient", FakeRerankClient)
     monkeypatch.setattr(main_module, "ArqRedis", FakeArqRedis)
     monkeypatch.setattr(main_module, "seed_demo_data", fake_seed_demo_data)
+    app.state.telemetry = FakeTelemetryRuntime()
     monkeypatch.setattr(
         main_module.logger,
         "info",
@@ -166,8 +179,8 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
     with TestClient(app):
         pass
 
-    assert captured["telemetry_app"] is app
-    assert captured["telemetry_settings"] is settings
+    assert captured["telemetry_shutdown"] is True
+    assert captured["telemetry_engine"] is fake_engine
     assert captured["db_settings"] is settings.db
     assert captured["begin_called"] is True
     assert captured["create_all_callback"] == main_module.Base.metadata.create_all
@@ -184,11 +197,14 @@ def test_startup_seeds_demo_data_when_enabled(monkeypatch) -> None:
     assert isinstance(app.state.embedding_client, FakeEmbeddingClient)
     assert isinstance(app.state.llm_client, FakeLLMClient)
     assert isinstance(app.state.rerank_client, FakeRerankClient)
-    assert [message for message, _ in log_records[:2]] == [
-        "seed_demo_data_starting",
-        "app_startup",
+    messages = [message for message, _ in log_records]
+    assert "seed_demo_data_starting" not in messages
+    startup_records = [record for record in log_records if record[0] == "app_startup"]
+    assert len(startup_records) == 1
+    assert startup_records[0][1]["extra"]["wide_event"]["seeded_documents"] == 1
+    assert startup_records[0][1]["extra"]["wide_event"]["degradations"] == [
+        {"stage": "qdrant_payload_index", "field": "source_id"}
     ]
-    assert log_records[1][1]["extra"]["wide_event"]["seeded_documents"] == 1
 
 
 def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
@@ -242,7 +258,7 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
             environment="development",
             client_dist_path="../client/dist",
         ),
-        log=LogSettings(level="INFO", format="json"),
+        log=LogSettings(level="INFO"),
         otel=OtelSettings(
             enabled=False,
             service_name="evidentrag-server",
@@ -303,6 +319,7 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
 
     monkeypatch.setattr(main_module, "settings", settings)
     monkeypatch.setattr(main_module, "configure_telemetry", lambda *args: None)
+    app.state.telemetry = None
     monkeypatch.setattr(main_module, "create_engine", fake_create_engine)
     monkeypatch.setattr(
         main_module, "create_session_factory", fake_create_session_factory

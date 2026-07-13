@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 import logging
 from datetime import datetime, timedelta, timezone
 from time import perf_counter
+from typing import Mapping
 
 from arq import func
 from arq.cron import cron
 from arq.connections import RedisSettings
+from opentelemetry import context as otel_context, propagate, trace
+from opentelemetry.trace import SpanKind
 from redis.asyncio import Redis
 
 from app.application.query_pipeline.arag_router import AragRouter
@@ -15,7 +20,14 @@ from app.application.query_pipeline.query_pipeline import (
     QueryPipeline,
 )
 from app.core.config import get_settings
-from app.core.logging import configure_logging
+from app.core.logging import (
+    configure_logging,
+    reset_request_id,
+    reset_wide_event,
+    set_request_id,
+    set_wide_event,
+)
+from app.core.telemetry import configure_telemetry
 from app.infrastructure.db.session import create_engine, create_session_factory
 from app.infrastructure.embeddings.embedding import EmbeddingClient
 from app.infrastructure.llm.llm import LLMClient
@@ -35,10 +47,26 @@ logger = logging.getLogger(__name__)
 
 async def startup(ctx: dict) -> None:
     started_at = perf_counter()
-    wide_event: dict[str, object] = {"event": "worker_startup"}
+    wide_event: dict[str, object] = {
+        "event": "worker_startup",
+        "configuration": {
+            "otel_enabled": settings.otel.enabled,
+            "otel_protocol": settings.otel.exporter_otlp_protocol,
+            "generation_model": settings.llm.generation_model,
+            "utility_model": settings.llm.utility_model,
+            "embedding_model": settings.embeddings.model,
+            "reranker_model": settings.reranker.model,
+        },
+    }
+    telemetry = None
+    wide_event_token = set_wide_event(wide_event)
 
     try:
+        telemetry = configure_telemetry(None, settings)
+        ctx["telemetry"] = telemetry
         engine = create_engine(settings.db)
+        if telemetry is not None:
+            telemetry.instrument_sqlalchemy(engine)
         session_factory = create_session_factory(engine)
         qdrant_store = QdrantStore(settings.qdrant)
         redis = Redis.from_url(settings.redis.url)
@@ -51,17 +79,11 @@ async def startup(ctx: dict) -> None:
         try:
             llm_client.set_model_catalog(await llm_client.list_models())
         except Exception as exc:
-            logger.warning(
-                "worker_model_catalog_load_failed",
-                extra={
-                    "wide_event": {
-                        "event": "worker_model_catalog_load_failed",
-                        "error_type": type(exc).__name__,
-                        "error_message": str(exc),
-                        "outcome": "degraded",
-                    }
-                },
-            )
+            wide_event["model_catalog"] = {
+                "outcome": "degraded",
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            }
 
         await qdrant_store.ensure_collection()
 
@@ -80,10 +102,16 @@ async def startup(ctx: dict) -> None:
         wide_event["outcome"] = "error"
         wide_event["error_type"] = type(exc).__name__
         wide_event["error_message"] = str(exc)
+        if telemetry is not None:
+            telemetry.shutdown()
         raise
     finally:
         wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-        logger.info("worker_startup", extra={"wide_event": wide_event})
+        log = logger.error if wide_event.get("outcome") == "error" else logger.info
+        try:
+            log("worker_startup", extra={"wide_event": wide_event})
+        finally:
+            reset_wide_event(wide_event_token)
 
 
 async def shutdown(ctx: dict) -> None:
@@ -99,6 +127,10 @@ async def shutdown(ctx: dict) -> None:
         if engine is not None:
             await engine.dispose()
 
+        telemetry = ctx.get("telemetry")
+        if telemetry is not None:
+            telemetry.shutdown()
+
         wide_event["outcome"] = "success"
     except Exception as exc:
         wide_event["outcome"] = "error"
@@ -107,66 +139,124 @@ async def shutdown(ctx: dict) -> None:
         raise
     finally:
         wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-        logger.info("worker_shutdown", extra={"wide_event": wide_event})
+        log = logger.error if wide_event.get("outcome") == "error" else logger.info
+        log("worker_shutdown", extra={"wide_event": wide_event})
 
 
-async def run_message_pipeline(ctx: dict, message_id) -> None:
-    started_at = perf_counter()
-    wide_event: dict[str, object] = {
-        "event": "run_message_pipeline",
-        "message_id": str(message_id),
-    }
+async def run_message_pipeline(
+    ctx: dict,
+    message_id,
+    trace_context: Mapping[str, str] | None = None,
+) -> None:
+    with _job_observability(
+        "run_message_pipeline",
+        {"message_id": str(message_id)},
+        trace_context,
+    ) as wide_event:
+        try:
+            pipeline = QueryPipeline(
+                session_factory=ctx["session_factory"],
+                redis=ctx["redis"],
+                embedding_client=ctx["embedding_client"],
+                qdrant_store=ctx["qdrant_store"],
+                rerank_client=ctx["rerank_client"],
+                llm_client=ctx["llm_client"],
+                arag_router=ctx.get("arag_router"),
+            )
+            await pipeline.run(message_id)
+            wide_event["outcome"] = "success"
+        except NonRetryablePipelineError as exc:
+            wide_event["outcome"] = "skipped"
+            wide_event["error_type"] = type(exc).__name__
+            wide_event["error_message"] = str(exc)
 
-    try:
-        pipeline = QueryPipeline(
+
+async def run_document_ingestion(
+    ctx: dict,
+    document_id,
+    trace_context: Mapping[str, str] | None = None,
+) -> None:
+    document_id = str(document_id)
+    with _job_observability(
+        "run_document_ingestion",
+        {"document_id": document_id},
+        trace_context,
+    ) as wide_event:
+        pipeline = DocumentIngestionPipeline(
             session_factory=ctx["session_factory"],
             redis=ctx["redis"],
             embedding_client=ctx["embedding_client"],
-            qdrant_store=ctx["qdrant_store"],
-            rerank_client=ctx["rerank_client"],
             llm_client=ctx["llm_client"],
-            arag_router=ctx.get("arag_router"),
+            qdrant_store=ctx["qdrant_store"],
+            storage=ctx["document_storage"],
         )
-        await pipeline.run(message_id)
+        await pipeline.run(document_id)
         wide_event["outcome"] = "success"
-    except NonRetryablePipelineError as exc:
-        wide_event["outcome"] = "skipped"
-        wide_event["error_type"] = type(exc).__name__
-        wide_event["error_message"] = str(exc)
-        logger.warning("run_message_pipeline skipped", extra={"wide_event": wide_event})
-    except Exception as exc:
-        wide_event["outcome"] = "error"
-        wide_event["error_type"] = type(exc).__name__
-        wide_event["error_message"] = str(exc)
-        raise
+
+
+@contextmanager
+def _job_observability(
+    job_name: str,
+    identity: dict[str, object],
+    trace_context: Mapping[str, str] | None,
+) -> Iterator[dict[str, object]]:
+    started_at = perf_counter()
+    wide_event: dict[str, object] = {"event": job_name, **identity}
+    request_id = (trace_context or {}).get("x-request-id")
+    if request_id:
+        wide_event["request_id"] = request_id
+
+    request_token = set_request_id(request_id)
+    wide_event_token = set_wide_event(wide_event)
+    parent_context = propagate.extract(trace_context or {})
+    context_token = otel_context.attach(parent_context)
+
+    try:
+        tracer = trace.get_tracer(__name__)
+        span_attributes: dict[str, bool | int | float | str] = {
+            "messaging.system": "redis",
+            "messaging.operation.name": job_name,
+            "messaging.operation.type": "process",
+        }
+        message_id = identity.get("message_id") or identity.get("document_id")
+        if message_id is not None:
+            span_attributes["messaging.message.id"] = str(message_id)
+        with tracer.start_as_current_span(
+            job_name,
+            kind=SpanKind.CONSUMER,
+            attributes=span_attributes,
+        ):
+            try:
+                yield wide_event
+            except Exception as exc:
+                wide_event["outcome"] = "error"
+                wide_event["error_type"] = type(exc).__name__
+                wide_event["error_message"] = str(exc)
+                raise
+            finally:
+                wide_event["duration_ms"] = round(
+                    (perf_counter() - started_at) * 1000, 2
+                )
+                log = (
+                    logger.error
+                    if wide_event.get("outcome") == "error"
+                    else logger.info
+                )
+                log(job_name, extra={"wide_event": wide_event})
     finally:
-        wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-        logger.info("run_message_pipeline", extra={"wide_event": wide_event})
-
-
-async def run_document_ingestion(ctx: dict, document_id) -> None:
-    pipeline = DocumentIngestionPipeline(
-        session_factory=ctx["session_factory"],
-        redis=ctx["redis"],
-        embedding_client=ctx["embedding_client"],
-        llm_client=ctx["llm_client"],
-        qdrant_store=ctx["qdrant_store"],
-        storage=ctx["document_storage"],
-    )
-    await pipeline.run(str(document_id))
+        otel_context.detach(context_token)
+        reset_wide_event(wide_event_token)
+        reset_request_id(request_token)
 
 
 async def cleanup_deleted_documents(ctx: dict) -> None:
-    started_at = perf_counter()
-    wide_event: dict[str, object] = {
-        "event": "deleted_document_cleanup",
-        "retention_days": settings.ingestion.audit_retention_days,
-        "deleted_sources": 0,
-        "deleted_documents": 0,
-    }
-    deleted_sources = 0
-    deleted_documents = 0
-    try:
+    with _job_observability(
+        "deleted_document_cleanup",
+        {"retention_days": settings.ingestion.audit_retention_days},
+        None,
+    ) as wide_event:
+        deleted_sources = 0
+        deleted_documents = 0
         cutoff = datetime.now(timezone.utc) - timedelta(
             days=settings.ingestion.audit_retention_days
         )
@@ -195,14 +285,6 @@ async def cleanup_deleted_documents(ctx: dict) -> None:
         wide_event["deleted_sources"] = deleted_sources
         wide_event["deleted_documents"] = deleted_documents
         wide_event["outcome"] = "success"
-    except Exception as exc:
-        wide_event["outcome"] = "error"
-        wide_event["error_type"] = type(exc).__name__
-        wide_event["error_message"] = str(exc)
-        raise
-    finally:
-        wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-        logger.info("deleted_document_cleanup", extra={"wide_event": wide_event})
 
 
 class WorkerSettings:

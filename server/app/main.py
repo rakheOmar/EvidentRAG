@@ -7,13 +7,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from redis.asyncio import Redis
 
-from app.api.middleware.access_logging import AccessLoggingMiddleware
+from app.api.middleware.access_logging import RequestObservabilityMiddleware
 from app.api.errors import (
     http_exception_handler,
     unhandled_exception_handler,
     validation_exception_handler,
 )
-from app.api.middleware.request_context import RequestContextMiddleware
 from app.api.routes.health import router as health_router
 from app.api.routes.documents import router as documents_router
 from app.api.routes.models import router as models_router
@@ -21,8 +20,12 @@ from app.api.routes.sentence_traces import router as sentence_traces_router
 from app.api.routes.threads import router as threads_router
 from app.frontend import mount_frontend
 
-from app.core.config import Settings, get_settings
-from app.core.logging import configure_logging
+from app.core.config import get_settings
+from app.core.logging import (
+    configure_logging,
+    reset_wide_event,
+    set_wide_event,
+)
 from app.core.telemetry import configure_telemetry
 from app.infrastructure.db.models import Base
 from app.infrastructure.db.session import create_engine, create_session_factory
@@ -40,68 +43,6 @@ configure_logging(settings)
 
 logger = logging.getLogger(__name__)
 
-_REDACTED = "***"
-
-
-def _redact(value: str | None) -> str | None:
-    return _REDACTED if value else value
-
-
-def _config_event(settings: Settings) -> dict[str, object]:
-    return {
-        "app": {
-            "app_name": settings.app.app_name,
-            "environment": settings.app.environment,
-            "client_dist_path": settings.app.client_dist_path,
-        },
-        "log": {
-            "level": settings.log.level,
-            "format": settings.log.format,
-        },
-        "otel": {
-            "enabled": settings.otel.enabled,
-            "service_name": settings.otel.service_name,
-            "exporter_otlp_endpoint": settings.otel.exporter_otlp_endpoint,
-            "exporter_otlp_protocol": settings.otel.exporter_otlp_protocol,
-            "excluded_urls": settings.otel.excluded_urls,
-        },
-        "llm": {
-            "api_base": settings.llm.api_base,
-            "api_key": _redact(settings.llm.api_key),
-            "generation_model": settings.llm.generation_model,
-            "utility_model": settings.llm.utility_model,
-        },
-        "embeddings": {
-            "api_base": settings.embeddings.api_base,
-            "api_key": _redact(settings.embeddings.api_key),
-            "seed_demo_data": settings.embeddings.seed_demo_data,
-            "model": settings.embeddings.model,
-            "dimensions": settings.embeddings.dimensions,
-        },
-        "reranker": {
-            "api_base": settings.reranker.api_base,
-            "api_key": _redact(settings.reranker.api_key),
-            "model": settings.reranker.model,
-        },
-        "db": {
-            "host": settings.db.host,
-            "port": settings.db.port,
-            "user": settings.db.user,
-            "password": _redact(settings.db.password),
-            "db": settings.db.db,
-        },
-        "qdrant": {
-            "url": settings.qdrant.url,
-            "evidence_collection": settings.qdrant.evidence_collection,
-        },
-        "redis": {
-            "url": settings.redis.url,
-        },
-    }
-
-
-logger.info("config_loaded", extra={"wide_event": _config_event(settings)})
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -109,16 +50,29 @@ async def lifespan(app: FastAPI):
     startup_event: dict[str, object] = {
         "event": "app_startup",
         "seed_demo_data_enabled": settings.embeddings.seed_demo_data,
+        "configuration": {
+            "otel_enabled": settings.otel.enabled,
+            "otel_protocol": settings.otel.exporter_otlp_protocol,
+            "generation_model": settings.llm.generation_model,
+            "utility_model": settings.llm.utility_model,
+            "embedding_model": settings.embeddings.model,
+            "reranker_model": settings.reranker.model,
+            "evidence_collection": settings.qdrant.evidence_collection,
+        },
     }
     engine = None
     redis = None
     job_queue = None
+    wide_event_token = set_wide_event(startup_event)
+    startup_context_active = True
+    startup_logged = False
 
     try:
-        configure_telemetry(app, settings)
-        startup_event["telemetry_configured"] = True
+        startup_event["telemetry_configured"] = app.state.telemetry is not None
 
         engine = create_engine(settings.db)
+        if app.state.telemetry is not None:
+            app.state.telemetry.instrument_sqlalchemy(engine)
         session_factory = create_session_factory(engine)
         qdrant_store = QdrantStore(settings.qdrant)
         redis = Redis.from_url(settings.redis.url)
@@ -132,17 +86,11 @@ async def lifespan(app: FastAPI):
             model_catalog = await llm_client.list_models()
         except Exception as exc:
             model_catalog = []
-            logger.warning(
-                "model_catalog_load_failed",
-                extra={
-                    "wide_event": {
-                        "event": "model_catalog_load_failed",
-                        "error_type": type(exc).__name__,
-                        "error_message": str(exc),
-                        "outcome": "degraded",
-                    }
-                },
-            )
+            startup_event["model_catalog"] = {
+                "outcome": "degraded",
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            }
         set_model_catalog = getattr(llm_client, "set_model_catalog", None)
         if callable(set_model_catalog):
             set_model_catalog(model_catalog)
@@ -171,15 +119,6 @@ async def lifespan(app: FastAPI):
         startup_event["qdrant_collection_ready"] = True
 
         if settings.embeddings.seed_demo_data:
-            logger.info(
-                "seed_demo_data_starting",
-                extra={
-                    "wide_event": {
-                        "event": "seed_demo_data_starting",
-                        "seed_dir": "app/seed/demo-corpus",
-                    }
-                },
-            )
             seeded_count = await seed_demo_data(
                 session_factory=session_factory,
                 qdrant_store=qdrant_store,
@@ -192,18 +131,24 @@ async def lifespan(app: FastAPI):
             (perf_counter() - startup_started_at) * 1000, 2
         )
         logger.info("app_startup", extra={"wide_event": startup_event})
+        startup_logged = True
+        reset_wide_event(wide_event_token)
+        startup_context_active = False
 
         yield
     except Exception as exc:
-        startup_event["outcome"] = "error"
-        startup_event["error_type"] = type(exc).__name__
-        startup_event["error_message"] = str(exc)
-        startup_event["duration_ms"] = round(
-            (perf_counter() - startup_started_at) * 1000, 2
-        )
-        logger.info("app_startup", extra={"wide_event": startup_event})
+        if not startup_logged:
+            startup_event["outcome"] = "error"
+            startup_event["error_type"] = type(exc).__name__
+            startup_event["error_message"] = str(exc)
+            startup_event["duration_ms"] = round(
+                (perf_counter() - startup_started_at) * 1000, 2
+            )
+            logger.error("app_startup", extra={"wide_event": startup_event})
         raise
     finally:
+        if startup_context_active:
+            reset_wide_event(wide_event_token)
         shutdown_started_at = perf_counter()
         shutdown_event: dict[str, object] = {"event": "app_shutdown"}
         try:
@@ -216,6 +161,10 @@ async def lifespan(app: FastAPI):
             if engine is not None:
                 await engine.dispose()
                 shutdown_event["engine_disposed"] = True
+            telemetry = getattr(app.state, "telemetry", None)
+            if telemetry is not None:
+                telemetry.shutdown()
+                shutdown_event["telemetry_shutdown"] = True
             shutdown_event["outcome"] = "success"
         except Exception as exc:
             shutdown_event["outcome"] = "error"
@@ -226,18 +175,23 @@ async def lifespan(app: FastAPI):
             shutdown_event["duration_ms"] = round(
                 (perf_counter() - shutdown_started_at) * 1000, 2
             )
-            logger.info("app_shutdown", extra={"wide_event": shutdown_event})
+            log = (
+                logger.error
+                if shutdown_event.get("outcome") == "error"
+                else logger.info
+            )
+            log("app_shutdown", extra={"wide_event": shutdown_event})
 
 
 app = FastAPI(title=settings.app.app_name, lifespan=lifespan)
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
-app.add_middleware(RequestContextMiddleware)
-app.add_middleware(AccessLoggingMiddleware)
+app.add_middleware(RequestObservabilityMiddleware)
 app.include_router(health_router)
 app.include_router(documents_router)
 app.include_router(models_router)
 app.include_router(sentence_traces_router)
 app.include_router(threads_router)
 mount_frontend(app, settings)
+app.state.telemetry = configure_telemetry(app, settings)

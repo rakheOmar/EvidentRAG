@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from datetime import datetime, timezone
 import json
 import logging
 from logging.config import dictConfig
-import os
-import subprocess
-import sys
 
 from app.core.config import Settings
+from app.core.runtime_context import get_runtime_context
 
 try:
     from opentelemetry import trace
@@ -17,57 +15,64 @@ except Exception:  # pragma: no cover - handled when deps are absent
     trace = None
 
 
-def _resolve_commit_hash() -> str:
-    env_hash = os.getenv("COMMIT_HASH")
-    if env_hash:
-        return env_hash
-    try:
-        return (
-            subprocess.check_output(
-                ["git", "rev-parse", "--short", "HEAD"],
-                stderr=subprocess.DEVNULL,
-                timeout=2,
-            )
-            .decode("utf-8")
-            .strip()
-        )
-    except Exception:
-        return "unknown"
-
-
-def _resolve_version() -> str:
-    return os.getenv("SERVICE_VERSION", "0.0.0")
-
-
 _REQUEST_ID: ContextVar[str | None] = ContextVar("request_id", default=None)
-_COMMIT_HASH = _resolve_commit_hash()
-_SERVICE_VERSION = _resolve_version()
+_WIDE_EVENT: ContextVar[dict[str, object] | None] = ContextVar(
+    "wide_event", default=None
+)
 
 
-def set_request_id(request_id: str | None) -> None:
-    _REQUEST_ID.set(request_id)
+def set_request_id(request_id: str | None) -> Token[str | None]:
+    return _REQUEST_ID.set(request_id)
 
 
 def get_request_id() -> str | None:
     return _REQUEST_ID.get()
 
 
-def clear_request_id() -> None:
-    _REQUEST_ID.set(None)
+def reset_request_id(token: Token[str | None]) -> None:
+    _REQUEST_ID.reset(token)
+
+
+def set_wide_event(
+    wide_event: dict[str, object],
+) -> Token[dict[str, object] | None]:
+    return _WIDE_EVENT.set(wide_event)
+
+
+def reset_wide_event(token: Token[dict[str, object] | None]) -> None:
+    _WIDE_EVENT.reset(token)
+
+
+def enrich_wide_event(**fields: object) -> None:
+    wide_event = _WIDE_EVENT.get()
+    if wide_event is not None:
+        wide_event.update(fields)
+
+
+def append_wide_event(field: str, value: object) -> None:
+    wide_event = _WIDE_EVENT.get()
+    if wide_event is None:
+        return
+    values = wide_event.setdefault(field, [])
+    if isinstance(values, list):
+        values.append(value)
 
 
 class ContextFilter(logging.Filter):
     def __init__(self, settings: Settings) -> None:
         super().__init__()
-        self._service_name = settings.otel.service_name
-        self._environment = settings.app.environment
+        self._runtime = get_runtime_context(settings)
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.service_name = getattr(record, "service_name", self._service_name)
-        record.environment = getattr(record, "environment", self._environment)
+        record.service_name = getattr(
+            record, "service_name", self._runtime.service_name
+        )
+        record.environment = getattr(record, "environment", self._runtime.environment)
         record.request_id = getattr(record, "request_id", None) or get_request_id()
-        record.commit_hash = _COMMIT_HASH
-        record.version = _SERVICE_VERSION
+        record.commit_hash = self._runtime.commit_hash
+        record.version = self._runtime.version
+        record.instance_id = self._runtime.instance_id
+        record.region = self._runtime.region
 
         trace_id: str | None = getattr(record, "trace_id", None)
         span_id: str | None = getattr(record, "span_id", None)
@@ -106,6 +111,8 @@ class JsonFormatter(logging.Formatter):
             "span_id",
             "commit_hash",
             "version",
+            "instance_id",
+            "region",
             "http_method",
             "http_path",
             "http_status_code",
@@ -120,49 +127,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
-class PrettyFormatter(logging.Formatter):
-    _RESET = "\x1b[0m"
-    _DIM = "\x1b[2m"
-    _COLORS = {
-        "DEBUG": "\x1b[36m",
-        "INFO": "\x1b[32m",
-        "WARNING": "\x1b[33m",
-        "ERROR": "\x1b[31m",
-        "CRITICAL": "\x1b[35m",
-    }
-
-    def __init__(self) -> None:
-        super().__init__(datefmt="%H:%M:%S")
-        self._use_color = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
-
-    def format(self, record: logging.LogRecord) -> str:
-        timestamp = datetime.fromtimestamp(record.created).strftime(self.datefmt or "")
-        level = record.levelname.ljust(8)
-        logger_name = record.name
-
-        wide_event = getattr(record, "wide_event", None)
-        if isinstance(wide_event, dict):
-            event_name = wide_event.get("event", record.getMessage())
-            event_parts = [f"{k}={v}" for k, v in wide_event.items() if k != "event"]
-            message = (
-                f"{event_name} {', '.join(event_parts)}" if event_parts else event_name
-            )
-        else:
-            message = record.getMessage()
-
-        if self._use_color:
-            level = f"{self._COLORS.get(record.levelname, '')}{level}{self._RESET}"
-            timestamp = f"{self._DIM}{timestamp}{self._RESET}"
-            logger_name = f"{self._DIM}{logger_name}{self._RESET}"
-
-        line = f"{timestamp} {level} {logger_name} {message}"
-        if record.exc_info:
-            return f"{line}\n{self.formatException(record.exc_info)}"
-        return line
-
-
 def configure_logging(settings: Settings) -> None:
-    formatter_name = "json" if settings.log.format == "json" else "pretty"
     dictConfig(
         {
             "version": 1,
@@ -172,14 +137,25 @@ def configure_logging(settings: Settings) -> None:
             },
             "formatters": {
                 "json": {"()": JsonFormatter},
-                "pretty": {"()": PrettyFormatter},
             },
             "handlers": {
                 "default": {
                     "class": "logging.StreamHandler",
-                    "formatter": formatter_name,
+                    "formatter": "json",
                     "filters": ["context"],
                 }
+            },
+            "loggers": {
+                logger_name: {"level": "ERROR", "propagate": True}
+                for logger_name in (
+                    "uvicorn",
+                    "uvicorn.access",
+                    "uvicorn.error",
+                    "httpx",
+                    "httpcore",
+                    "arq",
+                    "arq.worker",
+                )
             },
             "root": {"level": settings.log.level, "handlers": ["default"]},
         }

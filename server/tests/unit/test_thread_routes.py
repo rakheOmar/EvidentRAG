@@ -74,10 +74,15 @@ class _FakeSessionFactory:
 
 class _FakeJobQueue:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[str, str, dict[str, str]]] = []
 
-    async def enqueue_job(self, function_name: str, message_id: str) -> None:
-        self.calls.append((function_name, message_id))
+    async def enqueue_job(
+        self,
+        function_name: str,
+        message_id: str,
+        trace_context: dict[str, str],
+    ) -> None:
+        self.calls.append((function_name, message_id, trace_context))
 
 
 class _FakeLLMClient:
@@ -144,5 +149,5 @@ async def test_create_thread_enqueues_message_pipeline_job_when_queue_is_configu
     assert response.user_message.role == "user"
     assert response.assistant_message.role == "assistant"
     assert job_queue.calls == [
-        ("run_message_pipeline", str(response.assistant_message.id))
+        ("run_message_pipeline", str(response.assistant_message.id), {})
     ]

@@ -23,6 +23,8 @@ from sqlalchemy.orm import selectinload
 
 from app.api.schemas.documents import DocumentListResponse, DocumentResponse
 from app.api.sse.sse import redis_pubsub_stream, sse_event
+from app.core.logging import enrich_wide_event
+from app.core.telemetry import inject_job_context
 from app.infrastructure.db.models import Document, Source
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
@@ -31,16 +33,20 @@ router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 @router.get("/{document_id}/assets/{asset_name}")
 async def get_document_asset(document_id: UUID, asset_name: str, request: Request):
     if Path(asset_name).name != asset_name or Path(asset_name).suffix.lower() != ".png":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid asset")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid asset"
+        )
     async with request.app.state.session_factory() as session:
         document = await session.get(Document, document_id)
         if document is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    path = request.app.state.document_storage.path(
-        f"assets/{document_id}/{asset_name}"
-    )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+            )
+    path = request.app.state.document_storage.path(f"assets/{document_id}/{asset_name}")
     if not path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found"
+        )
     return FileResponse(path, media_type="image/png")
 
 
@@ -113,6 +119,16 @@ async def upload_document(
                 )
             )
             if existing is not None:
+                enrich_wide_event(
+                    action="document.upload.duplicate",
+                    document={
+                        "id": str(existing.id),
+                        "source_id": str(existing.source_id),
+                        "version": existing.version_number,
+                        "status": existing.status,
+                        "byte_size": len(content),
+                    },
+                )
                 return _response(existing)
         else:
             source = Source(source_key=str(uuid4()), title=Path(filename).stem)
@@ -151,7 +167,18 @@ async def upload_document(
         await session.commit()
         await session.refresh(document, attribute_names=["source"])
     await request.app.state.job_queue.enqueue_job(
-        "run_document_ingestion", str(document.id)
+        "run_document_ingestion", str(document.id), inject_job_context()
+    )
+    enrich_wide_event(
+        action="document.upload",
+        document={
+            "id": str(document.id),
+            "source_id": str(document.source_id),
+            "version": document.version_number,
+            "status": document.status,
+            "byte_size": document.byte_size,
+            "content_type": document.content_type,
+        },
     )
     return _response(document)
 
@@ -171,12 +198,19 @@ async def list_documents(
             .offset(offset)
             .limit(limit)
         )
-        return DocumentListResponse(
+        response = DocumentListResponse(
             items=[_response(document) for document in result.scalars()],
             limit=limit,
             offset=offset,
             total=total,
         )
+        enrich_wide_event(
+            action="document.list",
+            result_count=len(response.items),
+            total=total,
+            pagination={"limit": limit, "offset": offset},
+        )
+        return response
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
@@ -191,6 +225,15 @@ async def get_document(document_id: UUID, request: Request) -> DocumentResponse:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
             )
+        enrich_wide_event(
+            action="document.get",
+            document={
+                "id": str(document.id),
+                "source_id": str(document.source_id),
+                "version": document.version_number,
+                "status": document.status,
+            },
+        )
         return _response(document)
 
 
@@ -228,6 +271,10 @@ async def document_events(document_id: UUID, request: Request) -> StreamingRespo
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
             )
+    enrich_wide_event(
+        action="document.events",
+        document={"id": str(document_id), "status": exists.status},
+    )
     return StreamingResponse(
         _events(request, document_id), media_type="text/event-stream"
     )
@@ -262,7 +309,16 @@ async def create_document_retry(
         await session.commit()
         await session.refresh(document, attribute_names=["source"])
     await request.app.state.job_queue.enqueue_job(
-        "run_document_ingestion", str(document_id)
+        "run_document_ingestion", str(document_id), inject_job_context()
+    )
+    enrich_wide_event(
+        action="document.retry",
+        document={
+            "id": str(document.id),
+            "source_id": str(document.source_id),
+            "version": document.version_number,
+            "status": document.status,
+        },
     )
     return _response(document)
 
@@ -280,8 +336,10 @@ async def delete_document(document_id: UUID, request: Request) -> None:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
             )
         document.source.deleted_at = datetime.now(timezone.utc)
-        versions = await session.scalars(
-            select(Document).where(Document.source_id == document.source_id)
+        versions = list(
+            await session.scalars(
+                select(Document).where(Document.source_id == document.source_id)
+            )
         )
         for version in versions:
             version.status = "deleted"
@@ -290,3 +348,12 @@ async def delete_document(document_id: UUID, request: Request) -> None:
                 str(version.id), False
             )
         await session.commit()
+        enrich_wide_event(
+            action="document.delete",
+            document={
+                "id": str(document.id),
+                "source_id": str(document.source_id),
+                "version_count": len(versions),
+                "status": "deleted",
+            },
+        )

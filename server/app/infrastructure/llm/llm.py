@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import json
-import logging
 from collections.abc import AsyncIterator
-from time import perf_counter
 
 import httpx
 
 from app.core.config import LLMSettings
+from app.core.telemetry import traced_operation
 from app.infrastructure.ai.scheduler import AIRequestScheduler
 from app.infrastructure.llm.context_manager import ContextManager
-
-logger = logging.getLogger(__name__)
 
 
 class LLMClient:
@@ -36,13 +33,11 @@ class LLMClient:
         messages: list[dict],
         model: str | None = None,
     ) -> str:
-        started_at = perf_counter()
         model = model or self._utility_model
 
-        wide_event: dict[str, object] = {
-            "event": "llm_generate",
+        operation_context = {
             "model": model,
-            "prompt_messages": len(messages),
+            "prompt_message_count": len(messages),
         }
 
         headers = {"Content-Type": "application/json"}
@@ -55,7 +50,7 @@ class LLMClient:
             "stream": False,
         }
 
-        try:
+        with traced_operation("llm.generate", **operation_context) as operation:
 
             async def request() -> httpx.Response:
                 response = await self._client.post(
@@ -77,17 +72,8 @@ class LLMClient:
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
-            wide_event["response_length"] = len(content)
-            wide_event["outcome"] = "success"
+            operation["response_length"] = len(content)
             return content
-        except Exception as exc:
-            wide_event["outcome"] = "error"
-            wide_event["error_type"] = type(exc).__name__
-            wide_event["error_message"] = str(exc)
-            raise
-        finally:
-            wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-            logger.info("llm_generate", extra={"wide_event": wide_event})
 
     async def list_models(self) -> list[dict[str, object]]:
         """Load model metadata once so the API can serve context details locally."""
@@ -112,13 +98,11 @@ class LLMClient:
         messages: list[dict],
         model: str | None = None,
     ) -> AsyncIterator[str]:
-        started_at = perf_counter()
         model = model or self._generation_model
 
-        wide_event: dict[str, object] = {
-            "event": "llm_generate_stream",
+        operation_context = {
             "model": model,
-            "prompt_messages": len(messages),
+            "prompt_message_count": len(messages),
         }
 
         headers = {"Content-Type": "application/json"}
@@ -135,7 +119,7 @@ class LLMClient:
         buffer = ""
         had_sse = False
 
-        try:
+        with traced_operation("llm.generate_stream", **operation_context) as operation:
 
             def request_stream():
                 return self._client.stream(
@@ -196,16 +180,7 @@ class LLMClient:
                 except json.JSONDecodeError:
                     pass
 
-            wide_event["response_length"] = len(raw_text)
-            wide_event["outcome"] = "success"
-        except Exception as exc:
-            wide_event["outcome"] = "error"
-            wide_event["error_type"] = type(exc).__name__
-            wide_event["error_message"] = str(exc)
-            raise
-        finally:
-            wide_event["duration_ms"] = round((perf_counter() - started_at) * 1000, 2)
-            logger.info("llm_generate_stream", extra={"wide_event": wide_event})
+            operation["response_length"] = len(raw_text)
 
 
 async def _single_stream(operation) -> AsyncIterator[str]:

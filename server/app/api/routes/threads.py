@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import re
 from collections.abc import AsyncIterator
 from uuid import UUID
@@ -23,6 +22,9 @@ from app.api.schemas.threads import (
 )
 from app.api.sse.sse import redis_pubsub_stream, sse_event
 from app.application.query_pipeline.content_parts import answer_content_parts
+from app.core.logging import enrich_wide_event
+from app.core.telemetry import inject_job_context
+from app.core.telemetry import record_degradation
 from app.infrastructure.db.models import (
     Answer,
     Evidence,
@@ -31,8 +33,6 @@ from app.infrastructure.db.models import (
 )
 
 router = APIRouter(prefix="/api/v1/threads", tags=["threads"])
-
-logger = logging.getLogger(__name__)
 
 _MARKDOWN_LINK_PATTERN = re.compile(r"!?\[([^\]]+)\]\([^)]+\)")
 _MARKDOWN_PREFIX_PATTERN = re.compile(
@@ -143,18 +143,10 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
             try:
                 parsed_eid = UUID(eid) if not isinstance(eid, UUID) else eid
             except (ValueError, AttributeError) as exc:
-                logger.info(
-                    "answer_segment_evidence_id_skipped",
-                    extra={
-                        "wide_event": {
-                            "event": "answer_segment_evidence_id_skipped",
-                            "segment_id": str(seg.id),
-                            "raw_evidence_id": str(eid),
-                            "error_type": type(exc).__name__,
-                            "error_message": str(exc),
-                            "outcome": "skipped",
-                        }
-                    },
+                record_degradation(
+                    "answer_segment_evidence_id",
+                    segment_id=str(seg.id),
+                    error_type=type(exc).__name__,
                 )
                 continue
             resolved_evidence.append(parsed_eid)
@@ -378,7 +370,18 @@ async def create_thread(payload: ThreadCreate, request: Request) -> ThreadTurnRe
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"message": "Message processing is unavailable"},
         )
-    await job_queue.enqueue_job("run_message_pipeline", str(assistant_message.id))
+    await job_queue.enqueue_job(
+        "run_message_pipeline", str(assistant_message.id), inject_job_context()
+    )
+    enrich_wide_event(
+        action="thread.create",
+        thread={
+            "id": str(thread.id),
+            "user_message_id": str(user_message.id),
+            "assistant_message_id": str(assistant_message.id),
+            "content_length": len(payload.content),
+        },
+    )
 
     async with request.app.state.session_factory() as session:
         thread = await session.get(Thread, thread.id)
@@ -407,7 +410,13 @@ async def list_threads(
             .offset(offset)
             .limit(limit)
         )
-        return [_thread_summary_response(thread) for thread in result.scalars()]
+        threads = [_thread_summary_response(thread) for thread in result.scalars()]
+        enrich_wide_event(
+            action="thread.list",
+            result_count=len(threads),
+            pagination={"limit": limit, "offset": offset},
+        )
+        return threads
 
 
 @router.get("/{thread_id}", response_model=ThreadDetailResponse)
@@ -425,6 +434,10 @@ async def get_thread(thread_id: UUID, request: Request) -> ThreadDetailResponse:
             )
 
         ordered_messages = sorted(thread.messages, key=lambda message: message.position)
+        enrich_wide_event(
+            action="thread.get",
+            thread={"id": str(thread_id), "message_count": len(ordered_messages)},
+        )
         return ThreadDetailResponse(
             **_thread_summary_response(thread).model_dump(),
             messages=[
@@ -463,7 +476,18 @@ async def append_message(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"message": "Message processing is unavailable"},
         )
-    await job_queue.enqueue_job("run_message_pipeline", str(assistant_message.id))
+    await job_queue.enqueue_job(
+        "run_message_pipeline", str(assistant_message.id), inject_job_context()
+    )
+    enrich_wide_event(
+        action="thread.message.create",
+        thread={
+            "id": str(thread_id),
+            "user_message_id": str(user_message.id),
+            "assistant_message_id": str(assistant_message.id),
+            "content_length": len(payload.content),
+        },
+    )
 
     async with request.app.state.session_factory() as session:
         thread = await session.get(Thread, thread_id)
@@ -480,6 +504,10 @@ async def append_message(
 async def get_message_events(
     thread_id: UUID, message_id: UUID, request: Request
 ) -> StreamingResponse:
+    enrich_wide_event(
+        action="thread.message.events",
+        thread={"id": str(thread_id), "message_id": str(message_id)},
+    )
     return StreamingResponse(
         _message_events_stream(request, thread_id, message_id),
         media_type="text/event-stream",
