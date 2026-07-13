@@ -35,30 +35,6 @@ def test_settings_read_llm_env(monkeypatch) -> None:
     assert settings.llm.utility_model == "my-util-model"
 
 
-def test_settings_normalize_shorthand_embedding_model(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-2")
-
-    settings = get_settings()
-
-    assert settings.embeddings.model == "gemini-embedding-2"
-
-
-def test_settings_read_db_env(monkeypatch) -> None:
-    monkeypatch.setenv("POSTGRES_HOST", "pg.example.com")
-    monkeypatch.setenv("POSTGRES_PORT", "5433")
-    monkeypatch.setenv("POSTGRES_USER", "admin")
-    monkeypatch.setenv("POSTGRES_PASSWORD", "secret")
-    monkeypatch.setenv("POSTGRES_DB", "ragdb")
-
-    settings = get_settings()
-
-    assert settings.db.host == "pg.example.com"
-    assert settings.db.port == 5433
-    assert settings.db.user == "admin"
-    assert settings.db.password == "secret"
-    assert settings.db.db == "ragdb"
-
-
 def test_settings_read_qdrant_env(monkeypatch) -> None:
     monkeypatch.setenv("QDRANT_URL", "http://qdrant:6333")
     monkeypatch.setenv("EVIDENCE_COLLECTION_NAME", "my_evidence")
@@ -79,3 +55,25 @@ def test_settings_read_reranker_env(monkeypatch) -> None:
     assert settings.reranker.api_base == "https://custom-reranker.example.com"
     assert settings.reranker.api_key == "reranker-secret"
     assert settings.reranker.model == "custom-reranker-v2"
+
+
+def test_settings_normalize_shorthand_embedding_model(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-2")
+
+    assert get_settings().embeddings.model == "gemini-embedding-2"
+
+
+def test_settings_read_db_env(monkeypatch) -> None:
+    monkeypatch.setenv("POSTGRES_HOST", "pg.example.com")
+    monkeypatch.setenv("POSTGRES_PORT", "5433")
+    monkeypatch.setenv("POSTGRES_USER", "admin")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "secret")
+    monkeypatch.setenv("POSTGRES_DB", "ragdb")
+
+    settings = get_settings()
+
+    assert settings.db.host == "pg.example.com"
+    assert settings.db.port == 5433
+    assert settings.db.user == "admin"
+    assert settings.db.password == "secret"
+    assert settings.db.db == "ragdb"

@@ -12,6 +12,13 @@ from sqlalchemy.orm.exc import StaleDataError
 from app.infrastructure.db.models import Message, Thread
 
 
+@pytest.fixture(autouse=True)
+def _disable_event_throttling(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.application.query_pipeline.query_pipeline.MIN_EVENT_INTERVAL_S", 0.0
+    )
+
+
 class _AssistantMessageLike(Protocol):
     id: uuid.UUID
     role: str

@@ -38,6 +38,12 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+addopts = "--strict-markers"
+testpaths = ["tests"]
+markers = [
+    "integration: requires a disposable PostgreSQL database and live service stack",
+    "e2e: exercises health behavior against the disposable live service stack",
+]
 
 [tool.basedpyright]
 typeCheckingMode = "standard"

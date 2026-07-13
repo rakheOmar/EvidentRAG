@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from app.application.query_pipeline.arag_router import AragRouter, RoutingResult
+
 
 class _FakeLLMClient:
     def __init__(self, responses: list[str], *, error: Exception | None = None) -> None:
@@ -17,57 +19,52 @@ class _FakeLLMClient:
 
 
 @pytest.mark.asyncio
-async def test_arag_router_classify_returns_valid_route_and_sub_queries() -> None:
-    from app.application.query_pipeline.arag_router import AragRouter
-
-    llm_client = _FakeLLMClient(
-        [
-            '{"route": "multi_hop", "sub_queries": ["What causes X?", "How does X lead to Y?"]}'
-        ]
-    )
+@pytest.mark.parametrize(
+    ("query", "response", "expected"),
+    [
+        (
+            "What causes X, and how does that lead to Y?",
+            '{"route": "multi_hop", "sub_queries": ["What causes X?", "How does X lead to Y?"]}',
+            RoutingResult(
+                route="multi_hop",
+                sub_queries=["What causes X?", "How does X lead to Y?"],
+            ),
+        ),
+        (
+            "What was my last question in this thread?",
+            '{"route": "conversation", "sub_queries": []}',
+            RoutingResult(route="conversation", sub_queries=[]),
+        ),
+    ],
+    ids=["multi-hop-with-sub-queries", "conversation-without-retrieval"],
+)
+async def test_arag_router_classify_parses_supported_routes(
+    query: str,
+    response: str,
+    expected: RoutingResult,
+) -> None:
+    llm_client = _FakeLLMClient([response])
     router = AragRouter(llm_client=llm_client)
 
-    result = await router.classify("What causes X, and how does that lead to Y?")
-
-    assert result.route == "multi_hop"
-    assert result.sub_queries == ["What causes X?", "How does X lead to Y?"]
+    assert await router.classify(query) == expected
     assert len(llm_client.calls) == 1
 
 
 @pytest.mark.asyncio
-async def test_arag_router_classify_supports_conversation_route() -> None:
-    from app.application.query_pipeline.arag_router import AragRouter
-
-    llm_client = _FakeLLMClient(['{"route": "conversation", "sub_queries": []}'])
-    router = AragRouter(llm_client=llm_client)
-
-    result = await router.classify("What was my last question in this thread?")
-
-    assert result.route == "conversation"
-    assert result.sub_queries == []
-
-
-@pytest.mark.asyncio
 async def test_arag_router_classify_falls_back_to_simple_on_malformed_json() -> None:
-    from app.application.query_pipeline.arag_router import AragRouter
-
     llm_client = _FakeLLMClient(["not json"])
     router = AragRouter(llm_client=llm_client)
 
-    result = await router.classify("Compare dense and sparse retrieval")
-
-    assert result.route == "simple"
-    assert result.sub_queries == []
+    assert (
+        await router.classify("Compare dense and sparse retrieval") == RoutingResult()
+    )
 
 
 @pytest.mark.asyncio
 async def test_arag_router_classify_falls_back_to_simple_on_llm_error() -> None:
-    from app.application.query_pipeline.arag_router import AragRouter
-
     llm_client = _FakeLLMClient([], error=TimeoutError("router timed out"))
     router = AragRouter(llm_client=llm_client)
 
-    result = await router.classify("Summarize the document")
-
-    assert result.route == "simple"
-    assert result.sub_queries == []
+    assert (
+        await router.classify("Compare dense and sparse retrieval") == RoutingResult()
+    )

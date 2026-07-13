@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import json
+from typing import cast
 from uuid import UUID
 
+import pytest
 from sqlalchemy import select
 
 from app.infrastructure.db.models import Document, Source
+
+
+pytestmark = pytest.mark.integration
 
 
 class _JobQueue:
@@ -75,6 +81,16 @@ def _set_document_status(client, document_id: str, status: str) -> None:
     client.portal.call(_persist)
 
 
+def _parse_sse_events(body: str) -> list[tuple[str, dict[str, object]]]:
+    events: list[tuple[str, dict[str, object]]] = []
+    for block in body.strip().split("\n\n"):
+        fields = dict(line.split(": ", 1) for line in block.splitlines())
+        payload = json.loads(fields["data"])
+        assert isinstance(payload, dict)
+        events.append((fields["event"], cast(dict[str, object], payload)))
+    return events
+
+
 def test_document_upload_validates_pdf_inputs(client) -> None:
     _configure_document_dependencies(client)
 
@@ -125,8 +141,14 @@ def test_document_upload_list_detail_and_terminal_events(client) -> None:
         body = b"".join(response.iter_bytes()).decode("utf-8")
 
     assert response.status_code == 200
-    assert "event: snapshot" in body
-    assert "event: done" in body
+    events = _parse_sse_events(body)
+    assert [event for event, _ in events] == ["snapshot", "done"]
+    snapshot = events[0][1]
+    assert snapshot == events[1][1]
+    assert snapshot["document_id"] == document_id
+    assert snapshot["id"] == document_id
+    assert snapshot["status"] == "ready"
+    assert snapshot["is_current"] is True
 
 
 def test_document_retry_and_delete_tombstones_source(client) -> None:

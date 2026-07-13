@@ -38,7 +38,13 @@ class _FakeScheduler:
         return await operation()
 
 
-def _client(monkeypatch, fake: _FakeGenAIClient) -> EmbeddingClient:
+def _client(
+    monkeypatch,
+    fake: _FakeGenAIClient,
+    *,
+    batch_size: int = 64,
+    scheduler: _FakeScheduler | None = None,
+) -> EmbeddingClient:
     monkeypatch.setattr(
         "app.infrastructure.embeddings.embedding.genai.Client",
         lambda api_key: fake,
@@ -50,7 +56,9 @@ def _client(monkeypatch, fake: _FakeGenAIClient) -> EmbeddingClient:
             seed_demo_data=True,
             model="gemini-embedding-2",
             dimensions=768,
-        )
+            batch_size=batch_size,
+        ),
+        scheduler=scheduler,
     )
 
 
@@ -95,21 +103,7 @@ def test_embed_texts_splits_requests_at_configured_batch_size(monkeypatch) -> No
 async def test_embed_texts_async_schedules_each_provider_batch(monkeypatch) -> None:
     fake = _FakeGenAIClient("gemini-key")
     scheduler = _FakeScheduler()
-    monkeypatch.setattr(
-        "app.infrastructure.embeddings.embedding.genai.Client",
-        lambda api_key: fake,
-    )
-    client = EmbeddingClient(
-        EmbeddingSettings(
-            api_base="http://unused",
-            api_key="gemini-key",
-            seed_demo_data=True,
-            model="gemini-embedding-2",
-            dimensions=768,
-            batch_size=2,
-        ),
-        scheduler=scheduler,
-    )
+    client = _client(monkeypatch, fake, batch_size=2, scheduler=scheduler)
 
     vectors = await client.embed_texts_async(["first", "second", "third"])
 
@@ -134,10 +128,6 @@ async def test_embed_texts_async_schedules_provider_retries(monkeypatch) -> None
         )
 
     fake.models.embed_content = rate_limited_then_success  # type: ignore[method-assign]
-    monkeypatch.setattr(
-        "app.infrastructure.embeddings.embedding.genai.Client",
-        lambda api_key: fake,
-    )
 
     async def no_wait(_delay: float) -> None:
         return None
@@ -145,16 +135,7 @@ async def test_embed_texts_async_schedules_provider_retries(monkeypatch) -> None
     monkeypatch.setattr(
         "app.infrastructure.embeddings.embedding.asyncio.sleep", no_wait
     )
-    client = EmbeddingClient(
-        EmbeddingSettings(
-            api_base="http://unused",
-            api_key="gemini-key",
-            seed_demo_data=True,
-            model="gemini-embedding-2",
-            dimensions=768,
-        ),
-        scheduler=scheduler,
-    )
+    client = _client(monkeypatch, fake, scheduler=scheduler)
 
     assert await client.embed_texts_async(["retry me"]) == [[0.0]]
     assert scheduler.buckets == ["embeddings", "embeddings"]

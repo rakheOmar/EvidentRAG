@@ -71,13 +71,18 @@ class _FallbackPageChunker:
         return [_FakeChunk("Transformers rely on attention.", 1, include_origin=False)]
 
 
-def test_generate_demo_corpus_disables_pdf_ocr(monkeypatch, tmp_path) -> None:
+def _write_source_pdf(tmp_path: Path) -> tuple[Path, Path]:
     source_dir = tmp_path / "corpus"
     output_dir = tmp_path / "demo-corpus"
     source_dir.mkdir()
     (source_dir / "attention-is-all-you-need-arxiv-1706.03762.pdf").write_bytes(
         b"fake-pdf-bytes"
     )
+    return source_dir, output_dir
+
+
+def test_generate_demo_corpus_disables_pdf_ocr(monkeypatch, tmp_path) -> None:
+    source_dir, output_dir = _write_source_pdf(tmp_path)
 
     captured: dict[str, Any] = {}
 
@@ -104,12 +109,7 @@ def test_generate_demo_corpus_disables_pdf_ocr(monkeypatch, tmp_path) -> None:
 def test_generate_demo_corpus_uses_doc_item_provenance_for_page(
     monkeypatch, tmp_path
 ) -> None:
-    source_dir = tmp_path / "corpus"
-    output_dir = tmp_path / "demo-corpus"
-    source_dir.mkdir()
-    (source_dir / "attention-is-all-you-need-arxiv-1706.03762.pdf").write_bytes(
-        b"fake-pdf-bytes"
-    )
+    source_dir, output_dir = _write_source_pdf(tmp_path)
 
     monkeypatch.setattr(
         "app.seed.generate_demo_corpus.DocumentConverter", _FakeConverter
@@ -126,11 +126,7 @@ def test_generate_demo_corpus_uses_doc_item_provenance_for_page(
 
 
 def test_generate_demo_corpus_writes_normalized_json(monkeypatch, tmp_path) -> None:
-    source_dir = tmp_path / "corpus"
-    output_dir = tmp_path / "demo-corpus"
-    source_dir.mkdir()
-    pdf_path = source_dir / "attention-is-all-you-need-arxiv-1706.03762.pdf"
-    pdf_path.write_bytes(b"fake-pdf-bytes")
+    source_dir, output_dir = _write_source_pdf(tmp_path)
 
     monkeypatch.setattr(
         "app.seed.generate_demo_corpus.DocumentConverter", _FakeConverter

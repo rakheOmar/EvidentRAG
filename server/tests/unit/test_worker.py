@@ -6,19 +6,19 @@ from typing import Any
 
 import pytest
 
-from app.core.config import (
-    AppSettings,
-    DatabaseSettings,
-    EmbeddingSettings,
-    LLMSettings,
-    LogSettings,
-    OtelSettings,
-    QdrantSettings,
-    RedisSettings,
-    RerankerSettings,
-    Settings,
-)
 from app.core.logging import enrich_wide_event, get_request_id
+from tests.support.runtime_fakes import ApplicationRuntimeHarness
+
+
+def _runtime_context(**pipeline_dependencies: object) -> dict[str, object]:
+    return {
+        "session_factory": object(),
+        "redis": object(),
+        "embedding_client": object(),
+        "qdrant_store": object(),
+        "llm_client": object(),
+        **pipeline_dependencies,
+    }
 
 
 @pytest.mark.asyncio
@@ -57,15 +57,7 @@ async def test_run_message_pipeline_builds_pipeline_from_ctx_and_runs_message(
 
     monkeypatch.setattr(worker_module, "QueryPipeline", FakeQueryPipeline)
 
-    ctx = {
-        "session_factory": object(),
-        "redis": object(),
-        "embedding_client": object(),
-        "qdrant_store": object(),
-        "rerank_client": object(),
-        "llm_client": object(),
-        "arag_router": object(),
-    }
+    ctx = _runtime_context(rerank_client=object(), arag_router=object())
 
     await worker_module.run_message_pipeline(ctx, message_id)
 
@@ -96,15 +88,7 @@ async def test_run_message_pipeline_preserves_request_context_for_job(
         "info",
         lambda message, **kwargs: log_records.append((message, kwargs)),
     )
-    ctx = {
-        "session_factory": object(),
-        "redis": object(),
-        "embedding_client": object(),
-        "qdrant_store": object(),
-        "rerank_client": object(),
-        "llm_client": object(),
-        "arag_router": object(),
-    }
+    ctx = _runtime_context(rerank_client=object(), arag_router=object())
 
     await worker_module.run_message_pipeline(
         ctx,
@@ -140,15 +124,7 @@ async def test_run_message_pipeline_skips_non_retryable_errors(monkeypatch) -> N
 
     monkeypatch.setattr(worker_module, "QueryPipeline", FakeQueryPipeline)
 
-    ctx = {
-        "session_factory": object(),
-        "redis": object(),
-        "embedding_client": object(),
-        "qdrant_store": object(),
-        "rerank_client": object(),
-        "llm_client": object(),
-        "arag_router": object(),
-    }
+    ctx = _runtime_context(rerank_client=object(), arag_router=object())
 
     await worker_module.run_message_pipeline(ctx, uuid.uuid4())
 
@@ -178,14 +154,7 @@ async def test_run_document_ingestion_preserves_context_and_emits_one_event(
         "info",
         lambda message, **kwargs: log_records.append((message, kwargs)),
     )
-    ctx = {
-        "session_factory": object(),
-        "redis": object(),
-        "embedding_client": object(),
-        "llm_client": object(),
-        "qdrant_store": object(),
-        "document_storage": object(),
-    }
+    ctx = _runtime_context(document_storage=object())
     document_id = uuid.uuid4()
 
     await worker_module.run_document_ingestion(
@@ -212,231 +181,117 @@ async def test_run_document_ingestion_preserves_context_and_emits_one_event(
 async def test_worker_startup_populates_runtime_dependencies(monkeypatch) -> None:
     from app import worker as worker_module
 
-    captured: dict[str, object] = {}
+    runtime = ApplicationRuntimeHarness(qdrant_degradation=True)
+    runtime.patch_worker(monkeypatch, worker_module)
     log_records: list[tuple[str, dict[str, Any]]] = []
-    warning_records: list[tuple[str, dict[str, Any]]] = []
-    fake_engine = object()
-    fake_session_factory = object()
-    fake_redis = object()
-
-    class FakeTelemetryRuntime:
-        def instrument_sqlalchemy(self, engine) -> None:
-            captured["telemetry_engine"] = engine
-
-    fake_telemetry = FakeTelemetryRuntime()
-
-    settings = Settings(
-        app=AppSettings(
-            app_name="EvidentRAG",
-            environment="test",
-            client_dist_path="../client/dist",
-        ),
-        log=LogSettings(level="INFO"),
-        otel=OtelSettings(
-            enabled=False,
-            service_name="server-test",
-            exporter_otlp_endpoint=None,
-            exporter_otlp_headers=None,
-            exporter_otlp_protocol="grpc",
-            excluded_urls="/health",
-        ),
-        embeddings=EmbeddingSettings(
-            api_base="http://embedding.test/v1",
-            api_key=None,
-            model="embed-test",
-            dimensions=768,
-            seed_demo_data=False,
-        ),
-        llm=LLMSettings(
-            api_base="http://llm.test/v1",
-            api_key=None,
-            generation_model="llm-generation-test",
-            utility_model="llm-utility-test",
-        ),
-        reranker=RerankerSettings(
-            api_base="https://api.cohere.com/v2",
-            api_key=None,
-            model="rerank-english-v3.0",
-        ),
-        db=DatabaseSettings(
-            host="localhost",
-            port=5432,
-            user="evidentrag",
-            password="evidentrag",
-            db="evidentrag",
-        ),
-        qdrant=QdrantSettings(
-            url="http://qdrant:6333",
-            evidence_collection="evidentrag_evidence",
-        ),
-        redis=RedisSettings(url="redis://localhost:6379/0"),
-    )
-
-    class FakeQdrantStore:
-        def __init__(self, actual_settings) -> None:
-            captured["qdrant_settings"] = actual_settings
-            captured["qdrant_store_instance"] = self
-
-        async def ensure_collection(self) -> None:
-            captured["ensure_collection_called"] = True
-            from app.core.telemetry import record_degradation
-
-            record_degradation("qdrant_payload_index", field="source_id")
-
-    class FakeEmbeddingClient:
-        def __init__(self, actual_settings, scheduler=None) -> None:
-            captured["embedding_settings"] = actual_settings
-            captured["embedding_client_instance"] = self
-            captured["embedding_scheduler"] = scheduler
-
-    class FakeLLMClient:
-        def __init__(self, actual_settings, scheduler=None) -> None:
-            captured["llm_settings"] = actual_settings
-            captured["llm_client_instance"] = self
-            captured["llm_scheduler"] = scheduler
-
-    class FakeAragRouter:
-        def __init__(self, llm_client) -> None:
-            captured["arag_router_llm_client"] = llm_client
-            captured["arag_router_instance"] = self
-
-    class FakeRerankClient:
-        def __init__(self, actual_settings, scheduler=None) -> None:
-            captured["reranker_settings"] = actual_settings
-            captured["rerank_client_instance"] = self
-            captured["reranker_scheduler"] = scheduler
-
-    def fake_create_engine(actual_settings) -> object:
-        captured["db_settings"] = actual_settings
-        return fake_engine
-
-    def fake_create_session_factory(actual_engine) -> object:
-        captured["session_engine"] = actual_engine
-        return fake_session_factory
-
-    def fake_redis_from_url(url: str) -> object:
-        captured["redis_url"] = url
-        return fake_redis
-
-    def fake_configure_telemetry(app, actual_settings) -> object:
-        captured["telemetry_app"] = app
-        captured["telemetry_settings"] = actual_settings
-        return fake_telemetry
-
-    monkeypatch.setattr(worker_module, "settings", settings)
-    monkeypatch.setattr(worker_module, "create_engine", fake_create_engine)
-    monkeypatch.setattr(
-        worker_module, "create_session_factory", fake_create_session_factory
-    )
-    monkeypatch.setattr(worker_module, "QdrantStore", FakeQdrantStore)
-    monkeypatch.setattr(worker_module, "EmbeddingClient", FakeEmbeddingClient)
-    monkeypatch.setattr(worker_module, "LLMClient", FakeLLMClient)
-    monkeypatch.setattr(worker_module, "AragRouter", FakeAragRouter)
-    monkeypatch.setattr(worker_module, "RerankClient", FakeRerankClient)
-    monkeypatch.setattr(
-        worker_module,
-        "configure_telemetry",
-        fake_configure_telemetry,
-        raising=False,
-    )
-    monkeypatch.setattr(
-        worker_module.Redis, "from_url", staticmethod(fake_redis_from_url)
-    )
     monkeypatch.setattr(
         worker_module.logger,
         "info",
         lambda message, **kwargs: log_records.append((message, kwargs)),
-    )
-    monkeypatch.setattr(
-        worker_module.logger,
-        "warning",
-        lambda message, **kwargs: warning_records.append((message, kwargs)),
     )
 
     ctx: dict[str, object] = {}
 
     await worker_module.startup(ctx)
 
-    assert captured["db_settings"] is settings.db
-    assert captured["session_engine"] is fake_engine
-    assert captured["qdrant_settings"] is settings.qdrant
-    assert captured["embedding_settings"] is settings.embeddings
-    assert captured["llm_settings"] is settings.llm
-    assert captured["reranker_settings"] is settings.reranker
-    assert captured["redis_url"] == settings.redis.url
-    assert captured["ensure_collection_called"] is True
-    assert captured["arag_router_llm_client"] is captured["llm_client_instance"]
-    assert captured["telemetry_app"] is None
-    assert captured["telemetry_settings"] is settings
-    assert captured["telemetry_engine"] is fake_engine
-    assert captured["embedding_scheduler"] is captured["llm_scheduler"]
-    assert captured["embedding_scheduler"] is captured["reranker_scheduler"]
+    assert runtime.created_db_settings is runtime.settings.db
+    assert runtime.session_engine is runtime.engine
+    assert runtime.qdrant_store is not None
+    assert runtime.qdrant_store.settings is runtime.settings.qdrant
+    assert runtime.qdrant_store.collection_ensured is True
+    assert runtime.embedding_client is not None
+    assert runtime.embedding_client.settings is runtime.settings.embeddings
+    assert runtime.llm_client is not None
+    assert runtime.llm_client.settings is runtime.settings.llm
+    assert runtime.llm_client.list_models_calls == 1
+    assert runtime.llm_client.catalog == ["model-test"]
+    assert runtime.rerank_client is not None
+    assert runtime.rerank_client.settings is runtime.settings.reranker
+    assert runtime.redis_url == runtime.settings.redis.url
+    assert runtime.arag_router is not None
+    assert runtime.arag_router.llm_client is runtime.llm_client
+    assert runtime.telemetry_app is None
+    assert runtime.telemetry_settings is runtime.settings
+    assert runtime.telemetry.instrumented_engine is runtime.engine
+    assert runtime.embedding_client.scheduler is runtime.llm_client.scheduler
+    assert runtime.embedding_client.scheduler is runtime.rerank_client.scheduler
 
     document_storage = ctx.pop("document_storage")
     assert document_storage.__class__.__name__ == "LocalDocumentStorage"
     assert ctx == {
-        "engine": fake_engine,
-        "session_factory": fake_session_factory,
-        "qdrant_store": captured["qdrant_store_instance"],
-        "embedding_client": captured["embedding_client_instance"],
-        "llm_client": captured["llm_client_instance"],
-        "rerank_client": captured["rerank_client_instance"],
-        "redis": fake_redis,
-        "arag_router": captured["arag_router_instance"],
-        "telemetry": fake_telemetry,
+        "engine": runtime.engine,
+        "session_factory": runtime.session_factory,
+        "qdrant_store": runtime.qdrant_store,
+        "embedding_client": runtime.embedding_client,
+        "llm_client": runtime.llm_client,
+        "rerank_client": runtime.rerank_client,
+        "redis": runtime.redis,
+        "arag_router": runtime.arag_router,
+        "telemetry": runtime.telemetry,
     }
-    assert warning_records == []
+    startup_records = [
+        record for record in log_records if record[0] == "worker_startup"
+    ]
+    assert len(startup_records) == 1
+    startup_event = startup_records[0][1]["extra"]["wide_event"]
+    assert "model_catalog" not in startup_event
+    assert startup_event["degradations"] == [
+        {"stage": "qdrant_payload_index", "field": "source_id"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_worker_startup_records_model_catalog_degradation(monkeypatch) -> None:
+    from app import worker as worker_module
+
+    runtime = ApplicationRuntimeHarness(
+        model_catalog_error=RuntimeError("model service unavailable")
+    )
+    runtime.patch_worker(monkeypatch, worker_module)
+    log_records: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        worker_module.logger,
+        "info",
+        lambda message, **kwargs: log_records.append((message, kwargs)),
+    )
+
+    await worker_module.startup({})
+
+    assert runtime.llm_client is not None
+    assert runtime.llm_client.list_models_calls == 1
+    assert runtime.llm_client.catalog is None
     startup_records = [
         record for record in log_records if record[0] == "worker_startup"
     ]
     assert len(startup_records) == 1
     assert startup_records[0][1]["extra"]["wide_event"]["model_catalog"] == {
         "outcome": "degraded",
-        "error_type": "AttributeError",
-        "error_message": "'FakeLLMClient' object has no attribute 'set_model_catalog'",
+        "error_type": "RuntimeError",
+        "error_message": "model service unavailable",
     }
-    assert startup_records[0][1]["extra"]["wide_event"]["degradations"] == [
-        {"stage": "qdrant_payload_index", "field": "source_id"}
-    ]
 
 
 @pytest.mark.asyncio
 async def test_worker_shutdown_closes_redis_and_disposes_engine() -> None:
     from app import worker as worker_module
 
-    captured: dict[str, bool] = {
-        "redis_closed": False,
-        "engine_disposed": False,
-        "telemetry_shutdown": False,
-    }
-
-    class FakeRedis:
-        async def aclose(self) -> None:
-            captured["redis_closed"] = True
-
-    class FakeEngine:
-        async def dispose(self) -> None:
-            captured["engine_disposed"] = True
-
-    class FakeTelemetryRuntime:
-        def shutdown(self) -> None:
-            assert captured["redis_closed"] is True
-            assert captured["engine_disposed"] is True
-            captured["telemetry_shutdown"] = True
-
+    runtime = ApplicationRuntimeHarness()
     ctx = {
-        "redis": FakeRedis(),
-        "engine": FakeEngine(),
-        "telemetry": FakeTelemetryRuntime(),
+        "redis": runtime.redis,
+        "engine": runtime.engine,
+        "telemetry": runtime.telemetry,
     }
 
     await worker_module.shutdown(ctx)
 
-    assert captured == {
-        "redis_closed": True,
-        "engine_disposed": True,
-        "telemetry_shutdown": True,
-    }
+    assert runtime.redis.closed is True
+    assert runtime.engine.disposed is True
+    assert runtime.telemetry.shutdown_calls == 1
+    assert runtime.lifecycle == [
+        "redis_closed",
+        "engine_disposed",
+        "telemetry_shutdown",
+    ]
 
 
 def test_worker_settings_registers_message_pipeline() -> None:

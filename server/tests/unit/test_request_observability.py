@@ -33,7 +33,11 @@ def test_request_emits_one_enriched_completion_event(caplog) -> None:
     assert len(records) == 1
     assert records[0].levelno == logging.INFO
     wide_event = records[0].wide_event
-    assert wide_event == {
+    assert isinstance(wide_event["duration_ms"], float)
+    assert wide_event["duration_ms"] >= 0
+    assert {
+        key: value for key, value in wide_event.items() if key != "duration_ms"
+    } == {
         "event": "request_completed",
         "request_id": request_id,
         "http_request_method": "GET",
@@ -47,7 +51,6 @@ def test_request_emits_one_enriched_completion_event(caplog) -> None:
         "http_response_body_size": len(response.content),
         "outcome": "success",
         "document": {"id": document_id},
-        "duration_ms": wide_event["duration_ms"],
     }
 
 

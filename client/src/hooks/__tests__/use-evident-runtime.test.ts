@@ -3,14 +3,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type PropsWithChildren } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { ApiError } from "@/lib/errors";
 import type {
   EvidentChatMessage,
   ThreadDetail,
   ThreadSummary,
   ThreadTurnResponse,
 } from "@/lib/types";
-
 import { useEvidentRuntime } from "../use-evident-runtime";
 
 const appendThreadMessageMock = vi.fn();
@@ -136,6 +135,19 @@ function createWrapper() {
   };
 }
 
+function makeThreadSummary(
+  overrides: Partial<ThreadSummary> = {}
+): ThreadSummary {
+  return {
+    created_at: "2026-07-04T10:00:00Z",
+    id: "thread-1",
+    summary: "",
+    title: "What is BERT",
+    updated_at: "2026-07-04T10:00:00Z",
+    ...overrides,
+  };
+}
+
 function makeTurnResponse(
   overrides: Partial<ThreadTurnResponse> = {}
 ): ThreadTurnResponse {
@@ -155,13 +167,7 @@ function makeTurnResponse(
       thread_id: "thread-1",
       updated_at: "2026-07-04T10:00:01Z",
     },
-    thread: {
-      created_at: "2026-07-04T10:00:00Z",
-      id: "thread-1",
-      summary: "",
-      title: "What is BERT",
-      updated_at: "2026-07-04T10:00:00Z",
-    },
+    thread: makeThreadSummary(),
     user_message: {
       completed_at: "2026-07-04T10:00:00Z",
       content_text: "What is BERT?",
@@ -294,18 +300,59 @@ describe("useEvidentRuntime", () => {
     ]);
   });
 
+  it("does not create an optimistic message for an empty prompt", async () => {
+    const { result } = renderHook(() => useEvidentRuntime(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.adapter.onNew(makeAppendMessage("  \n  "));
+    });
+
+    expect(createThreadMock).not.toHaveBeenCalled();
+    expect(appendThreadMessageMock).not.toHaveBeenCalled();
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.isRunning).toBe(false);
+  });
+
+  it("shows inline API validation failures on the assistant message", async () => {
+    createThreadMock.mockRejectedValue(
+      new ApiError("Content is required", 422, { code: "validation_error" })
+    );
+
+    const { result } = renderHook(() => useEvidentRuntime(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.adapter.onNew(makeAppendMessage("Explain failures"));
+    });
+
+    await waitFor(() => {
+      expect(result.current.isRunning).toBe(false);
+      expect(result.current.messages).toHaveLength(2);
+      expect(result.current.messages[1]).toMatchObject({
+        contentParts: [{ text: "Content is required", type: "text" }],
+        role: "assistant",
+        status: "error",
+      });
+    });
+    expect(FakeEventSource.instances).toHaveLength(0);
+  });
+
   it("appends a follow-up to the active thread", async () => {
     createThreadMock.mockResolvedValue(makeTurnResponse());
+    const followUpResponse = makeTurnResponse();
     appendThreadMessageMock.mockResolvedValue(
       makeTurnResponse({
         assistant_message: {
-          ...makeTurnResponse().assistant_message,
+          ...followUpResponse.assistant_message,
           id: "assistant-2",
           position: 3,
           reply_to_message_id: "user-2",
         },
         user_message: {
-          ...makeTurnResponse().user_message,
+          ...followUpResponse.user_message,
           content_text: "What is HNSW?",
           id: "user-2",
           position: 2,
@@ -340,24 +387,16 @@ describe("useEvidentRuntime", () => {
   it("loads a persisted thread from the route parameter", async () => {
     routeThreadId = "thread-1";
     useThreadHistoryMock.mockReturnValue({
-      data: [
-        {
-          created_at: "2026-07-04T10:00:00Z",
-          id: "thread-1",
-          summary: "",
-          title: "What is BERT",
-          updated_at: "2026-07-04T10:00:00Z",
-        },
-      ],
+      data: [makeThreadSummary()],
       isLoading: false,
     });
+    const persistedResponse = makeTurnResponse();
     fetchThreadMock.mockResolvedValue({
-      created_at: "2026-07-04T10:00:00Z",
-      id: "thread-1",
+      ...makeThreadSummary(),
       messages: [
-        makeTurnResponse().user_message,
+        persistedResponse.user_message,
         {
-          ...makeTurnResponse().assistant_message,
+          ...persistedResponse.assistant_message,
           answer: {
             content_parts: [
               {
@@ -465,10 +504,17 @@ describe("useEvidentRuntime", () => {
     await waitFor(() => {
       expect(result.current.isRunning).toBe(false);
       expect(result.current.messages[1]).toMatchObject({
+        contentParts: [
+          {
+            text: "The answer stream stopped unexpectedly. Please try again.",
+            type: "text",
+          },
+        ],
         messageId: "assistant-1",
         role: "assistant",
         status: "error",
       });
     });
+    expect(eventSource.close).toHaveBeenCalledTimes(1);
   });
 });

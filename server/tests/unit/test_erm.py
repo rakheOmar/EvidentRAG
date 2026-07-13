@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 import pytest
 
@@ -62,24 +63,52 @@ class _FakeEmbeddingClient:
         return [[1.0, 0.0]]
 
 
-def test_score_rating_delta_is_idempotent_for_same_rating() -> None:
-    assert score_rating_delta("up", "up") == (0.0, 0.0)
-    assert score_rating_delta("down", "down") == (0.0, 0.0)
+@pytest.mark.parametrize(
+    ("previous_rating", "next_rating", "expected"),
+    [
+        (None, "up", (1.0, 0.0)),
+        (None, "down", (0.0, 1.0)),
+        ("up", "up", (0.0, 0.0)),
+        ("down", "down", (0.0, 0.0)),
+        ("up", "down", (-1.0, 1.0)),
+        ("down", "up", (1.0, -1.0)),
+    ],
+    ids=[
+        "new-upvote",
+        "new-downvote",
+        "keep-upvote",
+        "keep-downvote",
+        "flip-to-downvote",
+        "flip-to-upvote",
+    ],
+)
+def test_score_rating_delta_replaces_the_previous_rating(
+    previous_rating: Literal["up", "down"] | None,
+    next_rating: Literal["up", "down"],
+    expected: tuple[float, float],
+) -> None:
+    assert score_rating_delta(previous_rating, next_rating) == expected
 
 
-def test_score_rating_delta_flips_previous_vote() -> None:
-    assert score_rating_delta("up", "down") == (-1.0, 1.0)
-    assert score_rating_delta("down", "up") == (1.0, -1.0)
+@pytest.mark.parametrize(
+    ("boost_total", "penalty_total", "state", "multiplier"),
+    [
+        (2.0, 0.0, "boost", 1.3),
+        (0.0, 2.0, "penalty", 0.7),
+        (1.0, 1.0, None, 1.0),
+    ],
+    ids=["boost", "penalty", "balanced"],
+)
+def test_multiplier_from_totals_reflects_net_feedback(
+    boost_total: float,
+    penalty_total: float,
+    state: str | None,
+    multiplier: float,
+) -> None:
+    adjustment = multiplier_from_totals(boost_total, penalty_total)
 
-
-def test_multiplier_from_totals_boosts_and_penalizes() -> None:
-    boosted = multiplier_from_totals(2.0, 0.0)
-    penalized = multiplier_from_totals(0.0, 2.0)
-
-    assert boosted.state == "boost"
-    assert boosted.multiplier > 1.0
-    assert penalized.state == "penalty"
-    assert penalized.multiplier < 1.0
+    assert adjustment.state == state
+    assert adjustment.multiplier == pytest.approx(multiplier)
 
 
 def test_cosine_similarity_handles_zero_and_perfect_match() -> None:

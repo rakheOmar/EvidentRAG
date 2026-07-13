@@ -90,19 +90,42 @@ def test_structured_chunks_carry_document_and_section_context() -> None:
     )
 
 
-def test_visuals_are_associated_with_nearest_text_chunk_by_source_order() -> None:
-    assert _nearest_text_chunk_index(0, text_count=4, visual_count=2) == 0
-    assert _nearest_text_chunk_index(1, text_count=4, visual_count=2) == 2
-    assert _nearest_text_chunk_index(0, text_count=0, visual_count=2) is None
+@pytest.mark.parametrize(
+    ("visual_index", "text_count", "visual_count", "expected_index"),
+    [
+        (0, 4, 2, 0),
+        (1, 4, 2, 2),
+        (0, 0, 2, None),
+    ],
+    ids=["first-visual", "last-visual", "no-text-chunks"],
+)
+def test_visuals_are_associated_with_nearest_text_chunk_by_source_order(
+    visual_index: int,
+    text_count: int,
+    visual_count: int,
+    expected_index: int | None,
+) -> None:
+    assert (
+        _nearest_text_chunk_index(visual_index, text_count, visual_count)
+        == expected_index
+    )
 
 
 @pytest.mark.asyncio
-async def test_ready_ingestion_repairs_qdrant_eligibility_without_reingesting() -> None:
+@pytest.mark.parametrize(
+    ("is_current", "expected_eligibility"),
+    [(True, True), (False, False)],
+    ids=["current-document", "historical-document"],
+)
+async def test_ready_ingestion_updates_qdrant_eligibility_without_reingesting(
+    is_current: bool,
+    expected_eligibility: bool,
+) -> None:
     document_id = uuid4()
     document = SimpleNamespace(
         id=document_id,
         status="ready",
-        is_current=True,
+        is_current=is_current,
     )
     qdrant = _Qdrant()
     pipeline = DocumentIngestionPipeline(
@@ -116,30 +139,7 @@ async def test_ready_ingestion_repairs_qdrant_eligibility_without_reingesting() 
 
     await pipeline.run(str(document_id))
 
-    assert qdrant.eligibility_calls == [(str(document_id), True)]
-
-
-@pytest.mark.asyncio
-async def test_ready_historical_ingestion_stays_ineligible() -> None:
-    document_id = uuid4()
-    document = SimpleNamespace(
-        id=document_id,
-        status="ready",
-        is_current=False,
-    )
-    qdrant = _Qdrant()
-    pipeline = DocumentIngestionPipeline(
-        session_factory=lambda: _SessionContext(document),
-        redis=_Redis(),
-        embedding_client=None,
-        llm_client=None,
-        qdrant_store=qdrant,
-        storage=None,
-    )
-
-    await pipeline.run(str(document_id))
-
-    assert qdrant.eligibility_calls == [(str(document_id), False)]
+    assert qdrant.eligibility_calls == [(str(document_id), expected_eligibility)]
 
 
 class _Qdrant:

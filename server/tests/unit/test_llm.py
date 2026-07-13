@@ -98,19 +98,32 @@ async def test_generate_stream_yields_tokens() -> None:
     assert tokens == ["Hello", " world"]
 
 
-async def test_generate_stream_sends_correct_request() -> None:
+@pytest.mark.parametrize(
+    ("requested_model", "expected_model"),
+    [
+        (None, "gemini-2.5-pro"),
+        ("gemini-2.5-flash", "gemini-2.5-flash"),
+    ],
+    ids=["generation-model-default", "explicit-model"],
+)
+async def test_generate_stream_sends_correct_request(
+    requested_model: str | None,
+    expected_model: str,
+) -> None:
     mock_client = _MockAsyncClient()
     mock_client.set_response_lines(["data: [DONE]"])
 
     client = _make_client(mock_client)
-    async for _ in client.generate_stream([{"role": "user", "content": "hi"}]):
+    async for _ in client.generate_stream(
+        [{"role": "user", "content": "hi"}], model=requested_model
+    ):
         pass
 
     kwargs = mock_client.last_stream_kwargs
     assert kwargs["method"] == "POST"
     assert kwargs["url"] == "http://optiplex-3020:8081/v1/chat/completions"
     assert kwargs["headers"]["Authorization"] == "Bearer test-key"
-    assert kwargs["json"]["model"] == "gemini-2.5-pro"
+    assert kwargs["json"]["model"] == expected_model
     assert kwargs["json"]["messages"] == [{"role": "user", "content": "hi"}]
     assert kwargs["json"]["stream"] is True
 
@@ -123,30 +136,6 @@ async def test_generate_stream_raises_on_non_200() -> None:
     with pytest.raises(httpx.HTTPStatusError):
         async for _ in client.generate_stream([{"role": "user", "content": "hi"}]):
             pass
-
-
-async def test_generate_stream_defaults_to_generation_model() -> None:
-    mock_client = _MockAsyncClient()
-    mock_client.set_response_lines(["data: [DONE]"])
-
-    client = _make_client(mock_client)
-    async for _ in client.generate_stream([{"role": "user", "content": "hi"}]):
-        pass
-
-    assert mock_client.last_stream_kwargs["json"]["model"] == "gemini-2.5-pro"
-
-
-async def test_generate_stream_uses_explicit_model() -> None:
-    mock_client = _MockAsyncClient()
-    mock_client.set_response_lines(["data: [DONE]"])
-
-    client = _make_client(mock_client)
-    async for _ in client.generate_stream(
-        [{"role": "user", "content": "hi"}], model="gemini-2.5-flash"
-    ):
-        pass
-
-    assert mock_client.last_stream_kwargs["json"]["model"] == "gemini-2.5-flash"
 
 
 async def test_generate_stream_skips_missing_content() -> None:
