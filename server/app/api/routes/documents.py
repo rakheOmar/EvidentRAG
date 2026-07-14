@@ -59,6 +59,13 @@ async def get_document_asset(document_id: UUID, asset_name: str, request: Reques
                 status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
             )
     path = request.app.state.document_storage.path(f"assets/{document_id}/{asset_name}")
+    base_dir = request.app.state.document_storage.path(
+        "assets", str(document_id)
+    ).resolve()
+    if base_dir not in path.resolve().parents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid asset"
+        )
     if not path.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found"

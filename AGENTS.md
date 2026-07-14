@@ -75,7 +75,7 @@ Run these before considering work complete (step 4 above).
 |---|---|
 | Type check | `npm run typecheck` |
 | Tests | `npm test` |
-| Lint & Format | `npm run check` then `npm run fix` |
+| Lint & Format | `npm run fix` then `npm run check` |
 
 ## Reference
 

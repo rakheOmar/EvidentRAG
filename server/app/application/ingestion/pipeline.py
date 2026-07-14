@@ -258,9 +258,9 @@ class DocumentIngestionPipeline:
                 if embedding_inputs
                 else []
             )
-            caption_results = [
-                await self._caption_image(visual.content) for visual in visuals
-            ]
+            caption_results = await asyncio.gather(
+                *(self._caption_image(visual.content) for visual in visuals)
+            )
             if any(caption is None for caption in caption_results):
                 warnings.append(
                     "Some visual assets could not be captioned by the configured model."
@@ -349,6 +349,10 @@ class DocumentIngestionPipeline:
                     session.add(row)
                     rows.append(row)
                 await session.flush()
+                document.page_count = page_count
+                document.warnings = warnings
+                document.status = "publishing"
+                await session.commit()
                 await self._qdrant_store.upsert_points(
                     [
                         PointStruct(
@@ -377,10 +381,6 @@ class DocumentIngestionPipeline:
                         for row, vector in zip(rows, vectors, strict=True)
                     ]
                 )
-                document.page_count = page_count
-                document.warnings = warnings
-                document.status = "publishing"
-                await session.commit()
             await self._finalize_publication(identifier)
             await self._publish(identifier, "done", 100)
             wide_event["outcome"] = "success"

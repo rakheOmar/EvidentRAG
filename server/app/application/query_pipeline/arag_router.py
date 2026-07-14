@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from time import perf_counter
 
@@ -8,6 +9,32 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from app.core.logging import enrich_wide_event
+
+
+def _extract_routing_json(raw: str) -> dict[str, object]:
+    raw = raw.strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    fenced = re.search(r"```(?:json)?\s*(.*?)\s*```", raw, re.DOTALL)
+    if fenced is not None:
+        try:
+            return json.loads(fenced.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start != -1 and end > start:
+        try:
+            return json.loads(raw[start : end + 1])
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f"Router returned no parseable JSON: {raw!r}")
+
 
 ROUTER_SYSTEM_PROMPT = """\
 You are an adaptive query router for a RAG system. Classify the user's query into one of these routes:
@@ -57,7 +84,7 @@ class AragRouter:
             span.set_attribute("evidentrag.query.length", len(query_text))
             try:
                 raw = await self._llm_client.generate(messages, model=model)
-                parsed = json.loads(raw)
+                parsed = _extract_routing_json(raw)
                 route = str(parsed.get("route", "simple")).lower()
                 if route not in (
                     "simple",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import AsyncIterator
+from typing import Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -85,60 +86,30 @@ async def _generate_thread_title(request: Request, content: str) -> str:
     return title or fallback
 
 
-async def _build_answer_response(session, message: Message) -> AnswerResponse | None:
-    answer = await session.scalar(
-        select(Answer)
-        .options(selectinload(Answer.segments))
-        .where(Answer.message_id == message.id)
-    )
+async def _build_answer_response(
+    session, message: Message, answer: Answer | None = None
+) -> AnswerResponse | None:
+    if answer is None:
+        answer = await session.scalar(
+            select(Answer)
+            .options(selectinload(Answer.segments))
+            .where(Answer.message_id == message.id)
+        )
     if answer is None:
         return None
 
-    evidence_by_id: dict[UUID, EvidenceResponse] = {}
-    segments: list[SegmentResponse] = []
     evidence_metadata = (
         answer.extra.get("evidence_metadata", {})
         if isinstance(answer.extra, dict)
         else {}
     )
+    evidence_by_id: dict[UUID, EvidenceResponse] = {}
 
-    async def add_evidence(parsed_eid: UUID) -> None:
-        if parsed_eid in evidence_by_id:
-            return
-        evidence = await session.scalar(
-            select(Evidence)
-            .options(selectinload(Evidence.document))
-            .where(Evidence.id == parsed_eid)
-        )
-        if evidence is None:
-            return
-        asset_key = (evidence.extra or {}).get("asset_key")
-        evidence_by_id[parsed_eid] = EvidenceResponse(
-            id=evidence.id,
-            content=evidence.content,
-            context_header=evidence.context_header,
-            document_title=evidence.document.title,
-            document_slug=evidence.document.slug,
-            page=evidence.page,
-            erm_state=(evidence_metadata.get(str(parsed_eid), {}) or {}).get(
-                "erm_state"
-            ),
-            erm_multiplier=(evidence_metadata.get(str(parsed_eid), {}) or {}).get(
-                "erm_multiplier"
-            ),
-            kind=(evidence.extra or {}).get("kind", "text"),
-            asset_key=asset_key,
-            asset_url=(
-                f"/api/v1/documents/{evidence.document_id}/assets/"
-                f"{str(asset_key).rsplit('/', 1)[-1]}"
-                if asset_key
-                else None
-            ),
-            bounding_box=(evidence.extra or {}).get("bounding_box"),
-        )
-
-    for seg in sorted(answer.segments, key=lambda item: item.segment_index):
-        resolved_evidence: list[UUID] = []
+    ordered_segments = sorted(answer.segments, key=lambda item: item.segment_index)
+    segment_evidence_ids: dict[UUID, list[UUID]] = {}
+    referenced_ids: set[UUID] = set()
+    for seg in ordered_segments:
+        resolved: list[UUID] = []
         for eid in seg.evidence_ids:
             try:
                 parsed_eid = UUID(eid) if not isinstance(eid, UUID) else eid
@@ -149,18 +120,9 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
                     error_type=type(exc).__name__,
                 )
                 continue
-            resolved_evidence.append(parsed_eid)
-            await add_evidence(parsed_eid)
-
-        segments.append(
-            SegmentResponse(
-                id=seg.id,
-                segment_index=seg.segment_index,
-                text=seg.text,
-                evidence_ids=resolved_evidence,
-                rating=seg.rating,
-            )
-        )
+            resolved.append(parsed_eid)
+            referenced_ids.add(parsed_eid)
+        segment_evidence_ids[seg.id] = resolved
 
     retrieved_evidence_ids = (
         answer.extra.get("retrieved_evidence_ids", [])
@@ -169,9 +131,52 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
     )
     for raw_eid in retrieved_evidence_ids:
         try:
-            await add_evidence(UUID(str(raw_eid)))
+            referenced_ids.add(UUID(str(raw_eid)))
         except ValueError:
             continue
+
+    if referenced_ids:
+        evidence_rows = await session.scalars(
+            select(Evidence)
+            .options(selectinload(Evidence.document))
+            .where(Evidence.id.in_(referenced_ids))
+        )
+        for evidence in evidence_rows:
+            asset_key = (evidence.extra or {}).get("asset_key")
+            evidence_by_id[evidence.id] = EvidenceResponse(
+                id=evidence.id,
+                content=evidence.content,
+                context_header=evidence.context_header,
+                document_title=evidence.document.title,
+                document_slug=evidence.document.slug,
+                page=evidence.page,
+                erm_state=(evidence_metadata.get(str(evidence.id), {}) or {}).get(
+                    "erm_state"
+                ),
+                erm_multiplier=(evidence_metadata.get(str(evidence.id), {}) or {}).get(
+                    "erm_multiplier"
+                ),
+                kind=(evidence.extra or {}).get("kind", "text"),
+                asset_key=asset_key,
+                asset_url=(
+                    f"/api/v1/documents/{evidence.document_id}/assets/"
+                    f"{str(asset_key).rsplit('/', 1)[-1]}"
+                    if asset_key
+                    else None
+                ),
+                bounding_box=(evidence.extra or {}).get("bounding_box"),
+            )
+
+    segments = [
+        SegmentResponse(
+            id=seg.id,
+            segment_index=seg.segment_index,
+            text=seg.text,
+            evidence_ids=segment_evidence_ids[seg.id],
+            rating=cast(Literal["up", "down"] | None, seg.rating),
+        )
+        for seg in ordered_segments
+    ]
 
     evidence_dicts = [
         {
@@ -204,9 +209,11 @@ async def _build_answer_response(session, message: Message) -> AnswerResponse | 
     )
 
 
-async def _build_message_response(session, message: Message) -> MessageResponse:
-    answer = (
-        await _build_answer_response(session, message)
+async def _build_message_response(
+    session, message: Message, answer: Answer | None = None
+) -> MessageResponse:
+    answer_response = (
+        await _build_answer_response(session, message, answer)
         if message.role == "assistant"
         else None
     )
@@ -224,7 +231,7 @@ async def _build_message_response(session, message: Message) -> MessageResponse:
         created_at=message.created_at,
         updated_at=message.updated_at,
         completed_at=message.completed_at,
-        answer=answer,
+        answer=answer_response,
     )
 
 
@@ -444,10 +451,24 @@ async def get_thread(thread_id: UUID, request: Request) -> ThreadDetailResponse:
             action="thread.get",
             thread={"id": str(thread_id), "message_count": len(ordered_messages)},
         )
+        assistant_message_ids = [
+            message.id for message in ordered_messages if message.role == "assistant"
+        ]
+        answer_by_message_id: dict[UUID, Answer] = {}
+        if assistant_message_ids:
+            answer_rows = await session.scalars(
+                select(Answer)
+                .options(selectinload(Answer.segments))
+                .where(Answer.message_id.in_(assistant_message_ids))
+            )
+            answer_by_message_id = {row.message_id: row for row in answer_rows}
+
         return ThreadDetailResponse(
             **_thread_summary_response(thread).model_dump(),
             messages=[
-                await _build_message_response(session, message)
+                await _build_message_response(
+                    session, message, answer_by_message_id.get(message.id)
+                )
                 for message in ordered_messages
             ],
         )

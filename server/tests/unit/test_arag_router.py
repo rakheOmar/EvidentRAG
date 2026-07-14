@@ -51,6 +51,24 @@ async def test_arag_router_classify_parses_supported_routes(
 
 
 @pytest.mark.asyncio
+async def test_arag_router_classify_parses_fenced_json_with_prose() -> None:
+    fenced = (
+        "Here is the classification:\n\n"
+        "```json\n"
+        '{"route": "comparison", "sub_queries": ["BERT pre-training", "GPT pre-training"]}\n'
+        "```\n\n"
+        "This is a comparison query.\n"
+    )
+    llm_client = _FakeLLMClient([fenced])
+    router = AragRouter(llm_client=llm_client)
+
+    assert await router.classify("Compare BERT and GPT") == RoutingResult(
+        route="comparison",
+        sub_queries=["BERT pre-training", "GPT pre-training"],
+    )
+
+
+@pytest.mark.asyncio
 async def test_arag_router_classify_falls_back_to_simple_on_malformed_json() -> None:
     llm_client = _FakeLLMClient(["not json"])
     router = AragRouter(llm_client=llm_client)

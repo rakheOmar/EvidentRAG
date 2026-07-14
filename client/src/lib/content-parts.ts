@@ -6,8 +6,23 @@ interface ContentPartOptions {
   origin?: string;
 }
 
-const imageUrlCache = new Map<string, Promise<string>>();
+const IMAGE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface CachedImage {
+  promise: Promise<string>;
+  ts: number;
+}
+
+const imageUrlCache = new Map<string, CachedImage>();
 const PUBLIC_IMAGE_URL_PATTERN = /^(blob:|https:)/;
+
+function evictStaleImages(now: number): void {
+  for (const [key, value] of imageUrlCache) {
+    if (now - value.ts > IMAGE_CACHE_TTL_MS) {
+      imageUrlCache.delete(key);
+    }
+  }
+}
 
 function toAbsoluteImageUrl(image: string, origin?: string): string {
   if (!(image.startsWith("/") && origin)) {
@@ -26,9 +41,11 @@ function toAssistantImageUrl(
     return Promise.resolve(absoluteImageUrl);
   }
 
+  const now = Date.now();
+  evictStaleImages(now);
   const cached = imageUrlCache.get(absoluteImageUrl);
   if (cached) {
-    return cached;
+    return cached.promise;
   }
 
   if (!(fetcher && createObjectUrl)) {
@@ -44,7 +61,7 @@ function toAssistantImageUrl(
     })
     .then(createObjectUrl);
 
-  imageUrlCache.set(absoluteImageUrl, pendingUrl);
+  imageUrlCache.set(absoluteImageUrl, { promise: pendingUrl, ts: now });
   pendingUrl.catch(() => imageUrlCache.delete(absoluteImageUrl));
   return pendingUrl;
 }

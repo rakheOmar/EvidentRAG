@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy.exc import PendingRollbackError
 from sqlalchemy.orm.exc import StaleDataError
 
+from app.application.query_pipeline.query_pipeline import CLIENT_ERROR_MESSAGE
 from app.infrastructure.db.models import Message, Thread
 
 
@@ -269,6 +270,36 @@ class _FakeStreamingLLM:
     def __init__(self, stream_response: str) -> None:
         self.stream_response = stream_response
         self.stream_calls: list[list[dict[str, str]]] = []
+
+    async def generate_stream(self, messages):
+        self.stream_calls.append(messages)
+        yield self.stream_response
+
+
+class _RecordingRouter:
+    def __init__(self) -> None:
+        self.captured_query: str | None = None
+
+    async def classify(self, query_text: str):
+        self.captured_query = query_text
+
+        class _Result:
+            route = "conversation"
+            sub_queries: list[str] = []
+
+        return _Result()
+
+
+class _RewriteLLM:
+    def __init__(self, rewritten: str, stream_response: str) -> None:
+        self.rewritten = rewritten
+        self.stream_response = stream_response
+        self.generate_calls: list[object] = []
+        self.stream_calls: list[object] = []
+
+    async def generate(self, messages, model=None) -> str:
+        self.generate_calls.append(messages)
+        return self.rewritten
 
     async def generate_stream(self, messages):
         self.stream_calls.append(messages)
@@ -541,9 +572,7 @@ async def test_query_pipeline_rolls_back_before_marking_failed() -> None:
     done_data = cast(dict[str, object], done_event["data"])
     assert done_event["event"] == "done"
     assert done_data["error"] is True
-    assert done_data["error_message"] == (
-        "UPDATE statement on table 'messages' expected to update 1 row(s); 0 were matched."
-    )
+    assert done_data["error_message"] == CLIENT_ERROR_MESSAGE
 
 
 class _FakeExecuteResult:
@@ -555,3 +584,71 @@ class _FakeExecuteResult:
 
     def __iter__(self):
         return iter(self._values)
+
+
+@pytest.mark.asyncio
+async def test_query_pipeline_routes_on_raw_query_despite_rewrite() -> None:
+    from app.application.query_pipeline.query_pipeline import QueryPipeline
+
+    raw_query = "What limitation did unidirectional language models have?"
+    rewritten_query = (
+        "unidirectional models only see one direction so they miss context"
+    )
+
+    thread = Thread(
+        title="BERT", summary="User has been asking about BERT pre-training."
+    )
+    thread.id = uuid.uuid4()
+    thread.created_at = datetime.now(timezone.utc)
+    thread.updated_at = thread.created_at
+
+    user_message = Message(
+        thread_id=thread.id,
+        position=1,
+        role="user",
+        content_text=raw_query,
+        status="completed",
+        sub_queries=[],
+    )
+    user_message.id = uuid.uuid4()
+    user_message.created_at = thread.created_at
+    user_message.updated_at = thread.updated_at
+
+    assistant_message = Message(
+        thread_id=thread.id,
+        reply_to_message_id=user_message.id,
+        position=2,
+        role="assistant",
+        content_text="",
+        status="pending",
+        sub_queries=[],
+    )
+    assistant_message.id = uuid.uuid4()
+    assistant_message.created_at = thread.created_at
+    assistant_message.updated_at = thread.updated_at
+
+    session = _FakeSession(
+        thread, user_message, cast(_AssistantMessageLike, assistant_message)
+    )
+    redis = _FakeRedis()
+    router = _RecordingRouter()
+    llm = _RewriteLLM(
+        rewritten=rewritten_query,
+        stream_response='[{"text":"answer.","evidence_ids":[]}]',
+    )
+
+    pipeline = QueryPipeline(
+        session_factory=_FakeSessionFactory(session),
+        redis=redis,
+        llm_client=llm,
+        arag_router=router,
+    )
+
+    await pipeline.run(assistant_message.id)
+
+    assert llm.generate_calls, "rewrite step should have run"
+    assert router.captured_query == raw_query
+    assert router.captured_query != rewritten_query
+
+    route_event = _read_event(redis, 0)
+    assert route_event["data"] == {"route": "conversation", "sub_queries": []}

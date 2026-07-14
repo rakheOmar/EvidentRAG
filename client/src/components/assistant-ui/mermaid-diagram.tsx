@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { sanitizeSvg } from "@/lib/sanitize-svg";
 import { cn } from "@/lib/utils";
 
 export type MermaidDiagramProps = SyntaxHighlighterProps & {
@@ -212,7 +213,7 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
             >
               <div
                 className="aui-mermaid-zoom-content flex h-full w-full items-center justify-center [&_svg]:max-h-[80vh] [&_svg]:max-w-[90vw]"
-                dangerouslySetInnerHTML={{ __html: zoomSvg }}
+                dangerouslySetInnerHTML={{ __html: sanitizeSvg(zoomSvg) }}
                 data-slot="mermaid-zoom-content"
                 style={{
                   transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
@@ -364,7 +365,7 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
           "aui-mermaid-diagram rounded-b-lg bg-muted p-2 [&_svg]:mx-auto",
           className,
         )}
-        dangerouslySetInnerHTML={{ __html: result.svg }}
+        dangerouslySetInnerHTML={{ __html: sanitizeSvg(result.svg) }}
         data-slot="mermaid-diagram"
       />
     </MermaidZoom>

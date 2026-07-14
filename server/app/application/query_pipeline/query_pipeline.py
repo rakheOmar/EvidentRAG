@@ -142,6 +142,8 @@ MAX_SUB_QUERIES = 4
 
 MIN_EVENT_INTERVAL_S = 2.0
 
+CLIENT_ERROR_MESSAGE = "The answer pipeline failed. Please try again."
+
 AGGREGATION_SYSTEM_PROMPT = (
     "Provide a comprehensive summary covering the main themes and key points "
     "from the provided evidence. Organize the summary by topic. "
@@ -247,7 +249,7 @@ class QueryPipeline:
                 route = "simple"
                 sub_queries: list[str] = []
                 if self._arag_router is not None:
-                    result = await self._arag_router.classify(effective_query_text)
+                    result = await self._arag_router.classify(user_message.content_text)
                     route = result.route
                     sub_queries = result.sub_queries
 
@@ -332,7 +334,7 @@ class QueryPipeline:
                 await self._mark_message_failed(
                     session,
                     assistant_message_id,
-                    str(exc),
+                    CLIENT_ERROR_MESSAGE,
                 )
                 await self._publish(
                     assistant_message_id,
@@ -342,7 +344,7 @@ class QueryPipeline:
                         "message_id": assistant_message_id_str,
                         "content_parts": [],
                         "error": True,
-                        "error_message": str(exc),
+                        "error_message": CLIENT_ERROR_MESSAGE,
                     },
                 )
                 wide_event["outcome"] = "error"
@@ -478,9 +480,10 @@ class QueryPipeline:
                         {
                             "role": "system",
                             "content": (
-                                "Rewrite the user's latest message into a standalone "
-                                "retrieval query using the conversation context. Return "
-                                "plain text only."
+                                "Rewrite the user's latest message into a single "
+                                "standalone retrieval query using the conversation "
+                                "context. Output ONLY the query and never answer it or "
+                                "add any explanation."
                             ),
                         },
                         {
@@ -595,9 +598,12 @@ class QueryPipeline:
         if wide_event is not None:
             wide_event["retrieval_count"] = len(fused_points)
 
-        trace_evidence_ids = [
-            uuid.UUID(point.payload["evidence_id"]) for point in fused_points[:5]
-        ]
+        trace_evidence_ids: list[uuid.UUID] = []
+        for point in fused_points[:5]:
+            raw_eid = (point.payload or {}).get("evidence_id")
+            if raw_eid is None:
+                continue
+            trace_evidence_ids.append(uuid.UUID(str(raw_eid)))
         if trace_evidence_ids and reasoning_trace is not None:
             trace_rows = (
                 await session.scalars(
@@ -626,9 +632,12 @@ class QueryPipeline:
         )
         self._trace_step(reasoning_trace, "Fusing dense + sparse candidates via RRF...")
 
-        selected_evidence_ids = [
-            uuid.UUID(point.payload["evidence_id"]) for point in fused_points
-        ]
+        selected_evidence_ids: list[uuid.UUID] = []
+        for point in fused_points:
+            raw_eid = (point.payload or {}).get("evidence_id")
+            if raw_eid is None:
+                continue
+            selected_evidence_ids.append(uuid.UUID(str(raw_eid)))
         if self._rerank_client is not None and fused_points:
             await self._publish(
                 message.id,
@@ -662,6 +671,27 @@ class QueryPipeline:
             )
 
         return None
+
+    def _handle_rerank_error(self, exc: Exception, candidate_count: int) -> bool:
+        if isinstance(exc, httpx.TimeoutException):
+            record_degradation(
+                "rerank",
+                reason="timeout",
+                error_type=type(exc).__name__,
+                candidate_count=candidate_count,
+            )
+            return True
+        if isinstance(exc, httpx.HTTPStatusError):
+            if exc.response.status_code not in {408, 429, 500, 502, 503, 504}:
+                return False
+            record_degradation(
+                "rerank",
+                reason="upstream_status",
+                status_code=exc.response.status_code,
+                candidate_count=candidate_count,
+            )
+            return True
+        return False
 
     async def _retrieve_evidence(
         self,
@@ -697,13 +727,24 @@ class QueryPipeline:
         documents: list[str] = []
         evidence_ids: list[uuid.UUID] = []
         candidates: list[dict[str, object]] = []
+
+        referenced: list[uuid.UUID] = []
         for point in fused_points:
-            evidence_id = uuid.UUID(point.payload["evidence_id"])
-            evidence = await session.scalar(
+            raw_eid = (point.payload or {}).get("evidence_id")
+            if raw_eid is None:
+                continue
+            referenced.append(uuid.UUID(str(raw_eid)))
+        by_id: dict[uuid.UUID, Evidence] = {}
+        if referenced:
+            rows = await session.scalars(
                 select(Evidence)
-                .where(Evidence.id == evidence_id)
+                .where(Evidence.id.in_(referenced))
                 .options(selectinload(Evidence.document))
             )
+            by_id = {row.id: row for row in rows}
+
+        for evidence_id in referenced:
+            evidence = by_id.get(evidence_id)
             if evidence is None:
                 continue
             documents.append(evidence.content)
@@ -724,15 +765,9 @@ class QueryPipeline:
                     documents=documents,
                     top_n=top_n,
                 )
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code not in {408, 429, 500, 502, 503, 504}:
+            except (httpx.TimeoutException, httpx.HTTPStatusError) as exc:
+                if not self._handle_rerank_error(exc, len(documents)):
                     raise
-                record_degradation(
-                    "rerank",
-                    reason="upstream_status",
-                    status_code=exc.response.status_code,
-                    candidate_count=len(documents),
-                )
                 return evidence_ids[:top_n], candidates[:top_n], {}
             ranked = await self._apply_erm_to_ranked_results(
                 session,
@@ -798,15 +833,9 @@ class QueryPipeline:
                 documents=documents,
                 top_n=top_n,
             )
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code not in {408, 429, 500, 502, 503, 504}:
+        except (httpx.TimeoutException, httpx.HTTPStatusError) as exc:
+            if not self._handle_rerank_error(exc, len(documents)):
                 raise
-            record_degradation(
-                "rerank",
-                reason="upstream_status",
-                status_code=exc.response.status_code,
-                candidate_count=len(documents),
-            )
             selected_ids = ordered_ids[:top_n]
             return selected_ids, _candidate_rows(by_id, selected_ids), {}
 
@@ -969,8 +998,6 @@ class QueryPipeline:
         )
         self._trace_step(reasoning_trace, step_text)
 
-        import asyncio
-
         tasks = [
             self._retrieve_evidence_isolated(
                 sq,
@@ -1056,8 +1083,6 @@ class QueryPipeline:
             {"parts": [reasoning_part(step_text)]},
         )
         self._trace_step(reasoning_trace, step_text)
-
-        import asyncio
 
         tasks = [
             self._retrieve_evidence_isolated(sq, top_n=20, rerank=False)
@@ -1170,11 +1195,14 @@ class QueryPipeline:
 
         for stage, points in stages:
             for rank, point in enumerate(points):
+                raw_eid = (point.payload or {}).get("evidence_id")
+                if raw_eid is None:
+                    continue
                 session.add(
                     MessageEvidenceCandidate(
                         message_id=message.id,
                         stage=stage,
-                        evidence_id=uuid.UUID(point.payload["evidence_id"]),
+                        evidence_id=uuid.UUID(str(raw_eid)),
                         rank=rank,
                         score=point.score,
                     )
@@ -1225,9 +1253,26 @@ class QueryPipeline:
         documents: list[str] = []
         evidence_ids: list[uuid.UUID] = []
 
+        referenced: list[uuid.UUID] = []
         for point in fused_points:
-            evidence_id = uuid.UUID(point.payload["evidence_id"])
-            evidence = await session.get(Evidence, evidence_id)
+            raw_eid = (point.payload or {}).get("evidence_id")
+            if raw_eid is None:
+                continue
+            referenced.append(uuid.UUID(str(raw_eid)))
+        by_id: dict[uuid.UUID, Evidence] = {}
+        if referenced:
+            rows = await session.scalars(
+                select(Evidence)
+                .where(Evidence.id.in_(referenced))
+                .options(selectinload(Evidence.document))
+            )
+            by_id = {row.id: row for row in rows}
+
+        for evidence_id in referenced:
+            evidence = by_id.get(evidence_id)
+            if evidence is None:
+                record_degradation("missing_evidence", evidence_id=str(evidence_id))
+                continue
             documents.append(evidence.content)
             evidence_ids.append(evidence_id)
 
@@ -1237,23 +1282,9 @@ class QueryPipeline:
                 documents=documents,
                 top_n=5,
             )
-        except httpx.TimeoutException as exc:
-            record_degradation(
-                "rerank",
-                reason="timeout",
-                error_type=type(exc).__name__,
-                candidate_count=len(documents),
-            )
-            return evidence_ids[:5]
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code not in {408, 429, 500, 502, 503, 504}:
+        except (httpx.TimeoutException, httpx.HTTPStatusError) as exc:
+            if not self._handle_rerank_error(exc, len(documents)):
                 raise
-            record_degradation(
-                "rerank",
-                reason="upstream_status",
-                status_code=exc.response.status_code,
-                candidate_count=len(documents),
-            )
             return evidence_ids[:5]
 
         ranked = await self._apply_erm_to_ranked_results(
@@ -1305,6 +1336,9 @@ class QueryPipeline:
         evidence_payloads: list[dict[str, object]] = []
         for evidence_id in selected_evidence_ids:
             evidence = await session.get(Evidence, evidence_id)
+            if evidence is None:
+                record_degradation("missing_evidence", evidence_id=str(evidence_id))
+                continue
             evidence_contents.append(evidence.content)
             asset_key = (evidence.extra or {}).get("asset_key")
             evidence_payloads.append(
