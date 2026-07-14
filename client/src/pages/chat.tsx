@@ -53,7 +53,7 @@ const ChatLayout = () => {
 
   const handleToggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => !prev);
-  }, []);
+  }, [setSidebarCollapsed]);
 
   return (
     <AppShell collapsed={sidebarCollapsed}>

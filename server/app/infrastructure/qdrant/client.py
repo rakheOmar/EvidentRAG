@@ -40,13 +40,13 @@ class QdrantStore:
         client: AsyncQdrantClient | None = None,
     ) -> None:
         self._collection = settings.evidence_collection
+        self._vector_dimensions = settings.vector_dimensions
         self._client = client or AsyncQdrantClient(url=settings.url)
 
-    @staticmethod
-    def _vectors_config() -> dict[str, VectorParams]:
+    def _vectors_config(self) -> dict[str, VectorParams]:
         return {
             "dense": VectorParams(
-                size=768,
+                size=self._vector_dimensions,
                 distance=Distance.COSINE,
             )
         }
@@ -76,6 +76,17 @@ class QdrantStore:
                 vectors_config=self._vectors_config(),
                 sparse_vectors_config=self._sparse_vectors_config(),
             )
+        else:
+            collection = await self._client.get_collection(self._collection)
+            vectors = collection.config.params.vectors
+            dense = vectors.get("dense") if isinstance(vectors, dict) else vectors
+            actual_dimensions = getattr(dense, "size", None)
+            if actual_dimensions != self._vector_dimensions:
+                raise RuntimeError(
+                    f"Qdrant collection {self._collection!r} uses "
+                    f"{actual_dimensions} dense dimensions, but configuration requires "
+                    f"{self._vector_dimensions}. Reindex the collection before startup."
+                )
         for field_name, schema in (
             ("eligible", PayloadSchemaType.BOOL),
             ("document_id", PayloadSchemaType.KEYWORD),
@@ -142,6 +153,9 @@ class QdrantStore:
         result = close()
         if inspect.isawaitable(result):
             await result
+
+    async def health_check(self) -> None:
+        await self._client.get_collection(self._collection)
 
     async def hybrid_search(
         self,

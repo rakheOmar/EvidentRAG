@@ -27,7 +27,7 @@ from app.core.logging import (
     set_request_id,
     set_wide_event,
 )
-from app.core.telemetry import configure_telemetry
+from app.core.telemetry import configure_telemetry, record_degradation
 from app.infrastructure.db.session import create_engine, create_session_factory
 from app.infrastructure.embeddings.embedding import EmbeddingClient
 from app.infrastructure.llm.llm import LLMClient
@@ -189,6 +189,7 @@ async def run_document_ingestion(
             llm_client=ctx["llm_client"],
             qdrant_store=ctx["qdrant_store"],
             storage=ctx["document_storage"],
+            processing_lease_seconds=settings.ingestion.job_timeout_seconds,
         )
         await pipeline.run(document_id)
         wide_event["outcome"] = "success"
@@ -268,7 +269,7 @@ async def cleanup_deleted_documents(ctx: dict) -> None:
                 )
             )
             for source in sources:
-                deleted_sources += 1
+                source_clean = True
                 documents = list(
                     await session.scalars(
                         select(Document).where(Document.source_id == source.id)
@@ -276,15 +277,57 @@ async def cleanup_deleted_documents(ctx: dict) -> None:
                 )
                 for document in documents:
                     deleted_documents += 1
-                    await ctx["qdrant_store"].delete_document_points(str(document.id))
+                    try:
+                        await ctx["qdrant_store"].delete_document_points(
+                            str(document.id)
+                        )
+                    except Exception as exc:
+                        source_clean = False
+                        record_degradation(
+                            "deleted_document_index_cleanup",
+                            document_id=str(document.id),
+                            error_type=type(exc).__name__,
+                        )
+                        continue
                     if document.storage_key:
                         storage.delete(document.storage_key)
+                    storage.delete_tree(f"assets/{document.id}")
                     await session.delete(document)
-                await session.delete(source)
+                if source_clean:
+                    deleted_sources += 1
+                    await session.delete(source)
             await session.commit()
         wide_event["deleted_sources"] = deleted_sources
         wide_event["deleted_documents"] = deleted_documents
         wide_event["outcome"] = "success"
+
+
+async def reconcile_document_eligibility(ctx: dict) -> None:
+    with _job_observability("document_eligibility_reconciliation", {}, None) as event:
+        reconciled = 0
+        failures = 0
+        async with ctx["session_factory"]() as session:
+            documents = list(await session.scalars(select(Document)))
+        for document in documents:
+            eligible = document.is_current and document.status in {
+                "ready",
+                "ready_with_warnings",
+            }
+            try:
+                await ctx["qdrant_store"].set_document_eligibility(
+                    str(document.id), eligible
+                )
+                reconciled += 1
+            except Exception as exc:
+                failures += 1
+                record_degradation(
+                    "document_eligibility_reconciliation",
+                    document_id=str(document.id),
+                    error_type=type(exc).__name__,
+                )
+        event["reconciled_documents"] = reconciled
+        event["failed_documents"] = failures
+        event["outcome"] = "degraded" if failures else "success"
 
 
 class WorkerSettings:
@@ -296,7 +339,10 @@ class WorkerSettings:
             timeout=settings.ingestion.job_timeout_seconds,
         ),
     ]
-    cron_jobs = [cron(cleanup_deleted_documents, hour=3, minute=0, unique=True)]
+    cron_jobs = [
+        cron(cleanup_deleted_documents, hour=3, minute=0, unique=True),
+        cron(reconcile_document_eligibility, minute=0, unique=True),
+    ]
     on_startup = staticmethod(startup)
     on_shutdown = staticmethod(shutdown)
     redis_settings = RedisSettings.from_dsn(settings.redis.url)

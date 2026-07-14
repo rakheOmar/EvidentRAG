@@ -7,7 +7,7 @@ import { useExternalStoreRuntime } from "@assistant-ui/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-
+import { useErrorFeedback } from "@/components/error-feedback";
 import {
   appendThreadMessage,
   createThread,
@@ -15,12 +15,11 @@ import {
   queryKeys,
   useThreadHistory,
 } from "@/lib/api";
-import { setMessageEvidence } from "@/lib/evidence-store";
 import { toDisplayContentParts } from "@/lib/content-parts";
+import { asAppError } from "@/lib/errors";
+import { setMessageEvidence } from "@/lib/evidence-store";
 import { convertEvidentMessage } from "@/lib/message-utils";
 import { setMessageSegments } from "@/lib/segments-store";
-import { useErrorFeedback } from "@/components/error-feedback";
-import { asAppError } from "@/lib/errors";
 import type {
   ContentPartsEvent,
   DoneEventWithContentParts,
@@ -41,7 +40,7 @@ function getMessageText(message: AppendMessage): string {
 }
 
 function toAssistantStatus(
-  message: ThreadMessage,
+  message: ThreadMessage
 ): EvidentChatMessage["status"] {
   if (message.role !== "assistant") {
     return "complete";
@@ -56,14 +55,14 @@ function toAssistantStatus(
 }
 
 async function toRuntimeMessage(
-  message: ThreadMessage,
+  message: ThreadMessage
 ): Promise<EvidentChatMessage> {
   const answer = message.answer ?? null;
   const contentParts: ThreadAssistantMessagePart[] =
     message.role === "assistant"
       ? await toDisplayContentParts(
           answer?.content_parts ??
-            (answer ? [{ text: answer.full_text, type: "text" }] : []),
+            (answer ? [{ text: answer.full_text, type: "text" }] : [])
         )
       : [{ text: message.content_text, type: "text" }];
 
@@ -78,7 +77,7 @@ async function toRuntimeMessage(
   const hopProgress = reasoningTrace
     .filter(
       (t): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
-        t.type === "hop",
+        t.type === "hop"
     )
     .map((t) => ({
       hop: t.hop,
@@ -105,7 +104,7 @@ async function toRuntimeMessage(
 function replacePendingMessages(
   current: EvidentChatMessage[],
   response: ThreadTurnResponse,
-  queryText: string,
+  queryText: string
 ) {
   const next = [...current];
   if (next.length >= 2) {
@@ -130,7 +129,7 @@ function replacePendingMessages(
       status: "running",
       subQueries: response.assistant_message.sub_queries,
       threadId: response.thread.id,
-    },
+    }
   );
   return next;
 }
@@ -151,7 +150,10 @@ export function useEvidentRuntime() {
   historyDataRef.current = historyQuery.data;
 
   useEffect(() => {
-    if (historyQuery.error && historyQuery.error !== lastHistoryErrorRef.current) {
+    if (
+      historyQuery.error &&
+      historyQuery.error !== lastHistoryErrorRef.current
+    ) {
       lastHistoryErrorRef.current = historyQuery.error;
       notify(historyQuery.error);
     }
@@ -168,7 +170,7 @@ export function useEvidentRuntime() {
     (nextMessages: readonly EvidentChatMessage[]) => {
       setMessages([...nextMessages]);
     },
-    [],
+    []
   );
 
   const onSwitchToNewThread = useCallback(() => {
@@ -185,7 +187,7 @@ export function useEvidentRuntime() {
     (threadId: string) => {
       navigate(`/chat/${threadId}`);
     },
-    [navigate],
+    [navigate]
   );
 
   const onDeleteThread = useCallback(async (_threadId: string) => {
@@ -194,10 +196,15 @@ export function useEvidentRuntime() {
 
   const loadThread = useCallback(async (threadId: string) => {
     const thread = await fetchThread(threadId);
+    const runtimeMessages = await Promise.all(
+      thread.messages.map(toRuntimeMessage)
+    );
     loadedThreadIdRef.current = thread.id;
     setCurrentThreadId(thread.id);
-    setIsRunning(false);
-    setMessages(await Promise.all(thread.messages.map(toRuntimeMessage)));
+    setIsRunning(
+      runtimeMessages.some((message) => message.status === "running")
+    );
+    setMessages(runtimeMessages);
   }, []);
 
   useEffect(() => {
@@ -266,8 +273,8 @@ export function useEvidentRuntime() {
                     contentParts: [{ text: appError.message, type: "text" }],
                     status: "error",
                   }
-                : entry,
-            ),
+                : entry
+            )
           );
         }
         setIsRunning(false);
@@ -277,7 +284,7 @@ export function useEvidentRuntime() {
       setCurrentThreadId(response.thread.id);
       loadedThreadIdRef.current = response.thread.id;
       setMessages((current) =>
-        replacePendingMessages(current, response, queryText),
+        replacePendingMessages(current, response, queryText)
       );
       if (routeThreadId !== response.thread.id) {
         navigate(`/chat/${response.thread.id}`);
@@ -286,17 +293,17 @@ export function useEvidentRuntime() {
       const assistantMessageId = response.assistant_message.id;
       const threadId = response.thread.id;
       const eventSource = new EventSource(
-        `/api/v1/threads/${threadId}/messages/${assistantMessageId}/events`,
+        `/api/v1/threads/${threadId}/messages/${assistantMessageId}/events`
       );
       eventSourceRef.current = eventSource;
 
       const updateAssistantMessage = (
-        updater: (message: EvidentChatMessage) => EvidentChatMessage,
+        updater: (message: EvidentChatMessage) => EvidentChatMessage
       ) => {
         setMessages((current) =>
           current.map((entry) =>
-            entry.id === assistantMessageId ? updater(entry) : entry,
-          ),
+            entry.id === assistantMessageId ? updater(entry) : entry
+          )
         );
       };
 
@@ -310,7 +317,7 @@ export function useEvidentRuntime() {
             route: payload.route,
             subQueries: payload.sub_queries,
           }));
-        },
+        }
       );
 
       eventSource.addEventListener(
@@ -334,7 +341,7 @@ export function useEvidentRuntime() {
               reasoningTrace: exists ? trace : [...trace, hopEntry],
             };
           });
-        },
+        }
       );
 
       eventSource.addEventListener(
@@ -363,58 +370,64 @@ export function useEvidentRuntime() {
               status: "running",
             };
           });
-        },
+        }
       );
 
       eventSource.addEventListener("done", (event: MessageEvent<string>) => {
-        void (async () => {
-        const payload = JSON.parse(event.data) as DoneEventWithContentParts;
-
-        if (payload.error) {
-          updateAssistantMessage((entry) => ({
-            ...entry,
-            contentParts: payload.error_message
-              ? [{ text: payload.error_message, type: "text" }]
-              : entry.contentParts,
-            status: "error",
-          }));
-        } else {
-          if (payload.segments) {
-            setMessageSegments(assistantMessageId, payload.segments);
-          }
-          if (payload.evidence) {
-            setMessageEvidence(assistantMessageId, payload.evidence);
-          }
-          const displayParts = await toDisplayContentParts(
-            payload.content_parts,
-          );
-          updateAssistantMessage((entry) => ({
-            ...entry,
-            contentParts: displayParts,
-            contextUsage: payload.context_usage ?? entry.contextUsage,
-            hopProgress:
-              entry.hopProgress && entry.hopProgress.length > 0
-                ? entry.hopProgress
-                : (payload.reasoning_trace ?? [])
-                    .filter(
-                      (t): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
-                        t.type === "hop",
-                    )
-                    .map((t) => ({
-                      hop: t.hop,
-                      intermediate_answer: t.intermediate_answer,
-                      sub_query: t.sub_query,
-                    })),
-            reasoningTrace: payload.reasoning_trace ?? entry.reasoningTrace,
-            status: "complete",
-          }));
-        }
-
         eventSource.close();
-        eventSourceRef.current = null;
+        if (eventSourceRef.current === eventSource) {
+          eventSourceRef.current = null;
+        }
         setIsRunning(false);
-        queryClient.invalidateQueries({ queryKey: queryKeys.threads });
-        queryClient.invalidateQueries({ queryKey: queryKeys.thread(threadId) });
+        (async () => {
+          const payload = JSON.parse(event.data) as DoneEventWithContentParts;
+
+          if (payload.error) {
+            updateAssistantMessage((entry) => ({
+              ...entry,
+              contentParts: payload.error_message
+                ? [{ text: payload.error_message, type: "text" }]
+                : entry.contentParts,
+              status: "error",
+            }));
+          } else {
+            if (payload.segments) {
+              setMessageSegments(assistantMessageId, payload.segments);
+            }
+            if (payload.evidence) {
+              setMessageEvidence(assistantMessageId, payload.evidence);
+            }
+            const displayParts = await toDisplayContentParts(
+              payload.content_parts
+            );
+            updateAssistantMessage((entry) => ({
+              ...entry,
+              contentParts: displayParts,
+              contextUsage: payload.context_usage ?? entry.contextUsage,
+              hopProgress:
+                entry.hopProgress && entry.hopProgress.length > 0
+                  ? entry.hopProgress
+                  : (payload.reasoning_trace ?? [])
+                      .filter(
+                        (
+                          t
+                        ): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
+                          t.type === "hop"
+                      )
+                      .map((t) => ({
+                        hop: t.hop,
+                        intermediate_answer: t.intermediate_answer,
+                        sub_query: t.sub_query,
+                      })),
+              reasoningTrace: payload.reasoning_trace ?? entry.reasoningTrace,
+              status: "complete",
+            }));
+          }
+
+          queryClient.invalidateQueries({ queryKey: queryKeys.threads });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.thread(threadId),
+          });
         })().catch((error: unknown) => {
           updateAssistantMessage((entry) => ({
             ...entry,
@@ -428,24 +441,50 @@ export function useEvidentRuntime() {
       });
 
       eventSource.addEventListener("error", () => {
-        updateAssistantMessage((entry) => ({
-          ...entry,
-          contentParts: [
-            {
-              text: "The answer stream stopped unexpectedly. Please try again.",
-              type: "text",
-            },
-          ],
-          status: "error",
-        }));
-
-        eventSource.close();
-        eventSourceRef.current = null;
-        setIsRunning(false);
+        // EventSource reconnects automatically. The server replays terminal
+        // messages after subscribing, so transient transport failures remain
+        // recoverable without replacing the in-progress answer with an error.
       });
     },
-    [currentThreadId, navigate, notify, queryClient, routeThreadId],
+    [currentThreadId, navigate, notify, queryClient, routeThreadId]
   );
+
+  useEffect(() => {
+    if (!(currentThreadId && !eventSourceRef.current)) {
+      return;
+    }
+    const runningMessage = messages.find(
+      (message) =>
+        message.role === "assistant" &&
+        message.status === "running" &&
+        message.messageId
+    );
+    if (!runningMessage?.messageId) {
+      return;
+    }
+
+    const eventSource = new EventSource(
+      `/api/v1/threads/${currentThreadId}/messages/${runningMessage.messageId}/events`
+    );
+    eventSourceRef.current = eventSource;
+    const handleDone = () => {
+      eventSource.close();
+      if (eventSourceRef.current === eventSource) {
+        eventSourceRef.current = null;
+      }
+      setIsRunning(false);
+      loadThread(currentThreadId).catch(notify);
+      queryClient.invalidateQueries({ queryKey: queryKeys.threads });
+    };
+    eventSource.addEventListener("done", handleDone);
+
+    return () => {
+      eventSource.close();
+      if (eventSourceRef.current === eventSource) {
+        eventSourceRef.current = null;
+      }
+    };
+  }, [currentThreadId, loadThread, messages, notify, queryClient]);
 
   const adapter = useMemo<ExternalStoreAdapter<EvidentChatMessage>>(
     () => ({
@@ -458,7 +497,7 @@ export function useEvidentRuntime() {
           threadId: currentThreadId,
           threads:
             historyQuery.data?.map((thread) => ({
-            id: thread.id,
+              id: thread.id,
               lastMessageAt: new Date(thread.updated_at),
               remoteId: thread.id,
               status: "regular" as const,
@@ -485,7 +524,7 @@ export function useEvidentRuntime() {
       onSwitchToNewThread,
       onSwitchToThread,
       setRuntimeMessages,
-    ],
+    ]
   );
 
   const runtime = useExternalStoreRuntime(adapter);

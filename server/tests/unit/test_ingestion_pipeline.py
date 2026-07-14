@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.dialects import postgresql
 
 from app.application.ingestion.pipeline import (
     DocumentIngestionPipeline,
-    _canonical_document_query,
-    _extract_structured_chunks,
+    _extract_docling_chunks,
     _nearest_text_chunk_index,
+    _processing_lease_active,
 )
 
 
@@ -35,6 +35,9 @@ class _SessionContext:
 
     async def get(self, model, document_id):
         return self.document
+
+    async def scalars(self, statement):
+        return [self.document]
 
     async def commit(self) -> None:
         pass
@@ -68,25 +71,38 @@ async def test_ingestion_progress_events_are_structured_and_correlated() -> None
     }
 
 
-def test_deduplication_query_excludes_the_upload_source() -> None:
-    source_id = uuid4()
-    statement = _canonical_document_query("hash", source_id)
-
-    sql = str(statement.compile(dialect=postgresql.dialect()))
-
-    assert "documents.source_id != %(source_id_1)s" in sql
-
-
-def test_structured_chunks_carry_document_and_section_context() -> None:
-    chunks = _extract_structured_chunks(
-        "# Handbook\n\n## Access\n\nUsers may request access through the portal.",
-        "Security Guide",
+def test_docling_chunks_preserve_page_and_section_provenance(monkeypatch) -> None:
+    chunk = SimpleNamespace(
+        text="Users may request access through the portal.",
+        meta=SimpleNamespace(
+            headings=["Handbook", "Access"],
+            origin=SimpleNamespace(page_no=7),
+            doc_items=[],
+        ),
     )
+    monkeypatch.setattr(
+        "app.application.ingestion.pipeline._create_chunker",
+        lambda: SimpleNamespace(chunk=lambda _document: [chunk]),
+    )
+
+    chunks = _extract_docling_chunks(object(), "Security Guide")
 
     assert len(chunks) == 1
     assert chunks[0].content == "Users may request access through the portal."
+    assert chunks[0].page == 7
     assert chunks[0].context_header == (
-        "Passage from Security Guide, section Handbook > Access."
+        "Passage from Security Guide, section Handbook > Access, page 7."
+    )
+
+
+def test_processing_lease_distinguishes_active_and_abandoned_jobs() -> None:
+    now = datetime.now(timezone.utc)
+
+    assert _processing_lease_active(
+        SimpleNamespace(updated_at=now - timedelta(seconds=30)), 60
+    )
+    assert not _processing_lease_active(
+        SimpleNamespace(updated_at=now - timedelta(seconds=90)), 60
     )
 
 
@@ -124,6 +140,7 @@ async def test_ready_ingestion_updates_qdrant_eligibility_without_reingesting(
     document_id = uuid4()
     document = SimpleNamespace(
         id=document_id,
+        source_id=uuid4(),
         status="ready",
         is_current=is_current,
     )

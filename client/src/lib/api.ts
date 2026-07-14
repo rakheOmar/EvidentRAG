@@ -23,7 +23,7 @@ const queryKeys = {
 
 export function uploadDocument(
   file: File,
-  sourceKey?: string,
+  sourceKey?: string
 ): Promise<DocumentRecord> {
   const formData = new FormData();
   formData.set("file", file);
@@ -46,9 +46,7 @@ export async function deleteDocument(documentId: string): Promise<void> {
   await requestEmpty(`/api/v1/documents/${documentId}`, { method: "DELETE" });
 }
 
-export async function createThread(
-  content: string,
-): Promise<ThreadTurnResponse> {
+export function createThread(content: string): Promise<ThreadTurnResponse> {
   return requestJson<ThreadTurnResponse>("/api/v1/threads", {
     body: JSON.stringify({ content }),
     headers: { "Content-Type": "application/json" },
@@ -56,42 +54,48 @@ export async function createThread(
   });
 }
 
-export async function appendThreadMessage(
+export function appendThreadMessage(
   threadId: string,
-  content: string,
+  content: string
 ): Promise<ThreadTurnResponse> {
-  return requestJson<ThreadTurnResponse>(`/api/v1/threads/${threadId}/messages`, {
-    body: JSON.stringify({ content }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
+  return requestJson<ThreadTurnResponse>(
+    `/api/v1/threads/${threadId}/messages`,
+    {
+      body: JSON.stringify({ content }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    }
+  );
 }
 
-export async function fetchThreads(): Promise<ThreadSummary[]> {
+export function fetchThreads(): Promise<ThreadSummary[]> {
   return requestJson<ThreadSummary[]>("/api/v1/threads", { method: "GET" });
 }
 
-export async function fetchThread(threadId: string): Promise<ThreadDetail> {
+export function fetchThread(threadId: string): Promise<ThreadDetail> {
   return requestJson<ThreadDetail>(`/api/v1/threads/${threadId}`, {
     method: "GET",
   });
 }
 
-export async function fetchModelContext(): Promise<ModelContextDetails> {
+export function fetchModelContext(): Promise<ModelContextDetails> {
   return requestJson<ModelContextDetails>("/api/v1/model-context", {
     method: "GET",
   });
 }
 
-export async function putSentenceTraceFeedback(
+export function putSentenceTraceFeedback(
   traceId: string,
-  rating: "up" | "down",
+  rating: "up" | "down"
 ): Promise<SentenceTraceFeedbackResponse> {
-  return requestJson<SentenceTraceFeedbackResponse>(`/api/v1/sentence-traces/${traceId}/rating`, {
-    body: JSON.stringify({ rating }),
-    headers: { "Content-Type": "application/json" },
-    method: "PUT",
-  });
+  return requestJson<SentenceTraceFeedbackResponse>(
+    `/api/v1/sentence-traces/${traceId}/rating`,
+    {
+      body: JSON.stringify({ rating }),
+      headers: { "Content-Type": "application/json" },
+      method: "PUT",
+    }
+  );
 }
 
 export function useThreadHistory() {

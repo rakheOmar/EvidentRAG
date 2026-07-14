@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from time import perf_counter
@@ -27,7 +28,7 @@ from app.core.logging import (
     set_wide_event,
 )
 from app.core.telemetry import configure_telemetry
-from app.infrastructure.db.models import Base
+from app.infrastructure.db.migrations import upgrade_database
 from app.infrastructure.db.session import create_engine, create_session_factory
 from app.infrastructure.embeddings.embedding import EmbeddingClient
 from app.infrastructure.llm.llm import LLMClient
@@ -70,6 +71,9 @@ async def lifespan(app: FastAPI):
     try:
         startup_event["telemetry_configured"] = app.state.telemetry is not None
 
+        await asyncio.to_thread(upgrade_database, settings.db)
+        startup_event["database_schema_ready"] = True
+
         engine = create_engine(settings.db)
         if app.state.telemetry is not None:
             app.state.telemetry.instrument_sqlalchemy(engine)
@@ -110,10 +114,6 @@ async def lifespan(app: FastAPI):
             settings.ingestion.storage_path
         )
         startup_event["runtime_dependencies_initialized"] = True
-
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        startup_event["database_schema_ready"] = True
 
         await qdrant_store.ensure_collection()
         startup_event["qdrant_collection_ready"] = True

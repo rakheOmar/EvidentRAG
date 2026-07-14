@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 from uuid import UUID
 
 
@@ -25,6 +26,13 @@ class LocalDocumentStorage:
 
     def delete(self, key: str) -> None:
         self.path(key).unlink(missing_ok=True)
+
+    def delete_tree(self, key: str) -> None:
+        path = self.path(key)
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)
 
     def path(self, key: str) -> Path:
         candidate = (self._root / key).resolve()

@@ -151,6 +151,7 @@ class ApplicationRuntimeHarness:
     session_engine: object | None = None
     redis_url: str | None = None
     job_queue_url: str | None = None
+    migration_settings: object | None = None
     telemetry_app: object | None = None
     telemetry_settings: object | None = None
 
@@ -202,6 +203,9 @@ class ApplicationRuntimeHarness:
         self.job_queue_url = url
         return self.job_queue
 
+    def upgrade_database(self, settings: object) -> None:
+        self.migration_settings = settings
+
     def configure_telemetry(
         self, app: object | None, settings: object
     ) -> FakeTelemetryRuntime:
@@ -225,6 +229,7 @@ class ApplicationRuntimeHarness:
 
     def patch_main(self, monkeypatch: MonkeyPatch, module: Any) -> None:
         self._patch_runtime_dependencies(monkeypatch, module)
+        monkeypatch.setattr(module, "upgrade_database", self.upgrade_database)
         monkeypatch.setattr(
             module.ArqRedis, "from_url", staticmethod(self.create_job_queue)
         )

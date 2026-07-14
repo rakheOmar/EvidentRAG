@@ -297,15 +297,21 @@ async def _replay_terminal_message_event(
 async def _message_events_stream(
     request: Request, thread_id: UUID, message_id: UUID
 ) -> AsyncIterator[str]:
-    replayed_event = await _replay_terminal_message_event(
-        request, thread_id, message_id
-    )
-    if replayed_event is not None:
-        yield replayed_event
-        return
+    async def replay_after_subscribe() -> tuple[list[str], bool]:
+        replayed_event = await _replay_terminal_message_event(
+            request, thread_id, message_id
+        )
+        return (
+            [replayed_event] if replayed_event is not None else [],
+            replayed_event is not None,
+        )
 
     channel = f"message:{message_id}:events"
-    async for event in redis_pubsub_stream(request.app.state.redis, channel):
+    async for event in redis_pubsub_stream(
+        request.app.state.redis,
+        channel,
+        replay_after_subscribe,
+    ):
         yield event
 
 

@@ -31,10 +31,12 @@ from app.core.logging import enrich_wide_event
 from app.core.telemetry import record_degradation
 from app.infrastructure.db.models import (
     Answer,
+    Document,
     Evidence,
     Message,
     MessageEvidenceCandidate,
     Segment,
+    Source,
     Thread,
 )
 from app.infrastructure.llm.context_manager import ContextManager
@@ -568,6 +570,15 @@ class QueryPipeline:
             sparse_limit=20,
             fused_limit=20,
         )
+        if isinstance(search_results, dict):
+            search_results = {
+                stage: await self._filter_retrievable_points(session, points)
+                for stage, points in search_results.items()
+            }
+        else:
+            search_results = await self._filter_retrievable_points(
+                session, search_results
+            )
         await self._publish(
             message.id,
             "content_parts",
@@ -678,6 +689,7 @@ class QueryPipeline:
             if isinstance(search_results, dict)
             else search_results
         )
+        fused_points = await self._filter_retrievable_points(session, fused_points)
         if not fused_points:
             return [], [], {}
 
@@ -738,6 +750,25 @@ class QueryPipeline:
             return selected, selected_candidates, evidence_metadata
 
         return evidence_ids[:top_n], candidates[:top_n], {}
+
+    async def _retrieve_evidence_isolated(
+        self,
+        query_text: str,
+        *,
+        rerank_query: str | None = None,
+        top_n: int = 5,
+        rerank: bool = True,
+    ) -> tuple[
+        list[uuid.UUID], list[dict[str, object]], dict[uuid.UUID, dict[str, object]]
+    ]:
+        async with self._session_factory() as retrieval_session:
+            return await self._retrieve_evidence(
+                retrieval_session,
+                query_text,
+                rerank_query=rerank_query,
+                top_n=top_n,
+                rerank=rerank,
+            )
 
     async def _rerank_evidence_ids(
         self,
@@ -941,8 +972,7 @@ class QueryPipeline:
         import asyncio
 
         tasks = [
-            self._retrieve_evidence(
-                session,
+            self._retrieve_evidence_isolated(
                 sq,
                 rerank_query=query_text,
                 top_n=20,
@@ -1030,7 +1060,7 @@ class QueryPipeline:
         import asyncio
 
         tasks = [
-            self._retrieve_evidence(session, sq, top_n=20, rerank=False)
+            self._retrieve_evidence_isolated(sq, top_n=20, rerank=False)
             for sq in sub_queries
         ]
         results = await asyncio.gather(*tasks)
@@ -1149,6 +1179,37 @@ class QueryPipeline:
                         score=point.score,
                     )
                 )
+
+    async def _filter_retrievable_points(self, session, points):
+        point_ids: list[uuid.UUID] = []
+        evidence_ids_by_point: dict[int, uuid.UUID] = {}
+        for point in points:
+            try:
+                evidence_id = uuid.UUID(str(point.payload["evidence_id"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            point_ids.append(evidence_id)
+            evidence_ids_by_point[id(point)] = evidence_id
+        if not point_ids:
+            return []
+
+        result = await session.execute(
+            select(Evidence.id)
+            .join(Document, Document.id == Evidence.document_id)
+            .join(Source, Source.id == Document.source_id)
+            .where(
+                Evidence.id.in_(point_ids),
+                Document.is_current.is_(True),
+                Document.status.in_(("ready", "ready_with_warnings")),
+                Source.deleted_at.is_(None),
+            )
+        )
+        allowed_ids = set(result.scalars())
+        return [
+            point
+            for point in points
+            if evidence_ids_by_point.get(id(point)) in allowed_ids
+        ]
 
     async def _rerank_fused_candidates(
         self,
@@ -1601,4 +1662,3 @@ class QueryPipeline:
                 published_event=event,
                 error_type=type(exc).__name__,
             )
-            raise

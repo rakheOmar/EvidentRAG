@@ -47,7 +47,7 @@ def _client(
 ) -> EmbeddingClient:
     monkeypatch.setattr(
         "app.infrastructure.embeddings.embedding.genai.Client",
-        lambda api_key: fake,
+        lambda **_kwargs: fake,
     )
     return EmbeddingClient(
         EmbeddingSettings(
@@ -60,6 +60,45 @@ def _client(
         ),
         scheduler=scheduler,
     )
+
+
+def test_embedding_client_uses_configured_api_base(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+    fake = _FakeGenAIClient("gemini-key")
+
+    def build_client(**kwargs):
+        captured.update(kwargs)
+        return fake
+
+    monkeypatch.setattr(
+        "app.infrastructure.embeddings.embedding.genai.Client", build_client
+    )
+    EmbeddingClient(
+        EmbeddingSettings(
+            api_base="http://embedding-proxy.test",
+            api_key="gemini-key",
+            seed_demo_data=False,
+            model="gemini-embedding-2",
+            dimensions=768,
+        )
+    )
+
+    assert captured["http_options"].base_url == "http://embedding-proxy.test"
+
+
+def test_missing_embedding_key_fails_on_use_instead_of_startup() -> None:
+    client = EmbeddingClient(
+        EmbeddingSettings(
+            api_base="http://embedding.test",
+            api_key=None,
+            seed_demo_data=False,
+            model="gemini-embedding-2",
+            dimensions=768,
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
+        client.embed_texts(["query"])
 
 
 def test_embed_texts_uses_google_client_and_preserves_order(monkeypatch) -> None:

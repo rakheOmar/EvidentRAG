@@ -16,6 +16,7 @@ def _code(status_code: int) -> str:
         404: "not_found",
         409: "conflict",
         415: "unsupported_media_type",
+        413: "payload_too_large",
         422: "validation_error",
         429: "rate_limited",
         500: "internal_server_error",

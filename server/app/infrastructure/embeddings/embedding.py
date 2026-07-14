@@ -37,7 +37,19 @@ class EmbeddingClient:
         if settings.batch_size < 1:
             raise ValueError("Embedding batch size must be greater than zero")
         self._batch_size = min(settings.batch_size, MAX_EMBEDDING_REQUEST_SIZE)
-        self._client = genai.Client(api_key=settings.api_key)
+        self._client = (
+            genai.Client(
+                api_key=settings.api_key,
+                http_options=types.HttpOptions(base_url=settings.api_base),
+            )
+            if settings.api_key
+            else None
+        )
+
+    def _models(self):
+        if self._client is None:
+            raise RuntimeError("GEMINI_API_KEY is required for embedding operations")
+        return self._client.models
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         contents = [
@@ -160,7 +172,7 @@ class EmbeddingClient:
     ) -> Any:
         for attempt in range(MAX_EMBEDDING_RETRIES + 1):
             try:
-                return self._client.models.embed_content(
+                return self._models().embed_content(
                     model=self._model,
                     contents=list(contents),
                     config=types.EmbedContentConfig(
@@ -192,7 +204,7 @@ class EmbeddingClient:
 
             async def request() -> Any:
                 return await asyncio.to_thread(
-                    self._client.models.embed_content,
+                    self._models().embed_content,
                     model=self._model,
                     contents=list(contents),
                     config=types.EmbedContentConfig(

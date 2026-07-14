@@ -1,17 +1,28 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 
 def sse_event(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
 
 
-async def redis_pubsub_stream(redis, channel: str) -> AsyncIterator[str]:
+async def redis_pubsub_stream(
+    redis,
+    channel: str,
+    after_subscribe: Callable[[], Awaitable[tuple[list[str], bool]]] | None = None,
+) -> AsyncIterator[str]:
     pubsub = redis.pubsub()
     await pubsub.subscribe(channel)
     try:
+        if after_subscribe is not None:
+            initial_events, terminal = await after_subscribe()
+            for event in initial_events:
+                yield event
+            if terminal:
+                return
+
         async for message in pubsub.listen():
             if message.get("type") != "message":
                 continue

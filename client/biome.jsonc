@@ -10,6 +10,9 @@
   "files": {
     "includes": ["!src/components/ui", "!src/components/assistant-ui"]
   },
+  "formatter": {
+    "lineEnding": "crlf"
+  },
   "vcs": {
     "enabled": true,
     "clientKind": "git",

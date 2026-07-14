@@ -19,11 +19,11 @@ def load_env() -> None:
     env_name = ".env.docker" if Path("/.dockerenv").exists() else ".env.local"
     env_path = root / env_name
     if env_path.exists():
-        load_dotenv(env_path, override=True)
+        load_dotenv(env_path, override=False)
     elif (root / ".env").exists():
-        load_dotenv(root / ".env", override=True)
+        load_dotenv(root / ".env", override=False)
     else:
-        load_dotenv(override=True)
+        load_dotenv(override=False)
 
 
 def _get_bool(name: str, default: bool) -> bool:
@@ -97,6 +97,7 @@ class DatabaseSettings:
 class QdrantSettings:
     url: str
     evidence_collection: str
+    vector_dimensions: int = 768
 
 
 @dataclass(frozen=True)
@@ -216,6 +217,7 @@ def get_settings() -> Settings:
             evidence_collection=os.getenv(
                 "EVIDENCE_COLLECTION_NAME", "evidentrag_evidence"
             ),
+            vector_dimensions=int(os.getenv("GEMINI_EMBEDDING_DIMENSIONS", "768")),
         ),
         redis=RedisSettings(
             url=os.getenv("REDIS_URL", "redis://localhost:6379/0"),

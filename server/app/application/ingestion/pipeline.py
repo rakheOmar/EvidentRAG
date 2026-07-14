@@ -5,18 +5,22 @@ import hashlib
 import base64
 import io
 import json
-import re
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 from qdrant_client.http.models import PointStruct
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.infrastructure.db.models import Document, Evidence
 from app.infrastructure.qdrant.client import QdrantStore
 from app.core.logging import enrich_wide_event
 from app.core.telemetry import record_degradation
+
+if TYPE_CHECKING:
+    from docling_core.types.doc.document import DoclingDocument
 
 
 @dataclass(frozen=True)
@@ -30,7 +34,16 @@ class ExtractedVisual:
 class ExtractedChunk:
     content: str
     context_header: str
-    page: int = 1
+    page: int
+
+
+def _processing_lease_active(document: object, lease_seconds: int) -> bool:
+    updated_at = getattr(document, "updated_at", None)
+    if not isinstance(updated_at, datetime):
+        return False
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - updated_at < timedelta(seconds=lease_seconds)
 
 
 def _document_title(document: object, path: Path) -> str:
@@ -42,30 +55,51 @@ def _document_title(document: object, path: Path) -> str:
     return str(filename or path.stem)
 
 
-def _extract_structured_chunks(markdown: str, title: str) -> list[ExtractedChunk]:
-    section_path: list[str] = []
+def _chunk_page(chunk: object) -> int | None:
+    meta = getattr(chunk, "meta", None)
+    origin = getattr(meta, "origin", None)
+    page_no = getattr(origin, "page_no", None)
+    if isinstance(page_no, int):
+        return page_no
+
+    for doc_item in getattr(meta, "doc_items", []) or []:
+        for provenance in getattr(doc_item, "prov", []) or []:
+            page_no = getattr(provenance, "page_no", None)
+            if isinstance(page_no, int):
+                return page_no
+    return None
+
+
+def _create_chunker():
+    from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
+
+    return HybridChunker()
+
+
+def _extract_docling_chunks(document: object, title: str) -> list[ExtractedChunk]:
     chunks: list[ExtractedChunk] = []
-    for block in re.split(r"\n\s*\n", markdown):
-        lines = [line.strip() for line in block.splitlines() if line.strip()]
-        while lines and lines[0].startswith("#"):
-            heading = lines.pop(0)
-            level = len(heading) - len(heading.lstrip("#"))
-            section_path = section_path[: max(level - 1, 0)]
-            section_path.append(heading[level:].strip())
-        content = "\n".join(lines).strip()
+    docling_document = cast("DoclingDocument", document)
+    for index, chunk in enumerate(_create_chunker().chunk(docling_document)):
+        content = str(getattr(chunk, "text", "")).strip()
         if len(content) < 20:
             continue
-        section = " > ".join(section_path)
+
+        page = _chunk_page(chunk)
+        if page is None:
+            raise ValueError(f"Missing page provenance for Evidence {index}")
+
+        headings = getattr(getattr(chunk, "meta", None), "headings", None) or []
+        section = " > ".join(str(heading).strip() for heading in headings)
         header = f"Passage from {title}"
         if section:
             header += f", section {section}"
-        header += "."
-        chunks.extend(
+        header += f", page {page}."
+        chunks.append(
             ExtractedChunk(
-                content=content[index : index + 2100],
+                content=content,
                 context_header=header,
+                page=page,
             )
-            for index in range(0, len(content), 2100)
         )
     return chunks
 
@@ -101,8 +135,10 @@ def _extract_pdf(
         .convert(path)
         .document
     )
-    markdown = document.export_to_markdown()
-    chunks = _extract_structured_chunks(markdown, _document_title(document, Path(path)))
+    chunks = _extract_docling_chunks(
+        document,
+        _document_title(document, Path(path)),
+    )
     page_count = len(getattr(document, "pages", {}) or {})
     visuals: list[ExtractedVisual] = []
     warnings: list[str] = (
@@ -144,14 +180,6 @@ def _extract_pdf(
     return chunks, visuals, page_count, warnings
 
 
-def _canonical_document_query(content_hash: str, source_id: uuid.UUID):
-    return select(Document).where(
-        Document.content_hash == content_hash,
-        Document.source_id != source_id,
-        Document.status.in_(("ready", "ready_with_warnings")),
-    )
-
-
 class DocumentIngestionPipeline:
     def __init__(
         self,
@@ -162,6 +190,7 @@ class DocumentIngestionPipeline:
         llm_client,
         qdrant_store,
         storage,
+        processing_lease_seconds: int = 900,
     ) -> None:
         self._session_factory = session_factory
         self._redis = redis
@@ -169,6 +198,7 @@ class DocumentIngestionPipeline:
         self._llm_client = llm_client
         self._qdrant_store: QdrantStore = qdrant_store
         self._storage = storage
+        self._processing_lease_seconds = processing_lease_seconds
 
     async def run(self, document_id: str) -> None:
         identifier = uuid.UUID(document_id)
@@ -178,50 +208,41 @@ class DocumentIngestionPipeline:
             "document_id": str(identifier),
         }
         try:
+            resume_publication = False
             async with self._session_factory() as session:
                 document = await session.get(Document, identifier)
                 if document is None or document.status in {"deleted", "cancelled"}:
                     return
                 if document.status in {"ready", "ready_with_warnings"}:
-                    await self._qdrant_store.set_document_eligibility(
-                        str(document.id), bool(document.is_current)
-                    )
+                    await self._reconcile_source_eligibility(document.source_id)
                     wide_event["outcome"] = "already_ready"
                     return
-                document.status = "processing"
-                await session.commit()
+                if document.status == "processing":
+                    if _processing_lease_active(
+                        document, self._processing_lease_seconds
+                    ):
+                        wide_event["outcome"] = "already_processing"
+                        return
+                    await self._reset_failed_attempt(session, document)
+                if document.status == "publishing":
+                    resume_publication = True
+                elif document.status == "failed":
+                    await self._reset_failed_attempt(session, document)
+                if resume_publication:
+                    wide_event["outcome"] = "resumed_publication"
+                else:
+                    document.status = "processing"
+                    document.error_message = None
+                    await session.commit()
+
+            if resume_publication:
+                await self._finalize_publication(identifier)
+                await self._publish(identifier, "done", 100)
+                return
             await self._publish(identifier, "parsing", 10)
             async with self._session_factory() as session:
                 document = await session.get(Document, identifier)
                 if document is None or document.storage_key is None:
-                    return
-                source_id = document.source_id
-                canonical = await session.scalar(
-                    _canonical_document_query(document.content_hash, source_id)
-                )
-                if canonical is not None:
-                    wide_event["outcome"] = "deduplicated"
-                    previous = await session.scalars(
-                        select(Document).where(
-                            Document.source_id == document.source_id,
-                            Document.id != document.id,
-                            Document.is_current.is_(True),
-                        )
-                    )
-                    for version in previous:
-                        version.is_current = False
-                        await self._qdrant_store.set_document_eligibility(
-                            str(version.id), False
-                        )
-                    document.canonical_document_id = (
-                        canonical.canonical_document_id or canonical.id
-                    )
-                    document.page_count = canonical.page_count
-                    document.is_current = True
-                    document.status = canonical.status
-                    await session.commit()
-                    await self._publish(identifier, "deduplicated", 100)
-                    await self._publish(identifier, "done", 100)
                     return
                 path = self._storage.path(document.storage_key)
             chunks, visuals, page_count, warnings = await asyncio.to_thread(
@@ -346,26 +367,11 @@ class DocumentIngestionPipeline:
                         for row, vector in zip(rows, vectors, strict=True)
                     ]
                 )
-                previous = await session.scalars(
-                    select(Document).where(
-                        Document.source_id == document.source_id,
-                        Document.id != document.id,
-                        Document.is_current.is_(True),
-                    )
-                )
-                for version in previous:
-                    version.is_current = False
-                    await self._qdrant_store.set_document_eligibility(
-                        str(version.id), False
-                    )
-                document.is_current = True
                 document.page_count = page_count
                 document.warnings = warnings
-                document.status = "ready_with_warnings" if warnings else "ready"
+                document.status = "publishing"
                 await session.commit()
-                await self._qdrant_store.set_document_eligibility(
-                    str(document.id), True
-                )
+            await self._finalize_publication(identifier)
             await self._publish(identifier, "done", 100)
             wide_event["outcome"] = "success"
         except asyncio.CancelledError:
@@ -374,20 +380,32 @@ class DocumentIngestionPipeline:
             )
             async with self._session_factory() as session:
                 document = await session.get(Document, identifier)
-                if document is not None and document.status == "processing":
+                if document is not None and document.status not in {
+                    "ready",
+                    "ready_with_warnings",
+                    "deleted",
+                }:
                     document.status = "failed"
+                    document.is_current = False
                     document.error_message = error_message
                     await session.commit()
+            await self._set_eligibility_best_effort(identifier, False)
             await self._publish(identifier, "failed", 100, error=error_message)
             raise
         except Exception as exc:
             wide_event["outcome"] = "error"
             wide_event["error_type"] = type(exc).__name__
             wide_event["error_message"] = str(exc)
+            await self._set_eligibility_best_effort(identifier, False)
             async with self._session_factory() as session:
                 document = await session.get(Document, identifier)
-                if document is not None:
+                if document is not None and document.status not in {
+                    "ready",
+                    "ready_with_warnings",
+                    "deleted",
+                }:
                     document.status = "failed"
+                    document.is_current = False
                     document.error_message = str(exc)[:2000]
                     await session.commit()
             await self._publish(identifier, "failed", 100, error=str(exc))
@@ -398,24 +416,98 @@ class DocumentIngestionPipeline:
             )
             enrich_wide_event(ingestion=wide_event)
 
+    async def _reset_failed_attempt(self, session, document: Document) -> None:
+        await self._qdrant_store.delete_document_points(str(document.id))
+        await session.execute(
+            delete(Evidence).where(Evidence.document_id == document.id)
+        )
+        self._storage.delete_tree(f"assets/{document.id}")
+        document.page_count = 0
+        document.warnings = []
+        document.is_current = False
+
+    async def _finalize_publication(self, document_id: uuid.UUID) -> None:
+        await self._qdrant_store.set_document_eligibility(str(document_id), True)
+
+        async with self._session_factory() as session:
+            document = await session.get(Document, document_id)
+            if document is None or document.status in {"deleted", "cancelled"}:
+                await self._set_eligibility_best_effort(document_id, False)
+                return
+
+            previous = list(
+                await session.scalars(
+                    select(Document).where(
+                        Document.source_id == document.source_id,
+                        Document.id != document.id,
+                        Document.is_current.is_(True),
+                    )
+                )
+            )
+            for version in previous:
+                version.is_current = False
+            document.is_current = True
+            document.status = "ready_with_warnings" if document.warnings else "ready"
+            document.error_message = None
+            await session.commit()
+
+        await self._reconcile_source_eligibility(document.source_id)
+
+    async def _reconcile_source_eligibility(self, source_id: uuid.UUID) -> None:
+        async with self._session_factory() as session:
+            versions = list(
+                await session.scalars(
+                    select(Document).where(Document.source_id == source_id)
+                )
+            )
+        for version in versions:
+            eligible = version.is_current and version.status in {
+                "ready",
+                "ready_with_warnings",
+            }
+            await self._qdrant_store.set_document_eligibility(str(version.id), eligible)
+
+    async def _set_eligibility_best_effort(
+        self, document_id: uuid.UUID, eligible: bool
+    ) -> None:
+        try:
+            await self._qdrant_store.set_document_eligibility(
+                str(document_id), eligible
+            )
+        except Exception as exc:
+            record_degradation(
+                "document_eligibility_reconciliation",
+                document_id=str(document_id),
+                eligible=eligible,
+                error_type=type(exc).__name__,
+            )
+
     async def _publish(
         self, document_id: uuid.UUID, stage: str, progress: int, **extra
     ) -> None:
         event = "done" if stage in {"done", "failed"} else "progress"
-        await self._redis.publish(
-            f"document:{document_id}:events",
-            json.dumps(
-                {
-                    "event": event,
-                    "data": {
-                        "document_id": str(document_id),
-                        "stage": stage,
-                        "progress": progress,
-                        **extra,
-                    },
-                }
-            ),
-        )
+        try:
+            await self._redis.publish(
+                f"document:{document_id}:events",
+                json.dumps(
+                    {
+                        "event": event,
+                        "data": {
+                            "document_id": str(document_id),
+                            "stage": stage,
+                            "progress": progress,
+                            **extra,
+                        },
+                    }
+                ),
+            )
+        except Exception as exc:
+            record_degradation(
+                "document_event_publish",
+                document_id=str(document_id),
+                published_event=event,
+                error_type=type(exc).__name__,
+            )
 
     async def _caption_image(self, image: bytes) -> str:
         response = await self._llm_client.generate(

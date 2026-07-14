@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import URL
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     async_sessionmaker,
@@ -9,16 +10,19 @@ from sqlalchemy.ext.asyncio import (
 from app.core.config import DatabaseSettings
 
 
-def _build_url(settings: DatabaseSettings) -> str:
-    password = settings.password or ""
-    return (
-        f"postgresql+asyncpg://{settings.user}:{password}"
-        f"@{settings.host}:{settings.port}/{settings.db}"
+def build_database_url(settings: DatabaseSettings) -> URL:
+    return URL.create(
+        drivername="postgresql+asyncpg",
+        username=settings.user,
+        password=settings.password or "",
+        host=settings.host,
+        port=settings.port,
+        database=settings.db,
     )
 
 
 def create_engine(settings: DatabaseSettings) -> AsyncEngine:
-    return create_async_engine(_build_url(settings))
+    return create_async_engine(build_database_url(settings))
 
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker:

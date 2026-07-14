@@ -8,8 +8,6 @@ import {
   useState,
 } from "react";
 
-import { useMountEffect } from "@/hooks/use-mount-effect";
-
 type Theme = "dark" | "light" | "system";
 type ResolvedTheme = "dark" | "light";
 
@@ -159,7 +157,7 @@ export function ThemeProvider({
     };
   }, [theme, applyTheme]);
 
-  useMountEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) {
         return;
@@ -202,7 +200,7 @@ export function ThemeProvider({
     };
   }, [storageKey]);
 
-  useMountEffect(() => {
+  useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
       if (event.storageArea !== localStorage) {
         return;

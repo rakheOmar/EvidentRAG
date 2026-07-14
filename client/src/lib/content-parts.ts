@@ -64,23 +64,24 @@ export async function toDisplayContentParts(
       (typeof window === "undefined" ? undefined : window.location.origin),
   };
 
-  const displayParts = await Promise.all(
-    parts.flatMap((part) => {
+  const resolvedParts = await Promise.all(
+    parts.map(async (part): Promise<ThreadAssistantMessagePart | null> => {
       if (part.type === "source") {
-        return [];
+        return null;
       }
 
       if (part.type === "image") {
-        return toAssistantImageUrl(part.image, resolvedOptions).then(
-          (image) => ({
-            ...part,
-            image,
-          })
-        );
+        return {
+          ...part,
+          image: await toAssistantImageUrl(part.image, resolvedOptions),
+        };
       }
 
-      return [part];
+      return part;
     })
+  );
+  const displayParts = resolvedParts.filter(
+    (part): part is ThreadAssistantMessagePart => part !== null
   );
 
   return [

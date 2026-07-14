@@ -7,9 +7,11 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
+    Index,
     Integer,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -115,6 +117,18 @@ class Document(Base):
     )
     evidence: Mapped[list[Evidence]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id", "version_number", name="uq_documents_source_version"
+        ),
+        Index(
+            "uq_documents_current_source",
+            "source_id",
+            unique=True,
+            postgresql_where=text("is_current"),
+        ),
     )
 
 

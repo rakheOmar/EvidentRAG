@@ -1,10 +1,13 @@
 import { AssistantRuntimeProvider, useAui } from "@assistant-ui/react";
 import { AuiProvider } from "@assistant-ui/store";
+import { Tick02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type ColumnDef,
   flexRender,
   getCoreRowModel,
+  type Header,
   useReactTable,
 } from "@tanstack/react-table";
 import {
@@ -18,8 +21,6 @@ import {
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { Tick02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   type ChangeEvent,
   type DragEvent,
@@ -31,12 +32,12 @@ import {
   useRef,
   useState,
 } from "react";
+import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import {
   AppShell,
   MobileSidebar,
   useSidebarState,
 } from "@/components/chat/chat-sidebar";
-import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { useErrorFeedback } from "@/components/error-feedback";
 import {
   AlertDialog,
@@ -75,6 +76,47 @@ interface IngestionProgress {
   stage: string;
 }
 
+const DOCUMENT_HEADER_CLASSES: Record<string, string> = {
+  actions: "h-9 w-10 px-0 text-right",
+  byte_size:
+    "hidden h-9 w-19 text-right text-muted-foreground text-xs uppercase tracking-[0.08em] sm:table-cell",
+  original_filename:
+    "h-9 w-full px-0 text-muted-foreground text-xs uppercase tracking-[0.08em]",
+  progress:
+    "hidden h-9 w-20 text-center text-muted-foreground text-xs uppercase tracking-[0.08em] sm:table-cell",
+  status:
+    "hidden h-9 w-30 text-muted-foreground text-xs uppercase tracking-[0.08em] sm:table-cell",
+  updated_at:
+    "hidden h-9 w-30 text-muted-foreground text-xs uppercase tracking-[0.08em] sm:table-cell",
+};
+
+const DOCUMENT_CELL_CLASSES: Record<string, string> = {
+  actions:
+    "w-10 rounded-r-xl px-2 text-right transition-colors duration-300 ease-out group-focus-within:bg-muted/35 group-hover:bg-muted/35",
+  byte_size:
+    "hidden text-muted-foreground text-sm tabular-nums transition-colors duration-300 ease-out group-focus-within:bg-muted/35 group-hover:bg-muted/35 sm:table-cell",
+  original_filename:
+    "min-w-0 whitespace-normal rounded-l-xl px-2 py-2.5 transition-colors duration-300 ease-out group-focus-within:bg-muted/35 group-hover:bg-muted/35",
+  progress:
+    "hidden w-20 text-center transition-colors duration-300 ease-out group-focus-within:bg-muted/35 group-hover:bg-muted/35 sm:table-cell",
+  status:
+    "hidden min-w-0 max-w-30 overflow-hidden transition-colors duration-300 ease-out group-focus-within:bg-muted/35 group-hover:bg-muted/35 sm:table-cell",
+  updated_at:
+    "hidden truncate text-muted-foreground text-sm transition-colors duration-300 ease-out group-focus-within:bg-muted/35 group-hover:bg-muted/35 sm:table-cell",
+};
+
+function renderDocumentHeader(
+  header: Header<DocumentRecord, unknown>
+): ReactNode {
+  if (header.isPlaceholder) {
+    return null;
+  }
+  if (header.column.id === "actions") {
+    return <span className="sr-only">Actions</span>;
+  }
+  return flexRender(header.column.columnDef.header, header.getContext());
+}
+
 type DocumentFilter = "all" | "processing" | "ready";
 
 const documentFilters: { label: string; value: DocumentFilter }[] = [
@@ -84,13 +126,21 @@ const documentFilters: { label: string; value: DocumentFilter }[] = [
 ];
 
 function isIngesting(document: DocumentRecord): boolean {
-  return document.status === "queued" || document.status === "processing";
+  return (
+    document.status === "queued" ||
+    document.status === "processing" ||
+    document.status === "publishing"
+  );
 }
 
 function fallbackProgress(document: DocumentRecord): IngestionProgress {
-  return document.status === "queued"
-    ? { progress: 5, stage: "Queued" }
-    : { progress: 35, stage: "Processing" };
+  if (document.status === "queued") {
+    return { progress: 5, stage: "Queued" };
+  }
+  if (document.status === "publishing") {
+    return { progress: 95, stage: "Publishing" };
+  }
+  return { progress: 35, stage: "Processing" };
 }
 
 function formatBytes(bytes: number | null): string {
@@ -243,11 +293,7 @@ function IngestionProgressDial({ value }: { value: number }) {
   );
 }
 
-function DocumentNameCell({
-  document,
-}: {
-  document: DocumentRecord;
-}) {
+function DocumentNameCell({ document }: { document: DocumentRecord }) {
   return (
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-3">
@@ -264,7 +310,8 @@ function DocumentNameCell({
             ) : null}
           </div>
           <p className="mt-0.5 truncate text-muted-foreground text-xs sm:hidden">
-            {formatDate(document.updated_at)} / {formatBytes(document.byte_size)}
+            {formatDate(document.updated_at)} /{" "}
+            {formatBytes(document.byte_size)}
           </p>
         </div>
       </div>
@@ -290,11 +337,7 @@ function DocumentTable({
     () => [
       {
         accessorKey: "original_filename",
-        cell: ({ row }) => (
-          <DocumentNameCell
-            document={row.original}
-          />
-        ),
+        cell: ({ row }) => <DocumentNameCell document={row.original} />,
         header: "Name",
       },
       {
@@ -302,7 +345,8 @@ function DocumentTable({
         cell: ({ row }) => {
           if (isIngesting(row.original)) {
             const progress =
-              progressByDocument[row.original.id] ?? fallbackProgress(row.original);
+              progressByDocument[row.original.id] ??
+              fallbackProgress(row.original);
             return (
               <div className="flex justify-center">
                 <IngestionProgressDial value={progress.progress} />
@@ -390,26 +434,10 @@ function DocumentTable({
           <TableRow className="hover:bg-transparent" key={headerGroup.id}>
             {headerGroup.headers.map((header) => (
               <TableHead
-                className={
-                  header.column.id === "original_filename"
-                    ? "h-9 w-full px-0 text-muted-foreground text-xs uppercase tracking-[0.08em]"
-                    : header.column.id === "progress"
-                      ? "hidden h-9 w-20 text-center text-muted-foreground text-xs uppercase tracking-[0.08em] sm:table-cell"
-                    : header.column.id === "status"
-                      ? "hidden h-9 w-30 text-muted-foreground text-xs uppercase tracking-[0.08em] sm:table-cell"
-                      : header.column.id === "updated_at"
-                        ? "hidden h-9 w-30 text-muted-foreground text-xs uppercase tracking-[0.08em] sm:table-cell"
-                        : header.column.id === "byte_size"
-                          ? "hidden h-9 w-19 text-right text-muted-foreground text-xs uppercase tracking-[0.08em] sm:table-cell"
-                          : "h-9 w-10 px-0 text-right"
-                }
+                className={DOCUMENT_HEADER_CLASSES[header.column.id]}
                 key={header.id}
               >
-                {header.isPlaceholder ? null : header.column.id === "actions" ? (
-                  <span className="sr-only">Actions</span>
-                ) : (
-                  flexRender(header.column.columnDef.header, header.getContext())
-                )}
+                {renderDocumentHeader(header)}
               </TableHead>
             ))}
           </TableRow>
@@ -417,25 +445,10 @@ function DocumentTable({
       </TableHeader>
       <TableBody>
         {table.getRowModel().rows.map((row) => (
-          <TableRow
-            className="group min-h-14 border-border/70"
-            key={row.id}
-          >
+          <TableRow className="group min-h-14 border-border/70" key={row.id}>
             {row.getVisibleCells().map((cell) => (
               <TableCell
-                className={
-                  cell.column.id === "original_filename"
-                    ? "min-w-0 whitespace-normal rounded-l-xl px-2 py-2.5 transition-colors duration-300 ease-out group-hover:bg-muted/35 group-focus-within:bg-muted/35"
-                    : cell.column.id === "progress"
-                      ? "hidden w-20 text-center transition-colors duration-300 ease-out group-hover:bg-muted/35 group-focus-within:bg-muted/35 sm:table-cell"
-                    : cell.column.id === "status"
-                      ? "hidden min-w-0 max-w-30 overflow-hidden transition-colors duration-300 ease-out group-hover:bg-muted/35 group-focus-within:bg-muted/35 sm:table-cell"
-                    : cell.column.id === "updated_at"
-                        ? "hidden truncate text-muted-foreground text-sm transition-colors duration-300 ease-out group-hover:bg-muted/35 group-focus-within:bg-muted/35 sm:table-cell"
-                        : cell.column.id === "byte_size"
-                          ? "hidden text-muted-foreground text-sm tabular-nums transition-colors duration-300 ease-out group-hover:bg-muted/35 group-focus-within:bg-muted/35 sm:table-cell"
-                          : "w-10 rounded-r-xl px-2 text-right transition-colors duration-300 ease-out group-hover:bg-muted/35 group-focus-within:bg-muted/35"
-                }
+                className={DOCUMENT_CELL_CLASSES[cell.column.id]}
                 key={cell.id}
               >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}

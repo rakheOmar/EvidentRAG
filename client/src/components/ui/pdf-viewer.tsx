@@ -646,9 +646,8 @@ function PDFViewerPageNumberControl({
           aria-label="Page number"
           inputMode="numeric"
           pattern="[0-9]*"
-          size="sm"
           value={draftPage}
-          className="mx-1 w-14 min-w-14 rounded-md [&_[data-slot=input]]:text-center"
+          className="mx-1 h-8 w-14 min-w-14 rounded-md text-center"
           onBlur={() => setIsEditing(false)}
           onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
             const nextValue = event.target.value

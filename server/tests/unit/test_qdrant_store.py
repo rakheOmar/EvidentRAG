@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, call
 
 import pytest
@@ -73,6 +74,7 @@ def settings() -> QdrantSettings:
     return QdrantSettings(
         url="http://qdrant:6333",
         evidence_collection="evidentrag_evidence",
+        vector_dimensions=1024,
     )
 
 
@@ -90,7 +92,7 @@ async def test_ensure_collection_creates_collection_when_missing(
     args, kwargs = mock_client.create_collection.call_args
     assert args[0] == "evidentrag_evidence"
     assert set(kwargs["vectors_config"].keys()) == {"dense"}
-    assert kwargs["vectors_config"]["dense"].size == 768
+    assert kwargs["vectors_config"]["dense"].size == 1024
     assert kwargs["sparse_vectors_config"]["sparse"].modifier == Modifier.IDF
     mock_client.create_payload_index.assert_has_awaits(
         [
@@ -118,12 +120,34 @@ async def test_ensure_collection_preserves_existing_collection(
 ) -> None:
     mock_client = AsyncMock()
     mock_client.collection_exists.return_value = True
+    mock_client.get_collection.return_value = SimpleNamespace(
+        config=SimpleNamespace(
+            params=SimpleNamespace(vectors={"dense": SimpleNamespace(size=1024)})
+        )
+    )
 
     store = QdrantStore(settings=settings, client=mock_client)
     await store.ensure_collection()
 
     mock_client.create_collection.assert_not_called()
     assert mock_client.create_payload_index.await_count == 3
+
+
+async def test_ensure_collection_rejects_dimension_mismatch(
+    settings: QdrantSettings,
+) -> None:
+    mock_client = AsyncMock()
+    mock_client.collection_exists.return_value = True
+    mock_client.get_collection.return_value = SimpleNamespace(
+        config=SimpleNamespace(
+            params=SimpleNamespace(vectors={"dense": SimpleNamespace(size=768)})
+        )
+    )
+
+    store = QdrantStore(settings=settings, client=mock_client)
+
+    with pytest.raises(RuntimeError, match="Reindex the collection before startup"):
+        await store.ensure_collection()
 
 
 async def test_upsert_points_calls_client_with_collection_and_points(

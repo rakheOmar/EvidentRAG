@@ -23,10 +23,10 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 
 import "./index.css";
-import { ThemeProvider } from "@/components/theme-provider.tsx";
 import { ErrorFeedbackProvider } from "@/components/error-feedback";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/components/theme-provider.tsx";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { App } from "./app.tsx";
 

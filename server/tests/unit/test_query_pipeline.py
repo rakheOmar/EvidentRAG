@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Protocol, cast
 
 import pytest
@@ -114,6 +115,27 @@ class _FakeSessionFactory:
 
     def __call__(self) -> _FakeSessionContext:
         return _FakeSessionContext(self._session)
+
+
+class _TokenSessionContext:
+    def __init__(self, session: object) -> None:
+        self._session = session
+
+    async def __aenter__(self) -> object:
+        return self._session
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
+class _TokenSessionFactory:
+    def __init__(self) -> None:
+        self.sessions: list[object] = []
+
+    def __call__(self) -> _TokenSessionContext:
+        session = object()
+        self.sessions.append(session)
+        return _TokenSessionContext(session)
 
 
 class _FakeRedis:
@@ -305,6 +327,64 @@ def test_query_pipeline_preserves_markdown_block_boundaries_when_joining_segment
         "2. Add a segment embedding.\n\n"
         "```python\nE[i] = token_emb[i] + segment_emb[i]\n```"
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", ["comparison", "aggregation"])
+async def test_parallel_routes_isolate_database_sessions(route: str) -> None:
+    from app.application.query_pipeline.query_pipeline import QueryPipeline
+
+    class RecordingPipeline(QueryPipeline):
+        def __init__(self, session_factory) -> None:
+            super().__init__(session_factory=session_factory, redis=_FakeRedis())
+            self.retrieval_sessions: list[object] = []
+
+        async def _retrieve_evidence(self, session, *args, **kwargs):
+            self.retrieval_sessions.append(session)
+            return [], [], {}
+
+    session_factory = _TokenSessionFactory()
+    pipeline = RecordingPipeline(session_factory)
+    main_session = object()
+    message = cast(Message, type("MessageStub", (), {"id": uuid.uuid4()})())
+    route_method = getattr(pipeline, f"_run_{route}_route")
+
+    await route_method(
+        main_session,
+        message,
+        "Compare BERT and transformers",
+        None,
+        ["BERT", "transformers"],
+    )
+
+    assert len(pipeline.retrieval_sessions) == 2
+    assert len({id(session) for session in pipeline.retrieval_sessions}) == 2
+    assert main_session not in pipeline.retrieval_sessions
+
+
+@pytest.mark.asyncio
+async def test_retrieval_rejects_qdrant_points_not_current_in_postgres() -> None:
+    from app.application.query_pipeline.query_pipeline import QueryPipeline
+
+    allowed_id = uuid.uuid4()
+    stale_id = uuid.uuid4()
+    session = SimpleNamespace(
+        execute=lambda _statement: None,
+    )
+
+    async def execute(_statement):
+        return _FakeExecuteResult([allowed_id])
+
+    session.execute = execute
+    pipeline = QueryPipeline(session_factory=None, redis=_FakeRedis())
+    points = [
+        SimpleNamespace(payload={"evidence_id": str(allowed_id)}),
+        SimpleNamespace(payload={"evidence_id": str(stale_id)}),
+    ]
+
+    filtered = await pipeline._filter_retrievable_points(session, points)
+
+    assert filtered == [points[0]]
 
 
 @pytest.mark.asyncio

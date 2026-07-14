@@ -8,8 +8,8 @@ RUN npm run build
 FROM python:3.13-slim AS server-base
 WORKDIR /app
 RUN pip install --no-cache-dir uv
-COPY server/pyproject.toml ./
-RUN uv sync --no-dev
+COPY server/pyproject.toml server/uv.lock ./
+RUN uv sync --frozen --no-dev
 COPY server/ .
 
 FROM server-base AS production

@@ -8,8 +8,8 @@ const DocumentsPage = lazy(() =>
   import("@/pages/documents.tsx").then((m) => ({ default: m.DocumentsPage }))
 );
 
-import { HomePage } from "@/pages/home.tsx";
 import { SidebarStateProvider } from "@/components/chat/chat-sidebar";
+import { HomePage } from "@/pages/home.tsx";
 
 export function App() {
   return (

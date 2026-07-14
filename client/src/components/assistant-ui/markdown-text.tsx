@@ -15,7 +15,7 @@ import { code } from "@streamdown/code";
 import { createMathPlugin } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import { DownloadIcon, FilesIcon } from "lucide-react";
-import { type FC, memo } from "react";
+import { type ComponentProps, type FC, memo } from "react";
 import {
   CodeBlockCopyButton,
   CodeBlockDownloadButton,
@@ -66,10 +66,13 @@ const CodeHeader: FC<CodeHeaderProps> = ({ code: codeText, language }) => (
   </div>
 );
 
-const components: StreamdownTextComponents = {
+// react-streamdown's component type intersects its specialized code components
+// with a generic index signature, which makes valid specialized components
+// structurally incompatible. Keep the boundary cast local to the upstream type.
+const components = {
   CodeHeader,
   SyntaxHighlighter,
-  h1: ({ className, ...props }) => (
+  h1: ({ className, ...props }: ComponentProps<"h1">) => (
     <h1
       className={cn(
         "aui-md-h1 mt-5 mb-2 scroll-m-20 font-semibold text-xl first:mt-0 last:mb-0",
@@ -78,7 +81,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  h2: ({ className, ...props }) => (
+  h2: ({ className, ...props }: ComponentProps<"h2">) => (
     <h2
       className={cn(
         "aui-md-h2 mt-5 mb-2 scroll-m-20 font-semibold text-lg first:mt-0 last:mb-0",
@@ -87,7 +90,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  h3: ({ className, ...props }) => (
+  h3: ({ className, ...props }: ComponentProps<"h3">) => (
     <h3
       className={cn(
         "aui-md-h3 mt-4 mb-1.5 scroll-m-20 font-semibold text-base first:mt-0 last:mb-0",
@@ -96,7 +99,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  p: ({ className, ...props }) => (
+  p: ({ className, ...props }: ComponentProps<"p">) => (
     <p
       className={cn(
         "aui-md-p my-3 leading-relaxed first:mt-0 last:mb-0",
@@ -105,7 +108,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  a: ({ className, ...props }) => (
+  a: ({ className, ...props }: ComponentProps<"a">) => (
     <a
       className={cn(
         "aui-md-a text-primary underline underline-offset-2 hover:text-primary/80",
@@ -114,7 +117,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  blockquote: ({ className, ...props }) => (
+  blockquote: ({ className, ...props }: ComponentProps<"blockquote">) => (
     <blockquote
       className={cn(
         "aui-md-blockquote my-3 border-muted-foreground/30 border-s-2 ps-4 text-muted-foreground",
@@ -123,7 +126,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  ul: ({ className, ...props }) => (
+  ul: ({ className, ...props }: ComponentProps<"ul">) => (
     <ul
       className={cn(
         "aui-md-ul my-3 ms-5 list-disc marker:text-muted-foreground [&>li]:mt-1",
@@ -132,7 +135,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  ol: ({ className, ...props }) => (
+  ol: ({ className, ...props }: ComponentProps<"ol">) => (
     <ol
       className={cn(
         "aui-md-ol my-3 ms-5 list-decimal marker:text-muted-foreground [&>li]:mt-1",
@@ -141,16 +144,16 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  li: ({ className, ...props }) => (
+  li: ({ className, ...props }: ComponentProps<"li">) => (
     <li className={cn("aui-md-li leading-relaxed", className)} {...props} />
   ),
-  strong: ({ className, ...props }) => (
+  strong: ({ className, ...props }: ComponentProps<"strong">) => (
     <strong
       className={cn("aui-md-strong font-semibold", className)}
       {...props}
     />
   ),
-  table: ({ className, ...props }) => (
+  table: ({ className, ...props }: ComponentProps<"table">) => (
     <table
       className={cn(
         "aui-md-table my-3 w-full border-separate border-spacing-0",
@@ -159,7 +162,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  th: ({ className, ...props }) => (
+  th: ({ className, ...props }: ComponentProps<"th">) => (
     <th
       className={cn(
         "aui-md-th bg-muted px-3 py-1.5 text-start font-medium first:rounded-ss-lg last:rounded-se-lg",
@@ -168,7 +171,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  td: ({ className, ...props }) => (
+  td: ({ className, ...props }: ComponentProps<"td">) => (
     <td
       className={cn(
         "aui-md-td border-muted-foreground/20 border-s border-b px-3 py-1.5 text-start last:border-e",
@@ -177,7 +180,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-  tr: ({ className, ...props }) => (
+  tr: ({ className, ...props }: ComponentProps<"tr">) => (
     <tr
       className={cn(
         "aui-md-tr m-0 border-b p-0 first:border-t [&:last-child>td:first-child]:rounded-es-lg [&:last-child>td:last-child]:rounded-ee-lg",
@@ -186,7 +189,7 @@ const components: StreamdownTextComponents = {
       {...props}
     />
   ),
-};
+} as unknown as StreamdownTextComponents;
 
 const sharedStreamdownProps = {
   components,

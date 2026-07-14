@@ -1,4 +1,10 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import {
@@ -10,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { asAppError, type ApiError } from "@/lib/errors";
+import { type ApiError, asAppError } from "@/lib/errors";
 
 interface ErrorFeedback {
   notify(error: unknown): ApiError;
@@ -40,7 +46,9 @@ export function ErrorFeedbackProvider({ children }: { children: ReactNode }) {
       {children}
       <AlertDialog
         onOpenChange={(open) => {
-          if (!open) setDialogError(null);
+          if (!open) {
+            setDialogError(null);
+          }
         }}
         open={dialogError !== null}
       >
@@ -49,7 +57,9 @@ export function ErrorFeedbackProvider({ children }: { children: ReactNode }) {
             <AlertDialogTitle>Something needs your attention</AlertDialogTitle>
             <AlertDialogDescription>
               {dialogError?.message ?? "The request could not be completed."}
-              {dialogError?.requestId ? ` Reference: ${dialogError.requestId}` : ""}
+              {dialogError?.requestId
+                ? ` Reference: ${dialogError.requestId}`
+                : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -3,7 +3,7 @@ import type { ThreadMessageLike } from "@assistant-ui/react";
 import type { EvidentChatMessage } from "@/lib/types";
 
 function toMessageStatus(
-  status: EvidentChatMessage["status"],
+  status: EvidentChatMessage["status"]
 ): ThreadMessageLike["status"] {
   switch (status) {
     case "running":
@@ -18,7 +18,7 @@ function toMessageStatus(
 }
 
 export function convertEvidentMessage(
-  message: EvidentChatMessage,
+  message: EvidentChatMessage
 ): ThreadMessageLike {
   const customMetadata = {
     contextUsage: message.contextUsage,
@@ -29,7 +29,7 @@ export function convertEvidentMessage(
     subQueries: message.subQueries,
   };
   const hasCustomMetadata = Object.values(customMetadata).some(
-    (value) => value !== undefined,
+    (value) => value !== undefined
   );
 
   return {

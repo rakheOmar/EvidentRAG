@@ -386,6 +386,9 @@ async def test_cleanup_deleted_documents_removes_expired_source_documents(
         def delete(self, storage_key: str) -> None:
             storage_keys.append(storage_key)
 
+        def delete_tree(self, storage_key: str) -> None:
+            storage_keys.append(storage_key)
+
     test_settings = SimpleNamespace(
         ingestion=SimpleNamespace(audit_retention_days=7),
     )
@@ -401,7 +404,10 @@ async def test_cleanup_deleted_documents_removes_expired_source_documents(
     )
 
     assert qdrant_document_ids == [str(document_id)]
-    assert storage_keys == ["documents/example.pdf"]
+    assert storage_keys == [
+        "documents/example.pdf",
+        f"assets/{document_id}",
+    ]
     assert deleted_objects == [document, source]
     assert committed is True
     assert observability_call == (

@@ -81,3 +81,47 @@ async def test_redis_pubsub_stream_yields_events_until_done() -> None:
     assert redis.instance.subscribed_channel == "query:test:events"
     assert redis.instance.unsubscribed_channel == "query:test:events"
     assert redis.instance.closed is True
+
+
+@pytest.mark.asyncio
+async def test_redis_pubsub_stream_subscribes_before_terminal_replay() -> None:
+    calls: list[str] = []
+
+    class FakePubSub:
+        async def subscribe(self, channel: str) -> None:
+            calls.append(f"subscribe:{channel}")
+
+        async def listen(self):
+            raise AssertionError("A terminal replay must not start listening.")
+            yield
+
+        async def unsubscribe(self, channel: str) -> None:
+            calls.append(f"unsubscribe:{channel}")
+
+        async def aclose(self) -> None:
+            calls.append("close")
+
+    class FakeRedis:
+        def pubsub(self) -> FakePubSub:
+            return FakePubSub()
+
+    async def replay_terminal() -> tuple[list[str], bool]:
+        calls.append("replay")
+        return [sse_event("done", {"status": "completed"})], True
+
+    events = [
+        event
+        async for event in redis_pubsub_stream(
+            FakeRedis(),
+            "query:test:events",
+            after_subscribe=replay_terminal,
+        )
+    ]
+
+    assert events == ['event: done\ndata: {"status":"completed"}\n\n']
+    assert calls == [
+        "subscribe:query:test:events",
+        "replay",
+        "unsubscribe:query:test:events",
+        "close",
+    ]

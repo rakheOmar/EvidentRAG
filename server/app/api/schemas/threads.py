@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StringConstraints
+
+MessageContent = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000),
+]
 
 
 class ThreadCreate(BaseModel):
-    content: str
+    content: MessageContent
 
 
 class MessageCreate(BaseModel):
-    content: str
+    content: MessageContent
 
 
 class ThreadSummaryResponse(BaseModel):

@@ -46,8 +46,9 @@ def test_startup_initializes_runtime_seeds_and_cleans_up(monkeypatch) -> None:
     assert runtime.created_db_settings is runtime.settings.db
     assert runtime.session_engine is runtime.engine
     assert runtime.telemetry.instrumented_engine is runtime.engine
-    assert runtime.engine_begin_calls == 1
-    assert runtime.schema_callback == main_module.Base.metadata.create_all
+    assert runtime.migration_settings is runtime.settings.db
+    assert runtime.engine_begin_calls == 0
+    assert runtime.schema_callback is None
     assert runtime.qdrant_store is not None
     assert runtime.qdrant_store.settings is runtime.settings.qdrant
     assert runtime.qdrant_store.collection_ensured is True
@@ -106,8 +107,9 @@ def test_startup_skips_demo_seeding_when_disabled(monkeypatch) -> None:
         assert app.state.llm_client is runtime.llm_client
         assert app.state.rerank_client is runtime.rerank_client
 
-    assert runtime.engine_begin_calls == 1
-    assert runtime.schema_callback == main_module.Base.metadata.create_all
+    assert runtime.migration_settings is runtime.settings.db
+    assert runtime.engine_begin_calls == 0
+    assert runtime.schema_callback is None
     assert runtime.qdrant_store is not None
     assert runtime.qdrant_store.collection_ensured is True
     assert runtime.llm_client is not None

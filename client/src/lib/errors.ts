@@ -25,7 +25,7 @@ export class ApiError extends Error {
       code?: string;
       details?: Record<string, unknown>;
       requestId?: string | null;
-    } = {},
+    } = {}
   ) {
     super(message);
     this.name = "ApiError";
@@ -38,35 +38,47 @@ export class ApiError extends Error {
 }
 
 export function classifyError(status: number): ErrorPresentation {
-  if (status === 0) return "dialog";
-  if (status === 400 || status === 422) return "inline";
-  if (status >= 500 || status === 401 || status === 403) return "dialog";
+  if (status === 0) {
+    return "dialog";
+  }
+  if (status === 400 || status === 422) {
+    return "inline";
+  }
+  if (status >= 500 || status === 401 || status === 403) {
+    return "dialog";
+  }
   return "toast";
 }
 
 export function asAppError(error: unknown): ApiError {
-  if (error instanceof ApiError) return error;
+  if (error instanceof ApiError) {
+    return error;
+  }
   if (error instanceof TypeError) {
-    return new ApiError("We could not reach EvidentRAG. Check your connection.", 0, {
-      code: "network_error",
-    });
+    return new ApiError(
+      "We could not reach EvidentRAG. Check your connection.",
+      0,
+      {
+        code: "network_error",
+      }
+    );
   }
   return new ApiError(
     error instanceof Error ? error.message : "Something went wrong.",
-    500,
+    500
   );
 }
 
 export function requestJson<T>(
   input: RequestInfo | URL,
-  init?: RequestInit,
+  init?: RequestInit
 ): Promise<T> {
   return request(input, init, (response) => response.json() as Promise<T>);
 }
 
 export async function requestEmpty(
   input: RequestInfo | URL,
-  init?: RequestInit,
+  init?: RequestInit
 ): Promise<void> {
   await request(input, init, async () => undefined);
 }
@@ -74,7 +86,7 @@ export async function requestEmpty(
 async function request<T>(
   input: RequestInfo | URL,
   init: RequestInit | undefined,
-  parseResponse: (response: Response) => Promise<T>,
+  parseResponse: (response: Response) => Promise<T>
 ): Promise<T> {
   const startedAt = performance.now();
   const method = init?.method ?? "GET";
@@ -108,7 +120,7 @@ async function request<T>(
           code: body.error?.code,
           details: body.error?.details,
           requestId: body.error?.request_id,
-        },
+        }
       );
       wideEvent.outcome = "error";
       wideEvent.error = { code: error.code, type: error.name };

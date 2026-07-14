@@ -484,7 +484,7 @@ describe("useEvidentRuntime", () => {
     expect(navigateMock).toHaveBeenCalledWith("/chat");
   });
 
-  it("marks the assistant as error when SSE stream transport fails", async () => {
+  it("keeps a running answer recoverable while EventSource reconnects", async () => {
     createThreadMock.mockResolvedValue(makeTurnResponse());
 
     const { result } = renderHook(() => useEvidentRuntime(), {
@@ -502,19 +502,13 @@ describe("useEvidentRuntime", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.isRunning).toBe(false);
+      expect(result.current.isRunning).toBe(true);
       expect(result.current.messages[1]).toMatchObject({
-        contentParts: [
-          {
-            text: "The answer stream stopped unexpectedly. Please try again.",
-            type: "text",
-          },
-        ],
         messageId: "assistant-1",
         role: "assistant",
-        status: "error",
+        status: "running",
       });
     });
-    expect(eventSource.close).toHaveBeenCalledTimes(1);
+    expect(eventSource.close).not.toHaveBeenCalled();
   });
 });

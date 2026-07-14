@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -24,10 +25,25 @@ from sqlalchemy.orm import selectinload
 from app.api.schemas.documents import DocumentListResponse, DocumentResponse
 from app.api.sse.sse import redis_pubsub_stream, sse_event
 from app.core.logging import enrich_wide_event
-from app.core.telemetry import inject_job_context
+from app.core.telemetry import inject_job_context, record_degradation
 from app.infrastructure.db.models import Document, Source
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
+_UPLOAD_READ_SIZE = 1024 * 1024
+
+
+async def _read_upload(file: UploadFile, max_bytes: int) -> bytes:
+    content = io.BytesIO()
+    total = 0
+    while chunk := await file.read(_UPLOAD_READ_SIZE):
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Upload exceeds the {max_bytes // (1024 * 1024)} MB limit",
+            )
+        content.write(chunk)
+    return content.getvalue()
 
 
 @router.get("/{document_id}/assets/{asset_name}")
@@ -89,22 +105,21 @@ async def upload_document(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="Only PDF uploads are supported",
         )
-    content = await file.read()
+    content = await _read_upload(
+        file, request.app.state.settings.ingestion.max_upload_bytes
+    )
     if not content.startswith(b"%PDF-"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Upload is not a valid PDF"
-        )
-    if len(content) > request.app.state.settings.ingestion.max_upload_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Upload exceeds the 25 MB limit",
         )
     content_hash = hashlib.sha256(content).hexdigest()
     async with request.app.state.session_factory() as session:
         source = None
         if source_key:
             source = await session.scalar(
-                select(Source).where(Source.source_key == source_key.strip())
+                select(Source)
+                .where(Source.source_key == source_key.strip())
+                .with_for_update()
             )
             if source is None or source.deleted_at is not None:
                 raise HTTPException(
@@ -238,27 +253,33 @@ async def get_document(document_id: UUID, request: Request) -> DocumentResponse:
 
 
 async def _events(request: Request, document_id: UUID) -> AsyncIterator[str]:
-    async with request.app.state.session_factory() as session:
-        document = await session.scalar(
-            select(Document)
-            .options(selectinload(Document.source))
-            .where(Document.id == document_id)
-        )
-        if document is None:
-            return
-        snapshot = _response(document).model_dump(mode="json")
-    yield sse_event("snapshot", snapshot)
-    if snapshot["status"] in {
-        "ready",
-        "ready_with_warnings",
-        "failed",
-        "deleted",
-        "cancelled",
-    }:
-        yield sse_event("done", snapshot)
-        return
+    async def snapshot_after_subscribe() -> tuple[list[str], bool]:
+        async with request.app.state.session_factory() as session:
+            document = await session.scalar(
+                select(Document)
+                .options(selectinload(Document.source))
+                .where(Document.id == document_id)
+            )
+            if document is None:
+                return [], True
+            snapshot = _response(document).model_dump(mode="json")
+
+        events = [sse_event("snapshot", snapshot)]
+        terminal = snapshot["status"] in {
+            "ready",
+            "ready_with_warnings",
+            "failed",
+            "deleted",
+            "cancelled",
+        }
+        if terminal:
+            events.append(sse_event("done", snapshot))
+        return events, terminal
+
     async for event in redis_pubsub_stream(
-        request.app.state.redis, f"document:{document_id}:events"
+        request.app.state.redis,
+        f"document:{document_id}:events",
+        snapshot_after_subscribe,
     ):
         yield event
 
@@ -344,10 +365,19 @@ async def delete_document(document_id: UUID, request: Request) -> None:
         for version in versions:
             version.status = "deleted"
             version.is_current = False
-            await request.app.state.qdrant_store.set_document_eligibility(
-                str(version.id), False
-            )
         await session.commit()
+
+        for version in versions:
+            try:
+                await request.app.state.qdrant_store.set_document_eligibility(
+                    str(version.id), False
+                )
+            except Exception as exc:
+                record_degradation(
+                    "document_delete_index_reconciliation",
+                    document_id=str(version.id),
+                    error_type=type(exc).__name__,
+                )
         enrich_wide_event(
             action="document.delete",
             document={
