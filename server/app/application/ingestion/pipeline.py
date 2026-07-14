@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+import httpx
 from qdrant_client.http.models import PointStruct
 from sqlalchemy import delete, select
 
@@ -257,7 +258,16 @@ class DocumentIngestionPipeline:
                 if embedding_inputs
                 else []
             )
-            captions = [await self._caption_image(visual.content) for visual in visuals]
+            caption_results = [
+                await self._caption_image(visual.content) for visual in visuals
+            ]
+            if any(caption is None for caption in caption_results):
+                warnings.append(
+                    "Some visual assets could not be captioned by the configured model."
+                )
+            captions = [
+                caption or "Visual from document" for caption in caption_results
+            ]
             image_vectors: list[list[float]] = []
             if visuals:
                 try:
@@ -509,25 +519,36 @@ class DocumentIngestionPipeline:
                 error_type=type(exc).__name__,
             )
 
-    async def _caption_image(self, image: bytes) -> str:
-        response = await self._llm_client.generate(
-            [
-                {
-                    "role": "system",
-                    "content": "Describe this document visual concisely for retrieval and citation.",
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": "data:image/png;base64,"
-                                + base64.b64encode(image).decode("ascii")
-                            },
-                        }
-                    ],
-                },
-            ]
-        )
+    async def _caption_image(self, image: bytes) -> str | None:
+        try:
+            response = await self._llm_client.generate(
+                [
+                    {
+                        "role": "system",
+                        "content": "Describe this document visual concisely for retrieval and citation.",
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": "data:image/png;base64,"
+                                    + base64.b64encode(image).decode("ascii")
+                                },
+                            }
+                        ],
+                    },
+                ]
+            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 400:
+                raise
+            record_degradation(
+                "visual_caption",
+                fallback="generic_caption",
+                error_type=type(exc).__name__,
+                status_code=exc.response.status_code,
+            )
+            return None
         return response.strip() or "Visual from document"

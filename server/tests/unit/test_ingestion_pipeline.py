@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
+import httpx
 import pytest
 
 from app.application.ingestion.pipeline import (
@@ -69,6 +70,41 @@ async def test_ingestion_progress_events_are_structured_and_correlated() -> None
             "evidence_count": 12,
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_text_only_visual_caption_failure_degrades_instead_of_failing() -> None:
+    class TextOnlyLLM:
+        async def generate(self, messages) -> str:
+            request = httpx.Request(
+                "POST", "http://optiplex-3020:8081/v1/chat/completions"
+            )
+            response = httpx.Response(
+                400,
+                request=request,
+                json={
+                    "error": {
+                        "message": "Non-fallback error",
+                        "type": "invalid_request",
+                    }
+                },
+            )
+            raise httpx.HTTPStatusError(
+                "400 Bad Request", request=request, response=response
+            )
+
+    pipeline = DocumentIngestionPipeline(
+        session_factory=None,
+        redis=None,
+        embedding_client=None,
+        llm_client=TextOnlyLLM(),
+        qdrant_store=None,
+        storage=None,
+    )
+
+    caption = await pipeline._caption_image(b"png")
+
+    assert caption is None
 
 
 def test_docling_chunks_preserve_page_and_section_provenance(monkeypatch) -> None:

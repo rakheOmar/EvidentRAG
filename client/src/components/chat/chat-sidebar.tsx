@@ -16,6 +16,7 @@ import {
   type SetStateAction,
   useCallback,
   useContext,
+  useEffect,
   useState,
 } from "react";
 import { Link, useLocation } from "react-router";
@@ -47,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type SortOrder = "recent" | "oldest";
+const SIDEBAR_STORAGE_KEY = "evidentrag:sidebar-collapsed";
 
 interface SidebarState {
   collapsed: boolean;
@@ -55,8 +57,19 @@ interface SidebarState {
 
 const SidebarStateContext = createContext<SidebarState | null>(null);
 
+function getInitialSidebarState(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+}
+
 const SidebarStateProvider: FC<{ children: ReactNode }> = ({ children }) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(getInitialSidebarState);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed));
+  }, [collapsed]);
 
   return (
     <SidebarStateContext.Provider value={{ collapsed, setCollapsed }}>
