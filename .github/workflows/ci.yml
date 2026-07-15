@@ -57,7 +57,7 @@ jobs:
           cache-dependency-path: client/package-lock.json
 
       - name: Install dependencies
-        run: npx npm@12.0.1 ci
+        run: npm ci
 
       - name: Type check
         run: npm run typecheck
