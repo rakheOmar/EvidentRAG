@@ -1,13 +1,13 @@
 {
-  "$schema": "https://react.doctor/schema/config.json",
-  "ignore": {
-    "files": ["src/components/ui/**", "src/components/assistant-ui/**"]
-  },
-  "categories": {
-    "Security": "error",
-    "Bugs": "error",
-    "Accessibility": "warn",
-    "Performance": "warn",
-    "Maintainability": "warn"
-  }
+	"$schema": "https://react.doctor/schema/config.json",
+	"ignore": {
+		"files": ["src/components/ui/**", "src/components/assistant-ui/**"]
+	},
+	"categories": {
+		"Security": "error",
+		"Bugs": "error",
+		"Accessibility": "warn",
+		"Performance": "warn",
+		"Maintainability": "warn"
+	}
 }

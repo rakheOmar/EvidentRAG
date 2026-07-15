@@ -1,251 +1,251 @@
 /* eslint-disable react-refresh/only-export-components */
 import {
-  createContext,
-  use,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
+	createContext,
+	use,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
 } from "react";
 
 type Theme = "dark" | "light" | "system";
 type ResolvedTheme = "dark" | "light";
 
 interface ThemeProviderProps {
-  children: React.ReactNode;
-  defaultTheme?: Theme;
-  disableTransitionOnChange?: boolean;
-  storageKey?: string;
+	children: React.ReactNode;
+	defaultTheme?: Theme;
+	disableTransitionOnChange?: boolean;
+	storageKey?: string;
 }
 
 interface ThemeProviderState {
-  setTheme: (theme: Theme) => void;
-  theme: Theme;
+	setTheme: (theme: Theme) => void;
+	theme: Theme;
 }
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 const THEME_VALUES = new Set(["dark", "light", "system"]);
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
-  undefined
+	undefined,
 );
 
 function isTheme(value: string | null): value is Theme {
-  if (value === null) {
-    return false;
-  }
+	if (value === null) {
+		return false;
+	}
 
-  return THEME_VALUES.has(value as Theme);
+	return THEME_VALUES.has(value as Theme);
 }
 
 function getSystemTheme(): ResolvedTheme {
-  if (window.matchMedia(COLOR_SCHEME_QUERY).matches) {
-    return "dark";
-  }
+	if (window.matchMedia(COLOR_SCHEME_QUERY).matches) {
+		return "dark";
+	}
 
-  return "light";
+	return "light";
 }
 
 function updateFavicon(theme: ResolvedTheme) {
-  const favicon = document.querySelector<HTMLLinkElement>("#brand-favicon");
-  if (!favicon) {
-    return;
-  }
+	const favicon = document.querySelector<HTMLLinkElement>("#brand-favicon");
+	if (!favicon) {
+		return;
+	}
 
-  favicon.href = `/brand/favicon_${theme}.png`;
+	favicon.href = `/brand/favicon_${theme}.png`;
 }
 
 function disableTransitionsTemporarily() {
-  const style = document.createElement("style");
-  style.append(
-    document.createTextNode(
-      "*,*::before,*::after{-webkit-transition:none!important;transition:none!important}"
-    )
-  );
-  document.head.append(style);
+	const style = document.createElement("style");
+	style.append(
+		document.createTextNode(
+			"*,*::before,*::after{-webkit-transition:none!important;transition:none!important}",
+		),
+	);
+	document.head.append(style);
 
-  return () => {
-    window.getComputedStyle(document.body);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        style.remove();
-      });
-    });
-  };
+	return () => {
+		window.getComputedStyle(document.body);
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				style.remove();
+			});
+		});
+	};
 }
 
 function isEditableTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
+	if (!(target instanceof HTMLElement)) {
+		return false;
+	}
 
-  if (target.isContentEditable) {
-    return true;
-  }
+	if (target.isContentEditable) {
+		return true;
+	}
 
-  const editableParent = target.closest(
-    "input, textarea, select, [contenteditable='true']"
-  );
-  if (editableParent) {
-    return true;
-  }
+	const editableParent = target.closest(
+		"input, textarea, select, [contenteditable='true']",
+	);
+	if (editableParent) {
+		return true;
+	}
 
-  return false;
+	return false;
 }
 
 export function ThemeProvider({
-  children,
-  defaultTheme = "system",
-  storageKey = "theme",
-  disableTransitionOnChange = true,
-  ...props
+	children,
+	defaultTheme = "system",
+	storageKey = "theme",
+	disableTransitionOnChange = true,
+	...props
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const storedTheme = localStorage.getItem(storageKey);
-    if (isTheme(storedTheme)) {
-      return storedTheme;
-    }
+	const [theme, setThemeState] = useState<Theme>(() => {
+		const storedTheme = localStorage.getItem(storageKey);
+		if (isTheme(storedTheme)) {
+			return storedTheme;
+		}
 
-    return defaultTheme;
-  });
+		return defaultTheme;
+	});
 
-  const setTheme = useCallback(
-    (nextTheme: Theme) => {
-      localStorage.setItem(storageKey, nextTheme);
-      setThemeState(nextTheme);
-    },
-    [storageKey]
-  );
+	const setTheme = useCallback(
+		(nextTheme: Theme) => {
+			localStorage.setItem(storageKey, nextTheme);
+			setThemeState(nextTheme);
+		},
+		[storageKey],
+	);
 
-  const applyTheme = useCallback(
-    (nextTheme: Theme) => {
-      const root = document.documentElement;
-      const resolvedTheme =
-        nextTheme === "system" ? getSystemTheme() : nextTheme;
-      const restoreTransitions = disableTransitionOnChange
-        ? disableTransitionsTemporarily()
-        : null;
+	const applyTheme = useCallback(
+		(nextTheme: Theme) => {
+			const root = document.documentElement;
+			const resolvedTheme =
+				nextTheme === "system" ? getSystemTheme() : nextTheme;
+			const restoreTransitions = disableTransitionOnChange
+				? disableTransitionsTemporarily()
+				: null;
 
-      root.classList.remove("light", "dark");
-      root.classList.add(resolvedTheme);
-      root.style.colorScheme = resolvedTheme;
-      updateFavicon(resolvedTheme);
+			root.classList.remove("light", "dark");
+			root.classList.add(resolvedTheme);
+			root.style.colorScheme = resolvedTheme;
+			updateFavicon(resolvedTheme);
 
-      if (restoreTransitions) {
-        restoreTransitions();
-      }
-    },
-    [disableTransitionOnChange]
-  );
+			if (restoreTransitions) {
+				restoreTransitions();
+			}
+		},
+		[disableTransitionOnChange],
+	);
 
-  useEffect(() => {
-    applyTheme(theme);
+	useEffect(() => {
+		applyTheme(theme);
 
-    if (theme !== "system") {
-      return;
-    }
+		if (theme !== "system") {
+			return;
+		}
 
-    const mediaQuery = window.matchMedia(COLOR_SCHEME_QUERY);
-    const handleChange = () => {
-      applyTheme("system");
-    };
+		const mediaQuery = window.matchMedia(COLOR_SCHEME_QUERY);
+		const handleChange = () => {
+			applyTheme("system");
+		};
 
-    mediaQuery.addEventListener("change", handleChange);
+		mediaQuery.addEventListener("change", handleChange);
 
-    return () => {
-      mediaQuery.removeEventListener("change", handleChange);
-    };
-  }, [theme, applyTheme]);
+		return () => {
+			mediaQuery.removeEventListener("change", handleChange);
+		};
+	}, [theme, applyTheme]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat) {
-        return;
-      }
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.repeat) {
+				return;
+			}
 
-      if (event.metaKey || event.ctrlKey || event.altKey) {
-        return;
-      }
+			if (event.metaKey || event.ctrlKey || event.altKey) {
+				return;
+			}
 
-      if (isEditableTarget(event.target)) {
-        return;
-      }
+			if (isEditableTarget(event.target)) {
+				return;
+			}
 
-      if (event.key.toLowerCase() !== "d") {
-        return;
-      }
+			if (event.key.toLowerCase() !== "d") {
+				return;
+			}
 
-      setThemeState((currentTheme) => {
-        let nextTheme: ResolvedTheme;
+			setThemeState((currentTheme) => {
+				let nextTheme: ResolvedTheme;
 
-        if (currentTheme === "dark") {
-          nextTheme = "light";
-        } else if (currentTheme === "light") {
-          nextTheme = "dark";
-        } else if (getSystemTheme() === "dark") {
-          nextTheme = "light";
-        } else {
-          nextTheme = "dark";
-        }
+				if (currentTheme === "dark") {
+					nextTheme = "light";
+				} else if (currentTheme === "light") {
+					nextTheme = "dark";
+				} else if (getSystemTheme() === "dark") {
+					nextTheme = "light";
+				} else {
+					nextTheme = "dark";
+				}
 
-        localStorage.setItem(storageKey, nextTheme);
-        return nextTheme;
-      });
-    };
+				localStorage.setItem(storageKey, nextTheme);
+				return nextTheme;
+			});
+		};
 
-    window.addEventListener("keydown", handleKeyDown);
+		window.addEventListener("keydown", handleKeyDown);
 
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [storageKey]);
+		return () => {
+			window.removeEventListener("keydown", handleKeyDown);
+		};
+	}, [storageKey]);
 
-  useEffect(() => {
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.storageArea !== localStorage) {
-        return;
-      }
+	useEffect(() => {
+		const handleStorageChange = (event: StorageEvent) => {
+			if (event.storageArea !== localStorage) {
+				return;
+			}
 
-      if (event.key !== storageKey) {
-        return;
-      }
+			if (event.key !== storageKey) {
+				return;
+			}
 
-      if (isTheme(event.newValue)) {
-        setThemeState(event.newValue);
-        return;
-      }
+			if (isTheme(event.newValue)) {
+				setThemeState(event.newValue);
+				return;
+			}
 
-      setThemeState(defaultTheme);
-    };
+			setThemeState(defaultTheme);
+		};
 
-    window.addEventListener("storage", handleStorageChange);
+		window.addEventListener("storage", handleStorageChange);
 
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-    };
-  }, [defaultTheme, storageKey]);
+		return () => {
+			window.removeEventListener("storage", handleStorageChange);
+		};
+	}, [defaultTheme, storageKey]);
 
-  const value = useMemo(
-    () => ({
-      setTheme,
-      theme,
-    }),
-    [theme, setTheme]
-  );
+	const value = useMemo(
+		() => ({
+			setTheme,
+			theme,
+		}),
+		[theme, setTheme],
+	);
 
-  return (
-    <ThemeProviderContext.Provider {...props} value={value}>
-      {children}
-    </ThemeProviderContext.Provider>
-  );
+	return (
+		<ThemeProviderContext.Provider {...props} value={value}>
+			{children}
+		</ThemeProviderContext.Provider>
+	);
 }
 
 export const useTheme = () => {
-  const context = use(ThemeProviderContext);
+	const context = use(ThemeProviderContext);
 
-  if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
+	if (context === undefined) {
+		throw new Error("useTheme must be used within a ThemeProvider");
+	}
 
-  return context;
+	return context;
 };

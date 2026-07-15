@@ -1,49 +1,49 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import {
-  SidebarStateProvider,
-  useSidebarState,
+	SidebarStateProvider,
+	useSidebarState,
 } from "@/components/chat/chat-sidebar";
 
 const SIDEBAR_STORAGE_KEY = "evidentrag:sidebar-collapsed";
 
 function SidebarStateProbe() {
-  const { collapsed, setCollapsed } = useSidebarState();
-  return (
-    <button onClick={() => setCollapsed((current) => !current)} type="button">
-      {collapsed ? "collapsed" : "expanded"}
-    </button>
-  );
+	const { collapsed, setCollapsed } = useSidebarState();
+	return (
+		<button onClick={() => setCollapsed((current) => !current)} type="button">
+			{collapsed ? "collapsed" : "expanded"}
+		</button>
+	);
 }
 
 beforeEach(() => {
-  window.localStorage.clear();
+	window.localStorage.clear();
 });
 
 afterEach(() => {
-  cleanup();
+	cleanup();
 });
 
 it("restores the collapsed sidebar state from the previous session", () => {
-  window.localStorage.setItem(SIDEBAR_STORAGE_KEY, "true");
+	window.localStorage.setItem(SIDEBAR_STORAGE_KEY, "true");
 
-  render(
-    <SidebarStateProvider>
-      <SidebarStateProbe />
-    </SidebarStateProvider>
-  );
+	render(
+		<SidebarStateProvider>
+			<SidebarStateProbe />
+		</SidebarStateProvider>,
+	);
 
-  expect(screen.getByText("collapsed")).toBeInTheDocument();
+	expect(screen.getByText("collapsed")).toBeInTheDocument();
 });
 
 it("persists sidebar changes for the next session", () => {
-  render(
-    <SidebarStateProvider>
-      <SidebarStateProbe />
-    </SidebarStateProvider>
-  );
+	render(
+		<SidebarStateProvider>
+			<SidebarStateProbe />
+		</SidebarStateProvider>,
+	);
 
-  fireEvent.click(screen.getByRole("button", { name: "expanded" }));
+	fireEvent.click(screen.getByRole("button", { name: "expanded" }));
 
-  expect(window.localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe("true");
+	expect(window.localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe("true");
 });

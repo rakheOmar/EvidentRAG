@@ -1,20 +1,20 @@
 const origAddEventListener = EventTarget.prototype.addEventListener;
 EventTarget.prototype.addEventListener = function (
-  type: string,
-  listener: EventListenerOrEventListenerObject | null,
-  options?: boolean | AddEventListenerOptions
+	type: string,
+	listener: EventListenerOrEventListenerObject | null,
+	options?: boolean | AddEventListenerOptions,
 ) {
-  let opts = options;
-  if (type === "touchstart" || type === "touchmove") {
-    if (opts === undefined || opts === null) {
-      opts = { passive: true } as AddEventListenerOptions;
-    } else if (typeof opts === "boolean") {
-      opts = { capture: opts, passive: true };
-    } else if (!(opts as AddEventListenerOptions).passive) {
-      opts = { ...(opts as AddEventListenerOptions), passive: true };
-    }
-  }
-  return origAddEventListener.call(this, type, listener, opts);
+	let opts = options;
+	if (type === "touchstart" || type === "touchmove") {
+		if (opts === undefined || opts === null) {
+			opts = { passive: true } as AddEventListenerOptions;
+		} else if (typeof opts === "boolean") {
+			opts = { capture: opts, passive: true };
+		} else if (!(opts as AddEventListenerOptions).passive) {
+			opts = { ...(opts as AddEventListenerOptions), passive: true };
+		}
+	}
+	return origAddEventListener.call(this, type, listener, opts);
 };
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -34,22 +34,22 @@ const queryClient = new QueryClient();
 const rootElement = document.querySelector("#root");
 
 if (!(rootElement instanceof HTMLElement)) {
-  throw new Error("Root element '#root' was not found.");
+	throw new Error("Root element '#root' was not found.");
 }
 
 createRoot(rootElement).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <ThemeProvider>
-          <ErrorFeedbackProvider>
-            <TooltipProvider>
-              <App />
-              <Toaster />
-            </TooltipProvider>
-          </ErrorFeedbackProvider>
-        </ThemeProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
-  </StrictMode>
+	<StrictMode>
+		<QueryClientProvider client={queryClient}>
+			<BrowserRouter>
+				<ThemeProvider>
+					<ErrorFeedbackProvider>
+						<TooltipProvider>
+							<App />
+							<Toaster />
+						</TooltipProvider>
+					</ErrorFeedbackProvider>
+				</ThemeProvider>
+			</BrowserRouter>
+		</QueryClientProvider>
+	</StrictMode>,
 );

@@ -1,7 +1,7 @@
 import type {
-  AppendMessage,
-  ExternalStoreAdapter,
-  ThreadAssistantMessagePart,
+	AppendMessage,
+	ExternalStoreAdapter,
+	ThreadAssistantMessagePart,
 } from "@assistant-ui/react";
 import { useExternalStoreRuntime } from "@assistant-ui/react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -9,11 +9,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useErrorFeedback } from "@/components/error-feedback";
 import {
-  appendThreadMessage,
-  createThread,
-  fetchThread,
-  queryKeys,
-  useThreadHistory,
+	appendThreadMessage,
+	createThread,
+	fetchThread,
+	queryKeys,
+	useThreadHistory,
 } from "@/lib/api";
 import { toDisplayContentParts } from "@/lib/content-parts";
 import { asAppError } from "@/lib/errors";
@@ -21,513 +21,513 @@ import { setMessageEvidence } from "@/lib/evidence-store";
 import { convertEvidentMessage } from "@/lib/message-utils";
 import { setMessageSegments } from "@/lib/segments-store";
 import type {
-  ContentPartsEvent,
-  DoneEventWithContentParts,
-  EvidentChatMessage,
-  HopProgressEvent,
-  ReasoningTraceEntry,
-  RouteSelectedEvent,
-  ThreadMessage,
-  ThreadTurnResponse,
+	ContentPartsEvent,
+	DoneEventWithContentParts,
+	EvidentChatMessage,
+	HopProgressEvent,
+	ReasoningTraceEntry,
+	RouteSelectedEvent,
+	ThreadMessage,
+	ThreadTurnResponse,
 } from "@/lib/types";
 
 function getMessageText(message: AppendMessage): string {
-  return message.content
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join(" ")
-    .trim();
+	return message.content
+		.filter((part) => part.type === "text")
+		.map((part) => part.text)
+		.join(" ")
+		.trim();
 }
 
 function toAssistantStatus(
-  message: ThreadMessage
+	message: ThreadMessage,
 ): EvidentChatMessage["status"] {
-  if (message.role !== "assistant") {
-    return "complete";
-  }
-  if (message.status === "failed") {
-    return "error";
-  }
-  if (message.status === "completed") {
-    return "complete";
-  }
-  return "running";
+	if (message.role !== "assistant") {
+		return "complete";
+	}
+	if (message.status === "failed") {
+		return "error";
+	}
+	if (message.status === "completed") {
+		return "complete";
+	}
+	return "running";
 }
 
 async function toRuntimeMessage(
-  message: ThreadMessage
+	message: ThreadMessage,
 ): Promise<EvidentChatMessage> {
-  const answer = message.answer ?? null;
-  const contentParts: ThreadAssistantMessagePart[] =
-    message.role === "assistant"
-      ? await toDisplayContentParts(
-          answer?.content_parts ??
-            (answer ? [{ text: answer.full_text, type: "text" }] : [])
-        )
-      : [{ text: message.content_text, type: "text" }];
+	const answer = message.answer ?? null;
+	const contentParts: ThreadAssistantMessagePart[] =
+		message.role === "assistant"
+			? await toDisplayContentParts(
+					answer?.content_parts ??
+						(answer ? [{ text: answer.full_text, type: "text" }] : []),
+				)
+			: [{ text: message.content_text, type: "text" }];
 
-  if (answer?.segments) {
-    setMessageSegments(message.id, answer.segments);
-  }
-  if (answer?.evidence) {
-    setMessageEvidence(message.id, answer.evidence);
-  }
+	if (answer?.segments) {
+		setMessageSegments(message.id, answer.segments);
+	}
+	if (answer?.evidence) {
+		setMessageEvidence(message.id, answer.evidence);
+	}
 
-  const reasoningTrace = answer?.reasoning_trace ?? [];
-  const hopProgress = reasoningTrace
-    .filter(
-      (t): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
-        t.type === "hop"
-    )
-    .map((t) => ({
-      hop: t.hop,
-      intermediate_answer: t.intermediate_answer,
-      sub_query: t.sub_query,
-    }));
+	const reasoningTrace = answer?.reasoning_trace ?? [];
+	const hopProgress = reasoningTrace
+		.filter(
+			(t): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
+				t.type === "hop",
+		)
+		.map((t) => ({
+			hop: t.hop,
+			intermediate_answer: t.intermediate_answer,
+			sub_query: t.sub_query,
+		}));
 
-  return {
-    contentParts,
-    contextUsage: answer?.context_usage ?? undefined,
-    createdAt: new Date(message.created_at),
-    hopProgress,
-    id: message.id,
-    messageId: message.id,
-    reasoningTrace,
-    role: message.role,
-    route: message.selected_route ?? undefined,
-    status: toAssistantStatus(message),
-    subQueries: message.sub_queries,
-    threadId: message.thread_id,
-  };
+	return {
+		contentParts,
+		contextUsage: answer?.context_usage ?? undefined,
+		createdAt: new Date(message.created_at),
+		hopProgress,
+		id: message.id,
+		messageId: message.id,
+		reasoningTrace,
+		role: message.role,
+		route: message.selected_route ?? undefined,
+		status: toAssistantStatus(message),
+		subQueries: message.sub_queries,
+		threadId: message.thread_id,
+	};
 }
 
 function replacePendingMessages(
-  current: EvidentChatMessage[],
-  response: ThreadTurnResponse,
-  queryText: string
+	current: EvidentChatMessage[],
+	response: ThreadTurnResponse,
+	queryText: string,
 ) {
-  const next = [...current];
-  if (next.length >= 2) {
-    next.splice(next.length - 2, 2);
-  }
-  next.push(
-    {
-      contentParts: [{ text: queryText, type: "text" }],
-      createdAt: new Date(response.user_message.created_at),
-      id: response.user_message.id,
-      messageId: response.user_message.id,
-      role: "user",
-      status: "complete",
-      threadId: response.thread.id,
-    },
-    {
-      contentParts: [{ text: "Starting...", type: "reasoning" }],
-      createdAt: new Date(response.assistant_message.created_at),
-      id: response.assistant_message.id,
-      messageId: response.assistant_message.id,
-      role: "assistant",
-      status: "running",
-      subQueries: response.assistant_message.sub_queries,
-      threadId: response.thread.id,
-    }
-  );
-  return next;
+	const next = [...current];
+	if (next.length >= 2) {
+		next.splice(next.length - 2, 2);
+	}
+	next.push(
+		{
+			contentParts: [{ text: queryText, type: "text" }],
+			createdAt: new Date(response.user_message.created_at),
+			id: response.user_message.id,
+			messageId: response.user_message.id,
+			role: "user",
+			status: "complete",
+			threadId: response.thread.id,
+		},
+		{
+			contentParts: [{ text: "Starting...", type: "reasoning" }],
+			createdAt: new Date(response.assistant_message.created_at),
+			id: response.assistant_message.id,
+			messageId: response.assistant_message.id,
+			role: "assistant",
+			status: "running",
+			subQueries: response.assistant_message.sub_queries,
+			threadId: response.thread.id,
+		},
+	);
+	return next;
 }
 
 export function useEvidentRuntime() {
-  const navigate = useNavigate();
-  const { threadId: routeThreadId } = useParams<{ threadId?: string }>();
-  const [currentThreadId, setCurrentThreadId] = useState<string | undefined>();
-  const [isRunning, setIsRunning] = useState(false);
-  const [messages, setMessages] = useState<EvidentChatMessage[]>([]);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const loadedThreadIdRef = useRef<string | undefined>(undefined);
-  const queryClient = useQueryClient();
-  const { notify } = useErrorFeedback();
-  const historyQuery = useThreadHistory();
-  const lastHistoryErrorRef = useRef<unknown>(null);
-  const historyDataRef = useRef(historyQuery.data);
-  historyDataRef.current = historyQuery.data;
+	const navigate = useNavigate();
+	const { threadId: routeThreadId } = useParams<{ threadId?: string }>();
+	const [currentThreadId, setCurrentThreadId] = useState<string | undefined>();
+	const [isRunning, setIsRunning] = useState(false);
+	const [messages, setMessages] = useState<EvidentChatMessage[]>([]);
+	const eventSourceRef = useRef<EventSource | null>(null);
+	const loadedThreadIdRef = useRef<string | undefined>(undefined);
+	const queryClient = useQueryClient();
+	const { notify } = useErrorFeedback();
+	const historyQuery = useThreadHistory();
+	const lastHistoryErrorRef = useRef<unknown>(null);
+	const historyDataRef = useRef(historyQuery.data);
+	historyDataRef.current = historyQuery.data;
 
-  useEffect(() => {
-    if (
-      historyQuery.error &&
-      historyQuery.error !== lastHistoryErrorRef.current
-    ) {
-      lastHistoryErrorRef.current = historyQuery.error;
-      notify(historyQuery.error);
-    }
-  }, [historyQuery.error, notify]);
+	useEffect(() => {
+		if (
+			historyQuery.error &&
+			historyQuery.error !== lastHistoryErrorRef.current
+		) {
+			lastHistoryErrorRef.current = historyQuery.error;
+			notify(historyQuery.error);
+		}
+	}, [historyQuery.error, notify]);
 
-  const onCancel = useCallback(async () => {
-    eventSourceRef.current?.close();
-    eventSourceRef.current = null;
-    setIsRunning(false);
-    await Promise.resolve();
-  }, []);
+	const onCancel = useCallback(async () => {
+		eventSourceRef.current?.close();
+		eventSourceRef.current = null;
+		setIsRunning(false);
+		await Promise.resolve();
+	}, []);
 
-  const setRuntimeMessages = useCallback(
-    (nextMessages: readonly EvidentChatMessage[]) => {
-      setMessages([...nextMessages]);
-    },
-    []
-  );
+	const setRuntimeMessages = useCallback(
+		(nextMessages: readonly EvidentChatMessage[]) => {
+			setMessages([...nextMessages]);
+		},
+		[],
+	);
 
-  const onSwitchToNewThread = useCallback(() => {
-    eventSourceRef.current?.close();
-    eventSourceRef.current = null;
-    setCurrentThreadId(undefined);
-    setMessages([]);
-    setIsRunning(false);
-    loadedThreadIdRef.current = undefined;
-    navigate("/chat");
-  }, [navigate]);
+	const onSwitchToNewThread = useCallback(() => {
+		eventSourceRef.current?.close();
+		eventSourceRef.current = null;
+		setCurrentThreadId(undefined);
+		setMessages([]);
+		setIsRunning(false);
+		loadedThreadIdRef.current = undefined;
+		navigate("/chat");
+	}, [navigate]);
 
-  const onSwitchToThread = useCallback(
-    (threadId: string) => {
-      navigate(`/chat/${threadId}`);
-    },
-    [navigate]
-  );
+	const onSwitchToThread = useCallback(
+		(threadId: string) => {
+			navigate(`/chat/${threadId}`);
+		},
+		[navigate],
+	);
 
-  const onDeleteThread = useCallback(async (_threadId: string) => {
-    // EvidentRAG does not expose thread deletion yet.
-  }, []);
+	const onDeleteThread = useCallback(async (_threadId: string) => {
+		// EvidentRAG does not expose thread deletion yet.
+	}, []);
 
-  const loadThread = useCallback(async (threadId: string) => {
-    const thread = await fetchThread(threadId);
-    const runtimeMessages = await Promise.all(
-      thread.messages.map(toRuntimeMessage)
-    );
-    loadedThreadIdRef.current = thread.id;
-    setCurrentThreadId(thread.id);
-    setIsRunning(
-      runtimeMessages.some((message) => message.status === "running")
-    );
-    setMessages(runtimeMessages);
-  }, []);
+	const loadThread = useCallback(async (threadId: string) => {
+		const thread = await fetchThread(threadId);
+		const runtimeMessages = await Promise.all(
+			thread.messages.map(toRuntimeMessage),
+		);
+		loadedThreadIdRef.current = thread.id;
+		setCurrentThreadId(thread.id);
+		setIsRunning(
+			runtimeMessages.some((message) => message.status === "running"),
+		);
+		setMessages(runtimeMessages);
+	}, []);
 
-  useEffect(() => {
-    if (routeThreadId === undefined) {
-      loadedThreadIdRef.current = undefined;
-      setCurrentThreadId(undefined);
-      setMessages([]);
-      setIsRunning(false);
-      return;
-    }
-    if (loadedThreadIdRef.current === routeThreadId) {
-      return;
-    }
-    loadThread(routeThreadId).catch((error: unknown) => {
-      notify(error);
-      loadedThreadIdRef.current = undefined;
-    });
-  }, [loadThread, notify, routeThreadId]);
+	useEffect(() => {
+		if (routeThreadId === undefined) {
+			loadedThreadIdRef.current = undefined;
+			setCurrentThreadId(undefined);
+			setMessages([]);
+			setIsRunning(false);
+			return;
+		}
+		if (loadedThreadIdRef.current === routeThreadId) {
+			return;
+		}
+		loadThread(routeThreadId).catch((error: unknown) => {
+			notify(error);
+			loadedThreadIdRef.current = undefined;
+		});
+	}, [loadThread, notify, routeThreadId]);
 
-  const onNew = useCallback(
-    async (message: AppendMessage) => {
-      const queryText = getMessageText(message);
-      if (!queryText) {
-        return;
-      }
-      const optimisticUserId = crypto.randomUUID();
-      const optimisticAssistantId = crypto.randomUUID();
+	const onNew = useCallback(
+		async (message: AppendMessage) => {
+			const queryText = getMessageText(message);
+			if (!queryText) {
+				return;
+			}
+			const optimisticUserId = crypto.randomUUID();
+			const optimisticAssistantId = crypto.randomUUID();
 
-      setMessages((current) => [
-        ...current,
-        {
-          contentParts: [{ text: queryText, type: "text" }],
-          createdAt: new Date(),
-          id: optimisticUserId,
-          role: "user",
-          status: "complete",
-        },
-        {
-          contentParts: [],
-          createdAt: new Date(),
-          generating: false,
-          hopProgress: [],
-          id: optimisticAssistantId,
-          reasoningTrace: [],
-          role: "assistant",
-          status: "running",
-          subQueries: [],
-        },
-      ]);
+			setMessages((current) => [
+				...current,
+				{
+					contentParts: [{ text: queryText, type: "text" }],
+					createdAt: new Date(),
+					id: optimisticUserId,
+					role: "user",
+					status: "complete",
+				},
+				{
+					contentParts: [],
+					createdAt: new Date(),
+					generating: false,
+					hopProgress: [],
+					id: optimisticAssistantId,
+					reasoningTrace: [],
+					role: "assistant",
+					status: "running",
+					subQueries: [],
+				},
+			]);
 
-      setIsRunning(true);
+			setIsRunning(true);
 
-      let response: ThreadTurnResponse;
-      try {
-        response = currentThreadId
-          ? await appendThreadMessage(currentThreadId, queryText)
-          : await createThread(queryText);
-      } catch (error: unknown) {
-        const appError = notify(error);
-        if (appError.presentation === "inline") {
-          setMessages((current) =>
-            current.map((entry) =>
-              entry.id === optimisticAssistantId
-                ? {
-                    ...entry,
-                    contentParts: [{ text: appError.message, type: "text" }],
-                    status: "error",
-                  }
-                : entry
-            )
-          );
-        }
-        setIsRunning(false);
-        return;
-      }
+			let response: ThreadTurnResponse;
+			try {
+				response = currentThreadId
+					? await appendThreadMessage(currentThreadId, queryText)
+					: await createThread(queryText);
+			} catch (error: unknown) {
+				const appError = notify(error);
+				if (appError.presentation === "inline") {
+					setMessages((current) =>
+						current.map((entry) =>
+							entry.id === optimisticAssistantId
+								? {
+										...entry,
+										contentParts: [{ text: appError.message, type: "text" }],
+										status: "error",
+									}
+								: entry,
+						),
+					);
+				}
+				setIsRunning(false);
+				return;
+			}
 
-      setCurrentThreadId(response.thread.id);
-      loadedThreadIdRef.current = response.thread.id;
-      setMessages((current) =>
-        replacePendingMessages(current, response, queryText)
-      );
-      if (routeThreadId !== response.thread.id) {
-        navigate(`/chat/${response.thread.id}`);
-      }
+			setCurrentThreadId(response.thread.id);
+			loadedThreadIdRef.current = response.thread.id;
+			setMessages((current) =>
+				replacePendingMessages(current, response, queryText),
+			);
+			if (routeThreadId !== response.thread.id) {
+				navigate(`/chat/${response.thread.id}`);
+			}
 
-      const assistantMessageId = response.assistant_message.id;
-      const threadId = response.thread.id;
-      const eventSource = new EventSource(
-        `/api/v1/threads/${threadId}/messages/${assistantMessageId}/events`
-      );
-      eventSourceRef.current = eventSource;
+			const assistantMessageId = response.assistant_message.id;
+			const threadId = response.thread.id;
+			const eventSource = new EventSource(
+				`/api/v1/threads/${threadId}/messages/${assistantMessageId}/events`,
+			);
+			eventSourceRef.current = eventSource;
 
-      const updateAssistantMessage = (
-        updater: (message: EvidentChatMessage) => EvidentChatMessage
-      ) => {
-        setMessages((current) =>
-          current.map((entry) =>
-            entry.id === assistantMessageId ? updater(entry) : entry
-          )
-        );
-      };
+			const updateAssistantMessage = (
+				updater: (message: EvidentChatMessage) => EvidentChatMessage,
+			) => {
+				setMessages((current) =>
+					current.map((entry) =>
+						entry.id === assistantMessageId ? updater(entry) : entry,
+					),
+				);
+			};
 
-      eventSource.addEventListener(
-        "route_selected",
-        (event: MessageEvent<string>) => {
-          const payload = JSON.parse(event.data) as RouteSelectedEvent;
+			eventSource.addEventListener(
+				"route_selected",
+				(event: MessageEvent<string>) => {
+					const payload = JSON.parse(event.data) as RouteSelectedEvent;
 
-          updateAssistantMessage((entry) => ({
-            ...entry,
-            route: payload.route,
-            subQueries: payload.sub_queries,
-          }));
-        }
-      );
+					updateAssistantMessage((entry) => ({
+						...entry,
+						route: payload.route,
+						subQueries: payload.sub_queries,
+					}));
+				},
+			);
 
-      eventSource.addEventListener(
-        "hop_progress",
-        (event: MessageEvent<string>) => {
-          const payload = JSON.parse(event.data) as HopProgressEvent;
+			eventSource.addEventListener(
+				"hop_progress",
+				(event: MessageEvent<string>) => {
+					const payload = JSON.parse(event.data) as HopProgressEvent;
 
-          const hopEntry: ReasoningTraceEntry = {
-            hop: payload.hop,
-            intermediate_answer: payload.intermediate_answer,
-            sub_query: payload.sub_query,
-            type: "hop",
-          };
-          updateAssistantMessage((entry) => {
-            const trace = entry.reasoningTrace ?? [];
-            const last = trace.at(-1);
-            const exists = last?.type === "hop" && last.hop === payload.hop;
-            return {
-              ...entry,
-              hopProgress: [...(entry.hopProgress ?? []), payload],
-              reasoningTrace: exists ? trace : [...trace, hopEntry],
-            };
-          });
-        }
-      );
+					const hopEntry: ReasoningTraceEntry = {
+						hop: payload.hop,
+						intermediate_answer: payload.intermediate_answer,
+						sub_query: payload.sub_query,
+						type: "hop",
+					};
+					updateAssistantMessage((entry) => {
+						const trace = entry.reasoningTrace ?? [];
+						const last = trace.at(-1);
+						const exists = last?.type === "hop" && last.hop === payload.hop;
+						return {
+							...entry,
+							hopProgress: [...(entry.hopProgress ?? []), payload],
+							reasoningTrace: exists ? trace : [...trace, hopEntry],
+						};
+					});
+				},
+			);
 
-      eventSource.addEventListener(
-        "content_parts",
-        (event: MessageEvent<string>) => {
-          const payload = JSON.parse(event.data) as ContentPartsEvent;
-          const stepText = payload.parts
-            .filter((p) => p.type === "reasoning")
-            .map((p) => (p as { text?: string }).text ?? "")
-            .join(" ")
-            .trim();
+			eventSource.addEventListener(
+				"content_parts",
+				(event: MessageEvent<string>) => {
+					const payload = JSON.parse(event.data) as ContentPartsEvent;
+					const stepText = payload.parts
+						.filter((p) => p.type === "reasoning")
+						.map((p) => (p as { text?: string }).text ?? "")
+						.join(" ")
+						.trim();
 
-          updateAssistantMessage((entry) => {
-            const trace = entry.reasoningTrace ?? [];
-            const last = trace.at(-1);
-            const exists = last?.type === "step" && last.text === stepText;
-            const hasAnswerText = payload.parts.some((p) => p.type === "text");
-            return {
-              ...entry,
-              contentParts: payload.parts,
-              generating: entry.generating || hasAnswerText,
-              reasoningTrace:
-                stepText && !exists
-                  ? [...trace, { text: stepText, type: "step" }]
-                  : trace,
-              status: "running",
-            };
-          });
-        }
-      );
+					updateAssistantMessage((entry) => {
+						const trace = entry.reasoningTrace ?? [];
+						const last = trace.at(-1);
+						const exists = last?.type === "step" && last.text === stepText;
+						const hasAnswerText = payload.parts.some((p) => p.type === "text");
+						return {
+							...entry,
+							contentParts: payload.parts,
+							generating: entry.generating || hasAnswerText,
+							reasoningTrace:
+								stepText && !exists
+									? [...trace, { text: stepText, type: "step" }]
+									: trace,
+							status: "running",
+						};
+					});
+				},
+			);
 
-      eventSource.addEventListener("done", (event: MessageEvent<string>) => {
-        eventSource.close();
-        if (eventSourceRef.current === eventSource) {
-          eventSourceRef.current = null;
-        }
-        setIsRunning(false);
-        (async () => {
-          const payload = JSON.parse(event.data) as DoneEventWithContentParts;
+			eventSource.addEventListener("done", (event: MessageEvent<string>) => {
+				eventSource.close();
+				if (eventSourceRef.current === eventSource) {
+					eventSourceRef.current = null;
+				}
+				setIsRunning(false);
+				(async () => {
+					const payload = JSON.parse(event.data) as DoneEventWithContentParts;
 
-          if (payload.error) {
-            updateAssistantMessage((entry) => ({
-              ...entry,
-              contentParts: payload.error_message
-                ? [{ text: payload.error_message, type: "text" }]
-                : entry.contentParts,
-              status: "error",
-            }));
-          } else {
-            if (payload.segments) {
-              setMessageSegments(assistantMessageId, payload.segments);
-            }
-            if (payload.evidence) {
-              setMessageEvidence(assistantMessageId, payload.evidence);
-            }
-            const displayParts = await toDisplayContentParts(
-              payload.content_parts
-            );
-            updateAssistantMessage((entry) => ({
-              ...entry,
-              contentParts: displayParts,
-              contextUsage: payload.context_usage ?? entry.contextUsage,
-              hopProgress:
-                entry.hopProgress && entry.hopProgress.length > 0
-                  ? entry.hopProgress
-                  : (payload.reasoning_trace ?? [])
-                      .filter(
-                        (
-                          t
-                        ): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
-                          t.type === "hop"
-                      )
-                      .map((t) => ({
-                        hop: t.hop,
-                        intermediate_answer: t.intermediate_answer,
-                        sub_query: t.sub_query,
-                      })),
-              reasoningTrace: payload.reasoning_trace ?? entry.reasoningTrace,
-              status: "complete",
-            }));
-          }
+					if (payload.error) {
+						updateAssistantMessage((entry) => ({
+							...entry,
+							contentParts: payload.error_message
+								? [{ text: payload.error_message, type: "text" }]
+								: entry.contentParts,
+							status: "error",
+						}));
+					} else {
+						if (payload.segments) {
+							setMessageSegments(assistantMessageId, payload.segments);
+						}
+						if (payload.evidence) {
+							setMessageEvidence(assistantMessageId, payload.evidence);
+						}
+						const displayParts = await toDisplayContentParts(
+							payload.content_parts,
+						);
+						updateAssistantMessage((entry) => ({
+							...entry,
+							contentParts: displayParts,
+							contextUsage: payload.context_usage ?? entry.contextUsage,
+							hopProgress:
+								entry.hopProgress && entry.hopProgress.length > 0
+									? entry.hopProgress
+									: (payload.reasoning_trace ?? [])
+											.filter(
+												(
+													t,
+												): t is Extract<ReasoningTraceEntry, { type: "hop" }> =>
+													t.type === "hop",
+											)
+											.map((t) => ({
+												hop: t.hop,
+												intermediate_answer: t.intermediate_answer,
+												sub_query: t.sub_query,
+											})),
+							reasoningTrace: payload.reasoning_trace ?? entry.reasoningTrace,
+							status: "complete",
+						}));
+					}
 
-          queryClient.invalidateQueries({ queryKey: queryKeys.threads });
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.thread(threadId),
-          });
-        })().catch((error: unknown) => {
-          updateAssistantMessage((entry) => ({
-            ...entry,
-            contentParts: [{ text: asAppError(error).message, type: "text" }],
-            status: "error",
-          }));
-          eventSource.close();
-          eventSourceRef.current = null;
-          setIsRunning(false);
-        });
-      });
+					queryClient.invalidateQueries({ queryKey: queryKeys.threads });
+					queryClient.invalidateQueries({
+						queryKey: queryKeys.thread(threadId),
+					});
+				})().catch((error: unknown) => {
+					updateAssistantMessage((entry) => ({
+						...entry,
+						contentParts: [{ text: asAppError(error).message, type: "text" }],
+						status: "error",
+					}));
+					eventSource.close();
+					eventSourceRef.current = null;
+					setIsRunning(false);
+				});
+			});
 
-      eventSource.addEventListener("error", () => {
-        // EventSource reconnects automatically. The server replays terminal
-        // messages after subscribing, so transient transport failures remain
-        // recoverable without replacing the in-progress answer with an error.
-      });
-    },
-    [currentThreadId, navigate, notify, queryClient, routeThreadId]
-  );
+			eventSource.addEventListener("error", () => {
+				// EventSource reconnects automatically. The server replays terminal
+				// messages after subscribing, so transient transport failures remain
+				// recoverable without replacing the in-progress answer with an error.
+			});
+		},
+		[currentThreadId, navigate, notify, queryClient, routeThreadId],
+	);
 
-  useEffect(() => {
-    if (!(currentThreadId && !eventSourceRef.current)) {
-      return;
-    }
-    const runningMessage = messages.find(
-      (message) =>
-        message.role === "assistant" &&
-        message.status === "running" &&
-        message.messageId
-    );
-    if (!runningMessage?.messageId) {
-      return;
-    }
+	useEffect(() => {
+		if (!(currentThreadId && !eventSourceRef.current)) {
+			return;
+		}
+		const runningMessage = messages.find(
+			(message) =>
+				message.role === "assistant" &&
+				message.status === "running" &&
+				message.messageId,
+		);
+		if (!runningMessage?.messageId) {
+			return;
+		}
 
-    const eventSource = new EventSource(
-      `/api/v1/threads/${currentThreadId}/messages/${runningMessage.messageId}/events`
-    );
-    eventSourceRef.current = eventSource;
-    const handleDone = () => {
-      eventSource.close();
-      if (eventSourceRef.current === eventSource) {
-        eventSourceRef.current = null;
-      }
-      setIsRunning(false);
-      loadThread(currentThreadId).catch(notify);
-      queryClient.invalidateQueries({ queryKey: queryKeys.threads });
-    };
-    eventSource.addEventListener("done", handleDone);
+		const eventSource = new EventSource(
+			`/api/v1/threads/${currentThreadId}/messages/${runningMessage.messageId}/events`,
+		);
+		eventSourceRef.current = eventSource;
+		const handleDone = () => {
+			eventSource.close();
+			if (eventSourceRef.current === eventSource) {
+				eventSourceRef.current = null;
+			}
+			setIsRunning(false);
+			loadThread(currentThreadId).catch(notify);
+			queryClient.invalidateQueries({ queryKey: queryKeys.threads });
+		};
+		eventSource.addEventListener("done", handleDone);
 
-    return () => {
-      eventSource.close();
-      if (eventSourceRef.current === eventSource) {
-        eventSourceRef.current = null;
-      }
-    };
-  }, [currentThreadId, loadThread, messages, notify, queryClient]);
+		return () => {
+			eventSource.close();
+			if (eventSourceRef.current === eventSource) {
+				eventSourceRef.current = null;
+			}
+		};
+	}, [currentThreadId, loadThread, messages, notify, queryClient]);
 
-  const adapter = useMemo<ExternalStoreAdapter<EvidentChatMessage>>(
-    () => ({
-      adapters: {
-        threadList: {
-          isLoading: historyQuery.isLoading,
-          onDelete: onDeleteThread,
-          onSwitchToNewThread,
-          onSwitchToThread,
-          threadId: currentThreadId,
-          threads:
-            historyQuery.data?.map((thread) => ({
-              id: thread.id,
-              lastMessageAt: new Date(thread.updated_at),
-              remoteId: thread.id,
-              status: "regular" as const,
-              title: thread.title,
-            })) ?? [],
-        },
-      },
-      convertMessage: convertEvidentMessage,
-      isRunning,
-      messages,
-      onCancel,
-      onNew,
-      setMessages: setRuntimeMessages,
-    }),
-    [
-      currentThreadId,
-      historyQuery.data,
-      historyQuery.isLoading,
-      isRunning,
-      messages,
-      onCancel,
-      onDeleteThread,
-      onNew,
-      onSwitchToNewThread,
-      onSwitchToThread,
-      setRuntimeMessages,
-    ]
-  );
+	const adapter = useMemo<ExternalStoreAdapter<EvidentChatMessage>>(
+		() => ({
+			adapters: {
+				threadList: {
+					isLoading: historyQuery.isLoading,
+					onDelete: onDeleteThread,
+					onSwitchToNewThread,
+					onSwitchToThread,
+					threadId: currentThreadId,
+					threads:
+						historyQuery.data?.map((thread) => ({
+							id: thread.id,
+							lastMessageAt: new Date(thread.updated_at),
+							remoteId: thread.id,
+							status: "regular" as const,
+							title: thread.title,
+						})) ?? [],
+				},
+			},
+			convertMessage: convertEvidentMessage,
+			isRunning,
+			messages,
+			onCancel,
+			onNew,
+			setMessages: setRuntimeMessages,
+		}),
+		[
+			currentThreadId,
+			historyQuery.data,
+			historyQuery.isLoading,
+			isRunning,
+			messages,
+			onCancel,
+			onDeleteThread,
+			onNew,
+			onSwitchToNewThread,
+			onSwitchToThread,
+			setRuntimeMessages,
+		],
+	);
 
-  const runtime = useExternalStoreRuntime(adapter);
+	const runtime = useExternalStoreRuntime(adapter);
 
-  return { adapter, isRunning, messages, runtime };
+	return { adapter, isRunning, messages, runtime };
 }
