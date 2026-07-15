@@ -64,7 +64,7 @@ Run these before considering work complete (step 4 above).
 
 | Check | Command |
 |---|---|
-| Type check | `npx basedpyright` |
+| Type check | `uv run basedpyright` |
 | Tests | `uv run pytest` |
 | Lint | `uv run ruff check . --fix` |
 | Format | `uv run ruff format .` |

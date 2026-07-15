@@ -4,6 +4,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from time import perf_counter
+from typing import Any
 
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
@@ -11,7 +12,7 @@ from opentelemetry.trace import Status, StatusCode
 from app.core.logging import enrich_wide_event
 
 
-def _extract_routing_json(raw: str) -> dict[str, object]:
+def _extract_routing_json(raw: str) -> dict[str, Any]:
     raw = raw.strip()
     try:
         return json.loads(raw)

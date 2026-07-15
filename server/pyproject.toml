@@ -31,6 +31,7 @@ seed-demo-data = "app.seed.seed_demo_data:main"
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.30.0",
     "pytest>=8.4.0",
     "pytest-asyncio>=0.25.0",
     "ruff>=0.15.20",

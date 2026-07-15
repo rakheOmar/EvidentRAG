@@ -1,9 +1,5 @@
 <div align="center">
-  <img src="https://placehold.co/800x200?text=EvidentRAG" alt="EvidentRAG" />
-  <p>
-    <img alt="License" src="https://img.shields.io/badge/license-MIT-green.svg" />
-    <img alt="CI" src="https://img.shields.io/badge/CI-GitHub%20Actions-blue.svg" />
-  </p>
+  <img src="https://github.com/user-attachments/assets/257ef2be-c81a-416b-94ff-e9af7913a3ad" alt="EvidentRAG" width="600" />
 </div>
 
 # EvidentRAG
@@ -14,7 +10,6 @@ strategy per query, blends dense and lexical search, reranks with a
 cross-encoder, and remembers which evidence actually helped (and which didn't)
 across conversations.
 
----
 
 ## Features
 
@@ -33,25 +28,45 @@ across conversations.
 - **Streaming answers.** Progress and the final answer stream over Server-Sent
   Events, so the UI updates as retrieval and generation happen.
 
----
 
 ## Architecture
 
-```
-┌─────────────┐      ┌──────────────────┐      ┌─────────────────┐
-│  Client     │ HTTP │  API (FastAPI)   │  enq │  Worker (ARQ)   │
-│  (Vite +    │─────▶│  /api/* endpoints│─────▶│  ingest + query │
-│ assistant-ui)│      │  SSE streaming   │      │  pipelines      │
-└─────────────┘      └──────────────────┘      └────────┬────────┘
-                                                        │
-                       ┌────────────────────────────────┼──────────────────────┐
-                       ▼                               ▼                      ▼
-                ┌─────────────┐                ┌──────────────┐       ┌──────────────┐
-                │  Postgres   │                │   Qdrant     │       │    Redis     │
-                │ (pgvector:  │                │ (vector +    │       │ (ARQ queue,  │
-                │  KB, docs,  │                │  BM25 index) │       │  ERM cache)  │
-                │  evidence)  │                └──────────────┘       └──────────────┘
-                └─────────────┘
+```mermaid
+flowchart LR
+    classDef client fill:#6366f1,stroke:#4338ca,color:#fff,stroke-width:2px
+    classDef api fill:#7c3aed,stroke:#5b21b6,color:#fff,stroke-width:2px
+    classDef pipeline fill:#8b5cf6,stroke:#6d28d9,color:#fff,stroke-width:2px
+    classDef ingest fill:#6b7280,stroke:#4b5563,color:#fff,stroke-width:2px
+    classDef pg fill:#0d9488,stroke:#0f766e,color:#fff,stroke-width:2px
+    classDef qd fill:#0891b2,stroke:#0e7490,color:#fff,stroke-width:2px
+    classDef rd fill:#d97706,stroke:#b45309,color:#fff,stroke-width:2px
+
+    C["Client (Vite + assistant-ui)"]:::client
+
+    subgraph API["API Server"]
+        EP["REST / SSE Streaming"]:::api
+        OT["OpenTelemetry"]:::api
+    end
+
+    subgraph Worker["Worker (ARQ)"]
+        direction LR
+        AR["ARAG Router"]:::pipeline --> QW["Query Rewriter"]:::pipeline --> HR["Hybrid Retrieval"]:::pipeline --> RK["RRF + Rerank"]:::pipeline --> ER["ERM"]:::pipeline
+        IN["Ingestion Pipeline (PDF + image → chunks)"]:::ingest
+    end
+
+    subgraph Stores["Data Stores"]
+        PG[("Postgres (pgvector)")]:::pg
+        QD[("Qdrant (vector + BM25)")]:::qd
+        RD[("Redis (queue, cache, pub/sub)")]:::rd
+    end
+
+    C -->|"HTTP / SSE"| API
+    API -.->|"enqueue"| RD
+    RD -.->|"dequeue"| Worker
+    RD -.->|"SSE events"| API
+    Worker --- PG
+    Worker --- QD
+    Worker --- RD
 ```
 
 A request hits the FastAPI API, which enqueues the work on Redis. The ARQ worker
@@ -59,7 +74,6 @@ runs ingestion and query pipelines against Postgres (documents, knowledge bases,
 evidence, pgvector) and Qdrant (dense + BM25 indexes), then streams results back
 over SSE.
 
----
 
 ## Tech stack
 
@@ -70,7 +84,6 @@ over SSE.
 | Storage   | PostgreSQL (pgvector), Qdrant, Redis |
 | Infra     | Multi-stage `Dockerfile` (client build → server image) + `server/Dockerfile` for the worker; `docker-compose.yml` wires Postgres/Qdrant/Redis/backend/worker |
 
----
 
 ## Quickstart (Docker)
 
@@ -98,7 +111,6 @@ bundled samples, run the seeding script from the backend container:
 docker compose exec backend python -m app.seed.seed_demo_data
 ```
 
----
 
 ## Local development
 
@@ -133,7 +145,6 @@ A background dev setup tee's each service to its own log under `logs/`:
 | Server (uvicorn) | `logs/backend.log` |
 | Worker (ARQ)   | `logs/worker.log` |
 
----
 
 ## Configuration
 
@@ -155,7 +166,6 @@ The main groups are:
 
 > `.env.local` is gitignored and holds your real secrets. Never commit it.
 
----
 
 ## Query routes
 
@@ -169,7 +179,6 @@ The ARAG router picks a strategy per query and the UI labels it accordingly:
 | `aggregation`| Synthesis     | Questions asking for a summary or synthesis across many sources |
 | `conversation` | From chat  | Follow-ups that rely on the existing conversation context |
 
----
 
 ## Testing
 
@@ -190,7 +199,7 @@ Run these before pushing (mirrored by CI):
 ```bash
 # Server
 cd server
-npx basedpyright
+uv run basedpyright
 uv run pytest
 uv run ruff check . --fix
 uv run ruff format .
@@ -203,7 +212,6 @@ npm run fix
 npm run check
 ```
 
----
 
 ## Project structure
 
@@ -221,7 +229,6 @@ npm run check
 └── docs/                ADRs and agent docs
 ```
 
----
 
 ## Contributing
 
@@ -230,7 +237,6 @@ verify → review) and the exact pre-commit commands for both `server/` and
 `client/`. The domain terms in `CONTEXT.md` are the canonical vocabulary; use
 them in code and docs.
 
----
 
 ## License
 
